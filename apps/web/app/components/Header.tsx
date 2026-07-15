@@ -19,6 +19,7 @@ import {
 import StoreSelectionBanner from "@/components/store-selection-banner";
 import { getCurrentCustomer, logoutCustomer } from "@/lib/auth/auth-actions";
 import { useCart } from "@/lib/cart/cart-context";
+import { setWishlistCustomerId } from "@/lib/wishlist";
 import MegaMenu from "./MegaMenu";
 
 function getCookie(name: string): string | null {
@@ -44,7 +45,10 @@ export default function Header() {
     const updateWishlistCount = () => {
       if (typeof window !== "undefined") {
         try {
-          const stored = localStorage.getItem("cake_wishlist");
+          // Derive the same per-user key that wishlist.ts uses.
+          const customerId = localStorage.getItem("cake_customer_id");
+          const key = customerId ? `cake_wishlist_${customerId}` : "cake_wishlist_guest";
+          const stored = localStorage.getItem(key);
           const list = stored ? JSON.parse(stored) : [];
           setWishlistCount(list.length);
         } catch (e) {
@@ -87,11 +91,17 @@ export default function Header() {
         const profile = await getCurrentCustomer();
         if (!cancelled) {
           setCustomer(profile);
+          // Sync the customer ID so wishlist.ts uses the right per-user key.
+          setWishlistCustomerId(profile?.id ?? null);
+          // Re-count wishlist for the newly resolved user.
+          window.dispatchEvent(new Event("wishlist-updated"));
         }
       } catch (err) {
         console.error("[Header] Failed to resolve customer session:", err);
         if (!cancelled) {
           setCustomer(null);
+          setWishlistCustomerId(null);
+          window.dispatchEvent(new Event("wishlist-updated"));
         }
       }
     };
@@ -124,6 +134,8 @@ export default function Header() {
     // this browser never inherits the previous customer's items.
     clearCart();
     setCustomer(null);
+    // Clear the stored customer ID so the wishlist resets to the guest slot.
+    setWishlistCustomerId(null);
     setIsMobileMenuOpen(false);
     // Notify any other mounts (or a soft-nav destination) that the session ended.
     window.dispatchEvent(new Event("auth-changed"));
