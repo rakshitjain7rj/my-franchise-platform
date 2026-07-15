@@ -868,7 +868,9 @@ export default function CartPageClient({
                       <div>
                         <span className="block font-headline font-bold text-primary text-base">Local Delivery</span>
                         <span className="text-[12px] font-medium text-on-surface-variant uppercase tracking-wider">
-                          {fmt(1500, currencyCode)} Flat Rate
+                          {deliveryFee > 0 && !deliveryFeeError
+                            ? `${fmt(deliveryFee, currencyCode)} · by distance`
+                            : "Calculated by distance"}
                         </span>
                       </div>
                     </div>
@@ -881,7 +883,7 @@ export default function CartPageClient({
                     </div>
                   </div>
                   <p className="text-sm text-on-surface-variant leading-relaxed">
-                    Curated delivery by our dedicated team within a 10-mile radius of our patisserie.
+                    Delivered within ~10 km of your selected bakery. Enter your postcode below to see the exact fee.
                   </p>
                 </button>
               </div>
@@ -1094,12 +1096,20 @@ export default function CartPageClient({
                 </div>
                 <div className="flex items-center justify-between text-on-surface-variant">
                   <dt>
-                    {fulfillment === "delivery" && (cart?.shipping_total ?? 0) <= 0
-                      ? "Est. delivery"
+                    {fulfillment === "delivery"
+                      ? (cart?.shipping_total ?? 0) > 0 || deliveryFee > 0
+                        ? "Delivery"
+                        : "Est. delivery"
                       : "Fulfillment"}
                   </dt>
                   <dd className="font-medium text-on-surface">
-                    {shippingVal === 0 ? "FREE" : fmt(shippingVal, currencyCode)}
+                    {fulfillment === "pickup"
+                      ? "FREE"
+                      : shippingVal > 0
+                        ? fmt(shippingVal, currencyCode)
+                        : deliveryFeeError
+                          ? "—"
+                          : "Enter postcode"}
                   </dd>
                 </div>
                 <div className="flex items-center justify-between text-on-surface-variant">
