@@ -17,6 +17,19 @@ const DATABASE_SSL = process.env.DATABASE_SSL === "true"
 // must leave it unset. (SameSite=None requires Secure, hence "lax" here.)
 const INSECURE_COOKIES = process.env.COOKIE_SECURE === "false"
 
+// Admin dashboard toggle.
+//
+// Setting MEDUSA_DISABLE_ADMIN=true prevents Medusa from registering the /app/*
+// Express route entirely. When omitted, the dashboard is served at /app/ by
+// default so that `localhost:9000/app/` works in development instead of
+// returning a 404 with a restrictive Content-Security-Policy (which also blocks
+// Chrome DevTools from probing /.well-known/appspecific/com.chrome.devtools.json
+// on that origin).
+//
+// Production / Docker deployments set MEDUSA_DISABLE_ADMIN=true in .env.docker
+// to skip the bundle serve overhead.
+const DISABLE_ADMIN = process.env.MEDUSA_DISABLE_ADMIN === "true"
+
 // The "supersecret" fallbacks below are a dev-only convenience. In production
 // they would let anyone forge admin JWTs / tamper with session cookies, so we
 // refuse to boot rather than fall back silently.
@@ -169,7 +182,10 @@ module.exports = defineConfig({
     }
   },
   admin: {
-    disable: true,
+    // Controlled via MEDUSA_DISABLE_ADMIN env var.
+    // In dev: admin runs at /app/ (leave MEDUSA_DISABLE_ADMIN unset).
+    // In Docker/prod: set MEDUSA_DISABLE_ADMIN=true to skip the dashboard.
+    disable: DISABLE_ADMIN,
   },
   modules,
 })

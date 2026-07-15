@@ -1,4 +1,4 @@
-w/**
+/**
  * setup-uk-market.ts
  *
  * Aligns the platform to its real market — the United Kingdom / GBP:
