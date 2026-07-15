@@ -1,0 +1,151 @@
+# =============================================================================
+# Production stack for Dokploy.
+#
+# Differences vs docker-compose.yml (local dev):
+#   - No host port publishing. Dokploy's Traefik routes the public domains to
+#     the containers over the internal network. Publishing ports would expose
+#     unencrypted services directly on the host.
+#   - Env comes from Dokploy's Environment UI (interpolated as ${VAR}); there is
+#     no committed .env.docker with real secrets.
+#   - Resource limits + log rotation so one service can't take down the host.
+#
+# In Dokploy:
+#   1. Create a "Compose" application pointing at this file.
+#   2. Paste the variables from .env.docker.example into the Environment tab.
+#   3. Add domains:  backend -> cakebreak-backend.codeation.io (port 9000)
+#                    storefront -> cakebreak.codeation.io      (port 3000)
+#   4. Deploy. See DEPLOY-DOKPLOY.md for the full checklist.
+# =============================================================================
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    restart: unless-stopped
+    logging: *default-logging
+    # Env is injected by Dokploy. Keep this list in sync with .env.docker.example.
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_SSL: ${DATABASE_SSL}
+      REDIS_URL: ${REDIS_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      COOKIE_SECRET: ${COOKIE_SECRET}
+      MEDUSA_BACKEND_URL: ${MEDUSA_BACKEND_URL}
+      STORE_CORS: ${STORE_CORS}
+      ADMIN_CORS: ${ADMIN_CORS}
+      AUTH_CORS: ${AUTH_CORS}
+      # First boot only: set RUN_SEED=true once, then back to false.
+      RUN_SEED: ${RUN_SEED:-false}
+      SEED_SCRIPTS: ${SEED_SCRIPTS:-}
+    expose:
+      - "9000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
+    # node:20-slim has no wget/curl, but Node has global fetch — use that.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:9000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+
+  # ---------------------------------------------------------------------------
+  storefront:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # NEXT_PUBLIC_* are inlined into the client bundle at BUILD time, so they
+        # MUST be the public backend URL (not localhost / not the internal name).
+        NEXT_PUBLIC_MEDUSA_BACKEND_URL: ${NEXT_PUBLIC_MEDUSA_BACKEND_URL}
+        NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_DEFAULT_FRANCHISE_ID: ${NEXT_PUBLIC_DEFAULT_FRANCHISE_ID}
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      # Server-side only (container network). Used by middleware to resolve the
+      # admin-configured default store for first-time visitors without leaving
+      # the Docker network. Browser still uses NEXT_PUBLIC_* from the build.
+      MEDUSA_BACKEND_URL: http://backend:9000
+    expose:
+      - "3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

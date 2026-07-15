@@ -1,0 +1,964 @@
+npm warn Unknown project config "auto-install-peers". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+(node:303071) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+{"level":"info","message":"Disabling admin as we run integration tests","timestamp":"2026-06-05 17:38:38"}
+{"level":"info","message":"redisUrl not found. A fake redis instance will be used.","timestamp":"2026-06-05 17:38:38"}
+{"level":"info","message":"Creating database medusa-01ktbtyw7t2marehzeb721vp2d-integration-1","timestamp":"2026-06-05 17:38:38"}
+{"level":"info","message":"Creating migrations table 'mikro_orm_migrations'...","timestamp":"2026-06-05 17:38:38"}
+{"level":"info","message":"Migrations table created successfully","timestamp":"2026-06-05 17:38:38"}
+{"level":"info","message":"Migrating database with core migrations and links medusa-01ktbtyw7t2marehzeb721vp2d-integration-1","timestamp":"2026-06-05 17:38:38"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"MODULE: stock_location","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration20240307161216","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated Migration20240307161216","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration20241210073813","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated Migration20241210073813","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration20250106142624","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated Migration20250106142624","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration20250120110820","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated Migration20250120110820","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"MODULE: inventory","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration20240307132720","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated Migration20240307132720","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration20240719123015","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated Migration20240719123015","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration20241213063611","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated Migration20241213063611","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration20251010131115","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated Migration20251010131115","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"MODULE: product","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating InitialSetup20240401153642","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated InitialSetup20240401153642","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration20240601111544","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated Migration20240601111544","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration202408271511","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated Migration202408271511","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration20241122120331","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated Migration20241122120331","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration20241125090957","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated Migration20241125090957","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration20250411073236","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated Migration20250411073236","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration20250516081326","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated Migration20250516081326","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration20250910154539","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated Migration20250910154539","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration20250911092221","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated Migration20250911092221","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration20250929204438","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated Migration20250929204438","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration20251008132218","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated Migration20251008132218","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration20251011090511","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated Migration20251011090511","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration20260224120000","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated Migration20260224120000","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration20260301002050","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated Migration20260301002050","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration20260306120000","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ✔ Migrated Migration20260306120000","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"MODULE: pricing","timestamp":"2026-06-05 17:38:41"}
+{"level":"info","message":"  ● Migrating Migration20230929122253","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20230929122253","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20240322094407","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20240322094407","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20240322113359","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20240322113359","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20240322120125","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20240322120125","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20240626133555","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20240626133555","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20240704094505","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20240704094505","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20241127114534","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20241127114534","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20241127223829","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20241127223829","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20241128055359","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20241128055359","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20241212190401","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20241212190401","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20250408145122","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20250408145122","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20250409122219","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20250409122219","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20251009110625","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20251009110625","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20251112192723","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20251112192723","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20260429163502","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20260429163502","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"MODULE: promotion","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20240227120221","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20240227120221","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20240617102917","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20240617102917","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20240624153824","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20240624153824","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20241211061114","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20241211061114","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20250113094144","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20250113094144","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20250120110700","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20250120110700","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20250226130616","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20250226130616","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20250508081510","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20250508081510","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20250828075407","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20250828075407","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20250909083125","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20250909083125","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20250916120552","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20250916120552","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20250917143818","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20250917143818","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20250919122137","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20250919122137","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20251006000000","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20251006000000","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20251015113934","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20251015113934","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20251107050148","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20251107050148","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"MODULE: customer","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20240124154000","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20240124154000","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20240524123112","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20240524123112","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20240602110946","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20240602110946","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20241211074630","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20241211074630","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20251010130829","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20251010130829","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"MODULE: sales_channel","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20240115152146","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20240115152146","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"MODULE: cart","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20240222170223","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20240222170223","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20240831125857","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20240831125857","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20241106085918","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20241106085918","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20241205095237","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20241205095237","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20241216183049","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20241216183049","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20241218091938","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20241218091938","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20250120115059","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20250120115059","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20250212131240","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20250212131240","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20250326151602","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20250326151602","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ● Migrating Migration20250508081553","timestamp":"2026-06-05 17:38:42"}
+{"level":"info","message":"  ✔ Migrated Migration20250508081553","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20251017153909","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20251017153909","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20251208130704","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20251208130704","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"MODULE: region","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20240205173216","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20240205173216","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20240624200006","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20240624200006","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20250120110744","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20250120110744","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"MODULE: api_key","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating InitialSetup20240221144943","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated InitialSetup20240221144943","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20240604080145","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20240604080145","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20241205122700","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20241205122700","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20251015123842","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20251015123842","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"MODULE: store","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating InitialSetup20240227075933","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated InitialSetup20240227075933","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20240621145944","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20240621145944","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20241206083313","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20241206083313","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20251202184737","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20251202184737","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20251212161429","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20251212161429","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"MODULE: tax","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20240227090331","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20240227090331","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20240710135844","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20240710135844","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20240924114005","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20240924114005","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20241212052837","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20241212052837","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"MODULE: currency","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating InitialSetup20240228133303","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated InitialSetup20240228133303","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20240624082354","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20240624082354","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"MODULE: payment","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20240225134525","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20240225134525","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20240806072619","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20240806072619","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20241211151053","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20241211151053","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20250115160517","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20250115160517","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20250120110552","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20250120110552","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20250123122334","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20250123122334","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20250206105639","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20250206105639","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20250207132723","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20250207132723","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20250625084134","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20250625084134","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20250924135437","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20250924135437","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20250929124701","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ✔ Migrated Migration20250929124701","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"MODULE: order","timestamp":"2026-06-05 17:38:43"}
+{"level":"info","message":"  ● Migrating Migration20240219102530","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20240219102530","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20240604100512","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20240604100512","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20240715102100","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20240715102100","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20240715174100","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20240715174100","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20240716081800","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20240716081800","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20240801085921","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20240801085921","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20240821164505","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20240821164505","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20240821170920","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20240821170920","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20240827133639","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20240827133639","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20240902195921","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20240902195921","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20240913092514","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20240913092514","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20240930122627","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20240930122627","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20241014142943","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20241014142943","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20241106085223","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20241106085223","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20241129124827","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20241129124827","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20241217162224","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20241217162224","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20250326151554","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20250326151554","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20250522181137","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20250522181137","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20250702095353","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20250702095353","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20250704120229","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20250704120229","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20250910130000","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20250910130000","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20251016160403","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20251016160403","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20251016182939","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20251016182939","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20251017155709","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20251017155709","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20251114100559","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20251114100559","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20251125164002","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20251125164002","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20251210112909","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20251210112909","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20251210112924","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20251210112924","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20251225120947","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20251225120947","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20260106185528","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20260106185528","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"MODULE: settings","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20250717162007","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20250717162007","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20260127081758","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20260127081758","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"MODULE: auth","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20240205025928","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20240205025928","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20240529080336","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20240529080336","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20241202100304","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20241202100304","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ● Migrating Migration20260514083900","timestamp":"2026-06-05 17:38:44"}
+{"level":"info","message":"  ✔ Migrated Migration20260514083900","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"MODULE: auth","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"Skipped. Database is up-to-date for module.","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"MODULE: auth","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"Skipped. Database is up-to-date for module.","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"MODULE: user","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ● Migrating Migration20240214033943","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ✔ Migrated Migration20240214033943","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ● Migrating Migration20240703095850","timestamp":"2026-06-05 17:38:45"}
+  console.info
+    Note: If the index "IDX_user_email" fails to create, then delete any existing users with duplicate emails before retrying the migration.
+
+      at Migration20240703095850.up (../../node_modules/@medusajs/user/src/migrations/Migration20240703095850.ts:11:13)
+
+{"level":"info","message":"  ✔ Migrated Migration20240703095850","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ● Migrating Migration20241202103352","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ✔ Migrated Migration20241202103352","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"MODULE: fulfillment","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ● Migrating Migration20240311145700_InitialSetupMigration","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ✔ Migrated Migration20240311145700_InitialSetupMigration","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ● Migrating Migration20240821170957","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ✔ Migrated Migration20240821170957","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ● Migrating Migration20240917161003","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ✔ Migrated Migration20240917161003","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ● Migrating Migration20241217110416","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ✔ Migrated Migration20241217110416","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ● Migrating Migration20250113122235","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ✔ Migrated Migration20250113122235","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ● Migrating Migration20250120115002","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ✔ Migrated Migration20250120115002","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ● Migrating Migration20250822130931","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ✔ Migrated Migration20250822130931","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ● Migrating Migration20250825132614","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ✔ Migrated Migration20250825132614","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ● Migrating Migration20251114133146","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ✔ Migrated Migration20251114133146","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"MODULE: fulfillment","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"Skipped. Database is up-to-date for module.","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"MODULE: fulfillment","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"Skipped. Database is up-to-date for module.","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"MODULE: notification","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ● Migrating Migration20240509083918_InitialSetupMigration","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ✔ Migrated Migration20240509083918_InitialSetupMigration","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ● Migrating Migration20240628075401","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ✔ Migrated Migration20240628075401","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ● Migrating Migration20240830094712","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ✔ Migrated Migration20240830094712","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ● Migrating Migration20250120110514","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ✔ Migrated Migration20250120110514","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ● Migrating Migration20251028172715","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ✔ Migrated Migration20251028172715","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ● Migrating Migration20251121123942","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ✔ Migrated Migration20251121123942","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ● Migrating Migration20251121150408","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"  ✔ Migrated Migration20251121150408","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"MODULE: notification","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"Skipped. Database is up-to-date for module.","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"MODULE: notification","timestamp":"2026-06-05 17:38:45"}
+{"level":"info","message":"Skipped. Database is up-to-date for module.","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"MODULE: cache","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"Skipped. Database is up-to-date for module.","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"MODULE: event_bus","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"Skipped. Database is up-to-date for module.","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"MODULE: workflows","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"  ● Migrating Migration20231228143900","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"  ✔ Migrated Migration20231228143900","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"  ● Migrating Migration20241206101446","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"  ✔ Migrated Migration20241206101446","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"  ● Migrating Migration20250128174331","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"  ✔ Migrated Migration20250128174331","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"  ● Migrating Migration20250505092459","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"  ✔ Migrated Migration20250505092459","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"  ● Migrating Migration20250819104213","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"  ✔ Migrated Migration20250819104213","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"  ● Migrating Migration20250819110924","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"  ✔ Migrated Migration20250819110924","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"  ● Migrating Migration20250908080305","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"  ✔ Migrated Migration20250908080305","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"MODULE: locking","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"Skipped. Database is up-to-date for module.","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"MODULE: file","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"Skipped. Database is up-to-date for module.","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"MODULE: file","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"Skipped. Database is up-to-date for module.","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"MODULE: file","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"Skipped. Database is up-to-date for module.","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"MODULE: franchise","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"  ● Migrating Migration20260527112000","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"  ✔ Migrated Migration20260527112000","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"MODULE: dietary_tag","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"  ● Migrating Migration20260601131758","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"  ✔ Migrated Migration20260601131758","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"Completed successfully","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"No link to load from /home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/draft-order/.medusa/server/src/links. skipped.","timestamp":"2026-06-05 17:38:46"}
+{"level":"info","message":"Sync links: \"create\" cart_payment_collection","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" cart_promotion","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" customer_account_holder","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" location_fulfillment_provider","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" location_fulfillment_set","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" invite_rbac_role","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" order_cart","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" order_fulfillment","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" order_payment_collection","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" order_promotion","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" return_fulfillment","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" product_sales_channel","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" product_shipping_profile","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" product_variant_inventory_item","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" product_variant_price_set","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" publishable_api_key_sales_channel","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" region_payment_provider","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" sales_channel_stock_location","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" shipping_option_price_set","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" user_rbac_role","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" user_user_franchise_franchise","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" franchise_franchise_product_product","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" franchise_franchise_store_store","timestamp":"2026-06-05 17:38:48"}
+{"level":"info","message":"Sync links: \"create\" product_product_dietary_tag_dietary_tag","timestamp":"2026-06-05 17:38:48"}
+{"level":"warn","message":"Local Event Bus installed. This is not recommended for production.","timestamp":"2026-06-05 17:38:49"}
+{"level":"info","message":"Locking module: Using \"in-memory\" as default.","timestamp":"2026-06-05 17:38:49"}
+{"level":"info","message":"redisUrl not found. A fake redis instance will be used.","timestamp":"2026-06-05 17:38:51"}
+{"level":"info","message":"No link to load from /home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/draft-order/.medusa/server/src/links. skipped.","timestamp":"2026-06-05 17:38:51"}
+{"level":"info","message":"No workflow to load from /home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/draft-order/.medusa/server/src/workflows. skipped.","timestamp":"2026-06-05 17:38:51"}
+{"level":"info","message":"No subscriber to load from /home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/draft-order/.medusa/server/src/subscribers. skipped.","timestamp":"2026-06-05 17:38:51"}
+{"level":"info","message":"No job to load from /home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/medusa/dist/jobs. skipped.","timestamp":"2026-06-05 17:38:51"}
+{"level":"info","message":"No job to load from /home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/draft-order/.medusa/server/src/jobs. skipped.","timestamp":"2026-06-05 17:38:51"}
+  console.log
+    DEBUG branchA: {
+      id: '01KTBTZCB9PKG6SQBKKY9GHS6B',
+      name: 'Branch A',
+      code: 'BRANCH_A',
+      is_active: true,
+      created_at: 2026-06-05T12:08:54.377Z,
+      updated_at: 2026-06-05T12:08:54.377Z,
+      deleted_at: null
+    }
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:44:17)
+
+  console.log
+    DEBUG adminA: {
+      id: 'user_01KTBTZCBT94FZQM9Z718XVD6M',
+      first_name: 'Admin',
+      last_name: 'A',
+      email: 'adminA@branchA.com',
+      avatar_url: null,
+      metadata: null,
+      created_at: 2026-06-05T12:08:54.394Z,
+      updated_at: 2026-06-05T12:08:54.394Z,
+      deleted_at: null
+    }
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:45:17)
+
+  console.log
+    DEBUG adminB: {
+      id: 'user_01KTBTZCC4MWF477H5DYXE2X9M',
+      first_name: 'Admin',
+      last_name: 'B',
+      email: 'adminB@branchB.com',
+      avatar_url: null,
+      metadata: null,
+      created_at: 2026-06-05T12:08:54.405Z,
+      updated_at: 2026-06-05T12:08:54.405Z,
+      deleted_at: null
+    }
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:46:17)
+
+  console.log
+    DEBUG LINKS DATA: [
+      {
+        user_id: 'user_01KTBTZCBT94FZQM9Z718XVD6M',
+        franchise_id: '01KTBTZCB9PKG6SQBKKY9GHS6B',
+        id: 'link_01KTBTZCDCTJWC7FAVZJ5TXVAP',
+        created_at: 2026-06-05T12:08:54.443Z,
+        updated_at: 2026-06-05T12:08:54.443Z,
+        deleted_at: null
+      },
+      {
+        user_id: 'user_01KTBTZCC4MWF477H5DYXE2X9M',
+        franchise_id: '01KTBTZCBHD3EHNV47HQFK316G',
+        id: 'link_01KTBTZCDDPRB48Y6RY2VVARNX',
+        created_at: 2026-06-05T12:08:54.443Z,
+        updated_at: 2026-06-05T12:08:54.443Z,
+        deleted_at: null
+      }
+    ]
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:66:17)
+
+  console.log
+    DEBUG FILTER user_id: [
+      {
+        user_id: 'user_01KTBTZCBT94FZQM9Z718XVD6M',
+        franchise_id: '01KTBTZCB9PKG6SQBKKY9GHS6B',
+        id: 'link_01KTBTZCDCTJWC7FAVZJ5TXVAP',
+        created_at: 2026-06-05T12:08:54.443Z,
+        updated_at: 2026-06-05T12:08:54.443Z,
+        deleted_at: null
+      }
+    ]
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:73:17)
+
+  console.log
+    DEBUG FILTER id: []
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:81:19)
+
+  console.log
+    DEBUG FILTER user failed: Trying to query by not existing property LinkModel.user
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:94:19)
+
+  console.log
+    DEBUG TEST DB NAME: undefined
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:99:19)
+
+{"level":"warn","message":"Local Event Bus installed. This is not recommended for production.","timestamp":"2026-06-05 17:38:56"}
+{"level":"info","message":"Locking module: Using \"in-memory\" as default.","timestamp":"2026-06-05 17:38:56"}
+  console.log
+    DEBUG branchA: {
+      id: '01KTBTZENECBQK9BY1GMCM6X16',
+      name: 'Branch A',
+      code: 'BRANCH_A',
+      is_active: true,
+      created_at: 2026-06-05T12:08:56.751Z,
+      updated_at: 2026-06-05T12:08:56.751Z,
+      deleted_at: null
+    }
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:44:17)
+
+  console.log
+    DEBUG adminA: {
+      id: 'user_01KTBTZENXWZ250BW7EEJQSEHM',
+      first_name: 'Admin',
+      last_name: 'A',
+      email: 'adminA@branchA.com',
+      avatar_url: null,
+      metadata: null,
+      created_at: 2026-06-05T12:08:56.765Z,
+      updated_at: 2026-06-05T12:08:56.765Z,
+      deleted_at: null
+    }
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:45:17)
+
+  console.log
+    DEBUG adminB: {
+      id: 'user_01KTBTZEP3S05P3GGYACTWRVSD',
+      first_name: 'Admin',
+      last_name: 'B',
+      email: 'adminB@branchB.com',
+      avatar_url: null,
+      metadata: null,
+      created_at: 2026-06-05T12:08:56.771Z,
+      updated_at: 2026-06-05T12:08:56.771Z,
+      deleted_at: null
+    }
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:46:17)
+
+  console.log
+    DEBUG LINKS DATA: [
+      {
+        user_id: 'user_01KTBTZENXWZ250BW7EEJQSEHM',
+        franchise_id: '01KTBTZENECBQK9BY1GMCM6X16',
+        id: 'link_01KTBTZEPGHJQQK4S40TFQB66Z',
+        created_at: 2026-06-05T12:08:56.784Z,
+        updated_at: 2026-06-05T12:08:56.784Z,
+        deleted_at: null
+      },
+      {
+        user_id: 'user_01KTBTZEP3S05P3GGYACTWRVSD',
+        franchise_id: '01KTBTZENQQZ24565CSJA3MA8J',
+        id: 'link_01KTBTZEPH7BR7WA209F944TG4',
+        created_at: 2026-06-05T12:08:56.784Z,
+        updated_at: 2026-06-05T12:08:56.784Z,
+        deleted_at: null
+      }
+    ]
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:66:17)
+
+  console.log
+    DEBUG FILTER user_id: [
+      {
+        user_id: 'user_01KTBTZENXWZ250BW7EEJQSEHM',
+        franchise_id: '01KTBTZENECBQK9BY1GMCM6X16',
+        id: 'link_01KTBTZEPGHJQQK4S40TFQB66Z',
+        created_at: 2026-06-05T12:08:56.784Z,
+        updated_at: 2026-06-05T12:08:56.784Z,
+        deleted_at: null
+      }
+    ]
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:73:17)
+
+  console.log
+    DEBUG FILTER id: []
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:81:19)
+
+  console.log
+    DEBUG FILTER user failed: Trying to query by not existing property LinkModel.user
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:94:19)
+
+  console.log
+    DEBUG TEST DB NAME: undefined
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:99:19)
+
+  console.log
+    DEBUG extractAdminFranchiseIds - auth_context: {
+      actor_id: 'user_01KTBTZENXWZ250BW7EEJQSEHM',
+      actor_type: 'user',
+      iat: 1780661336
+    }
+
+      at log (src/utils/tenant-context.ts:49:11)
+
+  console.log
+    DEBUG extractAdminFranchiseIds - actorId: user_01KTBTZENXWZ250BW7EEJQSEHM
+
+      at log (src/utils/tenant-context.ts:50:11)
+
+  console.log
+    DEBUG extractAdminFranchiseIds - FranchiseUserLink: {
+      serviceName: 'UserUserFranchiseFranchiseLink',
+      entity: 'LinkUserUserFranchiseFranchise',
+      entryPoint: 'user_franchise',
+      [Symbol(DefineLink)]: true
+    }
+
+      at log (src/utils/tenant-context.ts:51:11)
+
+  console.log
+    DEBUG extractAdminFranchiseIds - entryPoint: user_franchise
+
+      at log (src/utils/tenant-context.ts:52:11)
+
+  console.log
+    DEBUG ROUTE DB NAME: undefined
+
+      at log (src/utils/tenant-context.ts:56:13)
+
+  console.log
+    DEBUG extractAdminFranchiseIds - query result data: [ { franchise_id: '01KTBTZENECBQK9BY1GMCM6X16' } ]
+
+      at log (src/utils/tenant-context.ts:71:11)
+
+  console.log
+    DEBUG resolveAdminFranchiseContext - allowedFranchiseIds: [ '01KTBTZENECBQK9BY1GMCM6X16' ]
+
+      at log (src/utils/tenant-context.ts:100:11)
+
+  console.log
+    DEBUG resolveAdminFranchiseContext - requestedFranchiseId: 01KTBTZENQQZ24565CSJA3MA8J
+
+      at log (src/utils/tenant-context.ts:101:11)
+
+{"level":"info","message":"Unauthorized franchise context","timestamp":"2026-06-05 17:38:56"}
+  console.log
+    DEBUG TEST 2: {
+      status: 403,
+      message: 'Request failed with status code 403',
+      data: { type: 'forbidden', message: 'Unauthorized franchise context' }
+    }
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:135:19)
+
+{"level":"warn","message":"Local Event Bus installed. This is not recommended for production.","timestamp":"2026-06-05 17:38:58"}
+{"level":"info","message":"Locking module: Using \"in-memory\" as default.","timestamp":"2026-06-05 17:38:58"}
+  console.log
+    DEBUG branchA: {
+      id: '01KTBTZGFFF98NRFQ19K5Q4XTC',
+      name: 'Branch A',
+      code: 'BRANCH_A',
+      is_active: true,
+      created_at: 2026-06-05T12:08:58.607Z,
+      updated_at: 2026-06-05T12:08:58.607Z,
+      deleted_at: null
+    }
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:44:17)
+
+  console.log
+    DEBUG adminA: {
+      id: 'user_01KTBTZGG0W863HY0F24V6WXCE',
+      first_name: 'Admin',
+      last_name: 'A',
+      email: 'adminA@branchA.com',
+      avatar_url: null,
+      metadata: null,
+      created_at: 2026-06-05T12:08:58.624Z,
+      updated_at: 2026-06-05T12:08:58.624Z,
+      deleted_at: null
+    }
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:45:17)
+
+  console.log
+    DEBUG adminB: {
+      id: 'user_01KTBTZGG55QV0HZX82PDDQ5B2',
+      first_name: 'Admin',
+      last_name: 'B',
+      email: 'adminB@branchB.com',
+      avatar_url: null,
+      metadata: null,
+      created_at: 2026-06-05T12:08:58.630Z,
+      updated_at: 2026-06-05T12:08:58.630Z,
+      deleted_at: null
+    }
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:46:17)
+
+  console.log
+    DEBUG LINKS DATA: [
+      {
+        user_id: 'user_01KTBTZGG0W863HY0F24V6WXCE',
+        franchise_id: '01KTBTZGFFF98NRFQ19K5Q4XTC',
+        id: 'link_01KTBTZGGQV4MHTDWGS490Z41H',
+        created_at: 2026-06-05T12:08:58.646Z,
+        updated_at: 2026-06-05T12:08:58.646Z,
+        deleted_at: null
+      },
+      {
+        user_id: 'user_01KTBTZGG55QV0HZX82PDDQ5B2',
+        franchise_id: '01KTBTZGFVY279XN6R6RX7DBQA',
+        id: 'link_01KTBTZGGRRWZZH9DNSFPCQEKX',
+        created_at: 2026-06-05T12:08:58.646Z,
+        updated_at: 2026-06-05T12:08:58.646Z,
+        deleted_at: null
+      }
+    ]
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:66:17)
+
+  console.log
+    DEBUG FILTER user_id: [
+      {
+        user_id: 'user_01KTBTZGG0W863HY0F24V6WXCE',
+        franchise_id: '01KTBTZGFFF98NRFQ19K5Q4XTC',
+        id: 'link_01KTBTZGGQV4MHTDWGS490Z41H',
+        created_at: 2026-06-05T12:08:58.646Z,
+        updated_at: 2026-06-05T12:08:58.646Z,
+        deleted_at: null
+      }
+    ]
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:73:17)
+
+  console.log
+    DEBUG FILTER id: []
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:81:19)
+
+  console.log
+    DEBUG FILTER user failed: Trying to query by not existing property LinkModel.user
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:94:19)
+
+  console.log
+    DEBUG TEST DB NAME: undefined
+
+      at Object.log (src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts:99:19)
+
+  console.log
+    DEBUG extractAdminFranchiseIds - auth_context: {
+      actor_id: 'user_01KTBTZGG0W863HY0F24V6WXCE',
+      actor_type: 'user',
+      iat: 1780661338
+    }
+
+      at log (src/utils/tenant-context.ts:49:11)
+
+  console.log
+    DEBUG extractAdminFranchiseIds - actorId: user_01KTBTZGG0W863HY0F24V6WXCE
+
+      at log (src/utils/tenant-context.ts:50:11)
+
+  console.log
+    DEBUG extractAdminFranchiseIds - FranchiseUserLink: {
+      serviceName: 'UserUserFranchiseFranchiseLink',
+      entity: 'LinkUserUserFranchiseFranchise',
+      entryPoint: 'user_franchise',
+      [Symbol(DefineLink)]: true
+    }
+
+      at log (src/utils/tenant-context.ts:51:11)
+
+  console.log
+    DEBUG extractAdminFranchiseIds - entryPoint: user_franchise
+
+      at log (src/utils/tenant-context.ts:52:11)
+
+  console.log
+    DEBUG ROUTE DB NAME: undefined
+
+      at log (src/utils/tenant-context.ts:56:13)
+
+  console.log
+    DEBUG extractAdminFranchiseIds - query result data: [ { franchise_id: '01KTBTZGFFF98NRFQ19K5Q4XTC' } ]
+
+      at log (src/utils/tenant-context.ts:71:11)
+
+  console.log
+    DEBUG resolveAdminFranchiseContext - allowedFranchiseIds: [ '01KTBTZGFFF98NRFQ19K5Q4XTC' ]
+
+      at log (src/utils/tenant-context.ts:100:11)
+
+  console.log
+    DEBUG resolveAdminFranchiseContext - requestedFranchiseId: undefined
+
+      at log (src/utils/tenant-context.ts:101:11)
+
+  console.log
+    DEBUG extractAdminFranchiseIds - auth_context: {
+      actor_id: 'user_01KTBTZGG0W863HY0F24V6WXCE',
+      actor_type: 'user',
+      iat: 1780661338
+    }
+
+      at log (src/utils/tenant-context.ts:49:11)
+
+  console.log
+    DEBUG extractAdminFranchiseIds - actorId: user_01KTBTZGG0W863HY0F24V6WXCE
+
+      at log (src/utils/tenant-context.ts:50:11)
+
+  console.log
+    DEBUG extractAdminFranchiseIds - FranchiseUserLink: {
+      serviceName: 'UserUserFranchiseFranchiseLink',
+      entity: 'LinkUserUserFranchiseFranchise',
+      entryPoint: 'user_franchise',
+      [Symbol(DefineLink)]: true
+    }
+
+      at log (src/utils/tenant-context.ts:51:11)
+
+  console.log
+    DEBUG extractAdminFranchiseIds - entryPoint: user_franchise
+
+      at log (src/utils/tenant-context.ts:52:11)
+
+  console.log
+    DEBUG ROUTE DB NAME: undefined
+
+      at log (src/utils/tenant-context.ts:56:13)
+
+  console.log
+    DEBUG extractAdminFranchiseIds - query result data: [ { franchise_id: '01KTBTZGFFF98NRFQ19K5Q4XTC' } ]
+
+      at log (src/utils/tenant-context.ts:71:11)
+
+PASS src/api/admin/franchise-dashboard/__tests__/franchise-dashboard.spec.ts (28.097 s)
+    Franchise Dashboard API - Zero-Trust Security Validation
+      1. Unauthenticated Rejection
+        ✓ should return 401 Unauthorized without any authorization headers or session tokens (652 ms)
+      2. Tenant Isolation & Unauthorized Access (Cross-Tenant Leak Guard)
+        ✓ should return 403 Forbidden when Admin A attempts to access Branch B metrics (2273 ms)
+      3. Successful Mapped Scoping
+        ✓ should return 200 OK and payload linked exclusively to Branch A (1802 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       3 passed, 3 total
+Snapshots:   0 total
+Time:        28.226 s, estimated 31 s
+Ran all test suites matching /src\/api\/admin\/franchise-dashboard\/__tests__\/franchise-dashboard.spec.ts/i.

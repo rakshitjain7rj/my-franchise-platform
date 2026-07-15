@@ -1,0 +1,177 @@
+/**
+ * order-cake-details.tsx
+ *
+ * Widget injected at the top of the native admin order-detail page. Surfaces
+ * the cake-specific data the storefront stored in line-item / order metadata
+ * (sponge flavour, servings, collection date & time, inscription, special
+ * message, fulfilling store) so the bakery owner never has to read raw JSON.
+ *
+ * Data source: GET /admin/cake-orders?order_id=… (franchise + store scoped
+ * server-side; see src/api/admin/cake-orders/route.ts).
+ */
+
+import { defineWidgetConfig } from "@medusajs/admin-sdk"
+import { Badge, Container, Heading, Text } from "@medusajs/ui"
+import { useQuery } from "@tanstack/react-query"
+
+import {
+  fetchCakeOrders,
+  formatCollectionDate,
+  type CakeOrderItem,
+} from "../lib/cake-orders"
+
+const Spec = ({ label, value }: { label: string; value: string }) => (
+  <div>
+    <Text size="xsmall" className="text-ui-fg-muted uppercase tracking-wide">
+      {label}
+    </Text>
+    <Text size="small" weight="plus">
+      {value}
+    </Text>
+  </div>
+)
+
+const ItemSpecs = ({ item }: { item: CakeOrderItem }) => {
+  const { cake } = item
+  const hasCakeData =
+    cake.flavor ||
+    cake.servings ||
+    cake.collection_date ||
+    cake.collection_time ||
+    cake.inscription ||
+    cake.special_message ||
+    cake.photo_url ||
+    Object.keys(cake.options).length > 0
+
+  return (
+    <div className="rounded-lg border border-ui-border-base p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <Text size="small" weight="plus">
+          {item.product_title ?? item.title}
+        </Text>
+        <Badge size="2xsmall">× {item.quantity}</Badge>
+        {item.variant_title && item.variant_title !== "Default variant" && (
+          <Badge size="2xsmall" color="purple">
+            {item.variant_title}
+          </Badge>
+        )}
+      </div>
+
+      {!hasCakeData ? (
+        <Text size="xsmall" className="text-ui-fg-muted">
+          No customization was provided for this item.
+        </Text>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+            {cake.collection_date && (
+              <Spec
+                label="Collection date"
+                value={formatCollectionDate(cake.collection_date)}
+              />
+            )}
+            {cake.collection_time && (
+              <Spec label="Time slot" value={cake.collection_time} />
+            )}
+            {cake.flavor && <Spec label="Sponge flavour" value={cake.flavor} />}
+            {cake.servings && <Spec label="Servings" value={cake.servings} />}
+            {Object.entries(cake.options).map(([key, value]) => (
+              <Spec key={key} label={key} value={value} />
+            ))}
+          </div>
+
+          {cake.inscription && (
+            <div className="rounded-md bg-ui-tag-purple-bg px-3 py-2">
+              <Text size="xsmall" className="text-ui-tag-purple-text">
+                ✍️ Write on cake: “{cake.inscription}”
+              </Text>
+            </div>
+          )}
+          {cake.special_message && (
+            <div className="rounded-md bg-ui-tag-orange-bg px-3 py-2">
+              <Text size="xsmall" className="text-ui-tag-orange-text">
+                📝 Special instructions: “{cake.special_message}”
+              </Text>
+            </div>
+          )}
+          {cake.photo_url && (
+            <div className="space-y-1">
+              <Text size="xsmall" className="text-ui-fg-muted uppercase tracking-wide">
+                Edible photo
+              </Text>
+              <a
+                href={cake.photo_url}
+                target="_blank"
+                rel="noreferrer"
+                className="block w-24 h-24 rounded-md overflow-hidden border border-ui-border-base"
+              >
+                <img
+                  src={cake.photo_url}
+                  alt="Customer photo for cake"
+                  className="w-full h-full object-cover"
+                />
+              </a>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+const OrderCakeDetailsWidget = ({ data }: { data: { id: string } }) => {
+  const { data: response, isLoading } = useQuery({
+    queryKey: ["cake-order-details", data.id],
+    queryFn: () => fetchCakeOrders({ order_id: data.id }),
+  })
+
+  const order = response?.orders?.[0]
+
+  if (isLoading || !order) {
+    return null
+  }
+
+  return (
+    <Container className="divide-y p-0">
+      <div className="flex flex-wrap items-center gap-3 px-6 py-4">
+        <Heading level="h2">🎂 Cake Details</Heading>
+        {order.collection_date && (
+          <Badge size="2xsmall" color="green">
+            Ready by {formatCollectionDate(order.collection_date)}
+          </Badge>
+        )}
+        {order.fulfillment_method && (
+          <Badge size="2xsmall" color="blue">
+            {order.fulfillment_method === "pickup"
+              ? "Store pickup"
+              : order.fulfillment_method}
+          </Badge>
+        )}
+        {order.store_location && (
+          <Badge size="2xsmall" color="purple">
+            🏬 {order.store_location.name ?? order.store_location.code ?? "Store"}
+          </Badge>
+        )}
+      </div>
+
+      <div className="space-y-3 px-6 py-4">
+        {order.items.map((item) => (
+          <ItemSpecs key={item.id} item={item} />
+        ))}
+        {order.notes_for_baker && (
+          <div className="rounded-md border border-dashed border-ui-border-strong px-3 py-2">
+            <Text size="xsmall" className="text-ui-fg-subtle">
+              Note for the bakers: “{order.notes_for_baker}”
+            </Text>
+          </div>
+        )}
+      </div>
+    </Container>
+  )
+}
+
+export const config = defineWidgetConfig({
+  zone: "order.details.before",
+})
+
+export default OrderCakeDetailsWidget

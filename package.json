@@ -1,0 +1,39 @@
+{
+  "name": "my-franchise-platform",
+  "private": false,
+  "packageManager": "npm@11.13.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "turbo dev --filter=@dtc/backend --filter=@dtc/storefront",
+    "build": "turbo build",
+    "start": "turbo start",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "backend:seed": "turbo seed --filter=@dtc/backend",
+    "backend:dev": "turbo dev --filter=@dtc/backend",
+    "storefront:dev": "turbo dev --filter=@dtc/storefront",
+    "docker:up": "bash scripts/docker-up.sh",
+    "docker:up:detach": "bash scripts/docker-up.sh -d"
+  },
+  "pnpm": {
+    "overrides": {
+      "@types/react": "19.0.5",
+      "@types/react-dom": "19.0.5"
+    }
+  },
+  "devDependencies": {
+    "turbo": "^2.0.14",
+    "prettier": "^3.2.5"
+  },
+  "workspaces": [
+    "apps/**",
+    "!apps/backend/.medusa/**",
+    "!apps/web/.next/**"
+  ],
+  "overrides": {
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0"
+  }
+}

@@ -1,0 +1,30 @@
+npm warn Unknown project config "auto-install-peers". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+[32minfo[39m:    redisUrl not found. A fake redis instance will be used.
+[32minfo[39m:    Executing script at ./src/scripts/seed-store-locations.ts...
+[32minfo[39m:    redisUrl not found. A fake redis instance will be used.
+[32minfo[39m:    No link to load from /home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/draft-order/.medusa/server/src/links. skipped.
+[33mwarn[39m:    Local Event Bus installed. This is not recommended for production.
+[32minfo[39m:    Locking module: Using "in-memory" as default.
+[32minfo[39m:    No workflow to load from /home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/draft-order/.medusa/server/src/workflows. skipped.
+[32minfo[39m:    No subscriber to load from /home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/draft-order/.medusa/server/src/subscribers. skipped.
+[32minfo[39m:    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[32minfo[39m:      Store Locations Scaler Seeder
+[32minfo[39m:    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[32minfo[39m:      📍 Flagship Cakery has 11 products but only 1 locations. Creating 4 new locations...
+[31merror[39m:   Error running script
+[31merror[39m:   Cannot set field 'code' of Store location to null
+MedusaError: Cannot set field 'code' of Store location to null
+    at dbErrorMapper (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/utils/src/dal/mikro-orm/db-error-mapper.ts:47:11)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async MikroOrmAbstractBaseRepository_.transaction (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/utils/src/dal/mikro-orm/mikro-orm-repository.ts:70:12)
+    at async AbstractService_.descriptor.value (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/utils/src/modules-sdk/decorators/inject-transaction-manager.ts:31:14)
+    at async FranchiseModuleService.methodImplementation (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/utils/src/modules-sdk/medusa-service.ts:194:27)
+    at async FranchiseModuleService.descriptor.value (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/utils/src/modules-sdk/decorators/inject-into-context.ts:27:14)
+    at async FranchiseModuleService.descriptor.value (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/utils/src/modules-sdk/decorators/emit-events.ts:26:22)
+    at async seedStoreLocations (/home/rakshit/web apps/cake-project/my-franchise-platform/apps/backend/src/scripts/seed-store-locations.ts:128:7)
+    at async exec (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/medusa/src/commands/exec.ts:57:5) {
+  __isMedusaError: true,
+  type: 'invalid_data',
+  code: undefined,
+  date: 2026-06-19T12:06:46.905Z
+}

@@ -1,0 +1,261 @@
+npm warn Unknown project config "auto-install-peers". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+[32minfo[39m:    redisUrl not found. A fake redis instance will be used.
+[32minfo[39m:    No link to load from /home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/draft-order/.medusa/server/src/links. skipped.
+[32minfo[39m:    Running migrations...
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: stock_location
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: inventory
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: product
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: pricing
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: promotion
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: customer
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: sales_channel
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: cart
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: region
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: api_key
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: store
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: tax
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: currency
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: payment
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: order
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: settings
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: auth
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: auth
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: auth
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: user
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: fulfillment
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: fulfillment
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: fulfillment
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: notification
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: notification
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: notification
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: cache
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: event_bus
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: workflows
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: locking
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: file
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: file
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: file
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: franchise
+[32minfo[39m:      ● Migrating Migration20260619120149
+[31merror[39m:   Failed with error Migration Migration20260619120149 (up) failed: Original error: alter table if exists "store_location" add constraint "store_location_franchise_id_foreign" foreign key ("franchise_id") references "franchise" ("id") on update cascade; - constraint "store_location_franchise_id_foreign" for relation "store_location" already exists
+[31merror[39m:   Migration Migration20260619120149 (up) failed: Original error: alter table if exists "store_location" add constraint "store_location_franchise_id_foreign" foreign key ("franchise_id") references "franchise" ("id") on update cascade; - constraint "store_location_franchise_id_foreign" for relation "store_location" already exists
+MigrationError: Migration Migration20260619120149 (up) failed: Original error: alter table if exists "store_location" add constraint "store_location_franchise_id_foreign" foreign key ("franchise_id") references "franchise" ("id") on update cascade; - constraint "store_location_franchise_id_foreign" for relation "store_location" already exists
+    at /home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/umzug/src/umzug.ts:261:17
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async Umzug.runCommand (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/umzug/src/umzug.ts:210:14)
+    at async CustomDBMigrator.runInTransaction (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@mikro-orm/migrations/Migrator.js:372:21)
+    at async PostgreSqlConnection.transactional (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@mikro-orm/knex/AbstractSqlConnection.js:58:25)
+    at async CustomDBMigrator.runMigrations (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@mikro-orm/migrations/Migrator.js:356:22)
+    at async Migrations.run (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/utils/src/migrations/index.ts:138:19)
+    at async AsyncFunction.<anonymous> (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/utils/src/modules-sdk/migration-scripts/migration-up.ts:52:22)
+    at async runMigrations (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/modules-sdk/src/loaders/utils/load-internal.ts:516:21)
+    at async Function.migrateUp (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/modules-sdk/src/medusa-module.ts:870:21) {
+  cause: DriverException: alter table if exists "store_location" add constraint "store_location_franchise_id_foreign" foreign key ("franchise_id") references "franchise" ("id") on update cascade; - constraint "store_location_franchise_id_foreign" for relation "store_location" already exists
+      at PostgreSqlExceptionConverter.convertException (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@mikro-orm/core/platforms/ExceptionConverter.js:8:16)
+      at PostgreSqlExceptionConverter.convertException (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@mikro-orm/postgresql/PostgreSqlExceptionConverter.js:48:22)
+      at PostgreSqlDriver.convertException (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@mikro-orm/core/drivers/DatabaseDriver.js:360:54)
+      at /home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@mikro-orm/core/drivers/DatabaseDriver.js:364:24
+      at processTicksAndRejections (node:internal/process/task_queues:95:5)
+      at async Function.runSerial (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@mikro-orm/core/utils/Utils.js:750:22)
+      at async connection.transactional.ctx (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@mikro-orm/migrations/MigrationRunner.js:29:17)
+      at async PostgreSqlConnection.transactional (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@mikro-orm/knex/AbstractSqlConnection.js:58:25)
+      at async MigrationRunner.run (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@mikro-orm/migrations/MigrationRunner.js:26:13)
+      at async createMigrationHandler (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/utils/src/dal/mikro-orm/custom-db-migrator.ts:54:7)
+  
+      at parseErrorMessage (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/pg-protocol/src/parser.ts:394:9)
+      at Parser.handlePacket (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/pg-protocol/src/parser.ts:212:19)
+      at Parser.parse (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/pg-protocol/src/parser.ts:105:30)
+      at Socket.<anonymous> (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/pg-protocol/src/index.ts:7:48)
+      at Socket.emit (node:events:524:28)
+      at Socket.emit (node:domain:489:12)
+      at addChunk (node:internal/streams/readable:561:12)
+      at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+      at Socket.Readable.push (node:internal/streams/readable:392:5)
+      at TCP.onStreamRead (node:internal/stream_base_commons:191:23) {
+    code: '42710',
+    errno: undefined,
+    sqlState: undefined,
+    sqlMessage: undefined,
+    errmsg: undefined,
+    length: 161,
+    severity: 'ERROR',
+    detail: undefined,
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'tablecmds.c',
+    line: '9829',
+    routine: 'ATExecAddConstraint'
+  },
+  jse_cause: DriverException: alter table if exists "store_location" add constraint "store_location_franchise_id_foreign" foreign key ("franchise_id") references "franchise" ("id") on update cascade; - constraint "store_location_franchise_id_foreign" for relation "store_location" already exists
+      at PostgreSqlExceptionConverter.convertException (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@mikro-orm/core/platforms/ExceptionConverter.js:8:16)
+      at PostgreSqlExceptionConverter.convertException (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@mikro-orm/postgresql/PostgreSqlExceptionConverter.js:48:22)
+      at PostgreSqlDriver.convertException (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@mikro-orm/core/drivers/DatabaseDriver.js:360:54)
+      at /home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@mikro-orm/core/drivers/DatabaseDriver.js:364:24
+      at processTicksAndRejections (node:internal/process/task_queues:95:5)
+      at async Function.runSerial (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@mikro-orm/core/utils/Utils.js:750:22)
+      at async connection.transactional.ctx (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@mikro-orm/migrations/MigrationRunner.js:29:17)
+      at async PostgreSqlConnection.transactional (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@mikro-orm/knex/AbstractSqlConnection.js:58:25)
+      at async MigrationRunner.run (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@mikro-orm/migrations/MigrationRunner.js:26:13)
+      at async createMigrationHandler (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/utils/src/dal/mikro-orm/custom-db-migrator.ts:54:7)
+  
+      at parseErrorMessage (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/pg-protocol/src/parser.ts:394:9)
+      at Parser.handlePacket (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/pg-protocol/src/parser.ts:212:19)
+      at Parser.parse (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/pg-protocol/src/parser.ts:105:30)
+      at Socket.<anonymous> (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/pg-protocol/src/index.ts:7:48)
+      at Socket.emit (node:events:524:28)
+      at Socket.emit (node:domain:489:12)
+      at addChunk (node:internal/streams/readable:561:12)
+      at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+      at Socket.Readable.push (node:internal/streams/readable:392:5)
+      at TCP.onStreamRead (node:internal/stream_base_commons:191:23) {
+    code: '42710',
+    errno: undefined,
+    sqlState: undefined,
+    sqlMessage: undefined,
+    errmsg: undefined,
+    length: 161,
+    severity: 'ERROR',
+    detail: undefined,
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: undefined,
+    table: undefined,
+    column: undefined,
+    dataType: undefined,
+    constraint: undefined,
+    file: 'tablecmds.c',
+    line: '9829',
+    routine: 'ATExecAddConstraint'
+  },
+  migration: {
+    direction: 'up',
+    name: 'Migration20260619120149',
+    path: '/home/rakshit/web apps/cake-project/my-franchise-platform/apps/backend/src/modules/franchise/migrations/Migration20260619120149.ts',
+    context: {}
+  }
+}
+[32minfo[39m:    
+[32minfo[39m:    
+[32minfo[39m:    MODULE: dietary_tag
+[32minfo[39m:    Skipped. Database is up-to-date for module.
+[31merror[39m:   Some migrations failed to run: Error: Migration Migration20260619120149 (up) failed: Original error: alter table if exists "store_location" add constraint "store_location_franchise_id_foreign" foreign key ("franchise_id") references "franchise" ("id") on update cascade; - constraint "store_location_franchise_id_foreign" for relation "store_location" already exists
+Error: Some migrations failed to run: Error: Migration Migration20260619120149 (up) failed: Original error: alter table if exists "store_location" add constraint "store_location_franchise_id_foreign" foreign key ("franchise_id") references "franchise" ("id") on update cascade; - constraint "store_location_franchise_id_foreign" for relation "store_location" already exists
+    at applyMigration (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/modules-sdk/src/medusa-app.ts:619:15)
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async runMigrations (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/modules-sdk/src/medusa-app.ts:648:5)
+    at async MedusaAppMigrateUp (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/modules-sdk/src/medusa-app.ts:730:3)
+    at async MedusaAppLoader.runModulesMigrations (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/framework/src/medusa-app-loader.ts:192:7)
+    at async migrate (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/medusa/src/commands/db/migrate.ts:82:3)
+    at async main (/home/rakshit/web apps/cake-project/my-franchise-platform/node_modules/@medusajs/medusa/src/commands/db/migrate.ts:140:22)

@@ -1,0 +1,30 @@
+{
+  "franchiseDashboard": {
+    "title": "Franchise Analytics Overview",
+    "subtitle": "Monitor performance metrics across active bakeries",
+    "metrics": {
+      "products": "Total Products",
+      "stores": "Active Storefronts",
+      "status": "System Status"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Awaiting Activation"
+    },
+    "products": {
+      "title": "Top Selling Cakes",
+      "id": "ID",
+      "name": "Name",
+      "state": "State"
+    },
+    "stores": {
+      "title": "Franchise Locations",
+      "id": "ID",
+      "name": "Name",
+      "empty": "No registered franchises found."
+    },
+    "alerts": {
+      "title": "System Alerts"
+    }
+  }
+}

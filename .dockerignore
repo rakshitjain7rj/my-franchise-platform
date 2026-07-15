@@ -1,0 +1,42 @@
+# --- VCS / tooling ---
+.git
+.gitignore
+.turbo
+**/.turbo
+.vscode
+.idea
+
+# --- Dependencies (reinstalled inside the image) ---
+node_modules
+**/node_modules
+
+# --- Build artifacts (regenerated during the image build) ---
+**/.next
+**/dist
+**/build
+apps/backend/.medusa
+
+# --- Runtime / uploaded data (must not leak into the image) ---
+apps/backend/static
+
+# --- Local env files (secrets come from .env.docker / compose) ---
+**/.env
+**/.env.*
+!**/.env.template
+
+# --- Logs & test output ---
+**/*.log
+apps/backend/*output*.txt
+apps/backend/test-*.txt
+apps/backend/test-*.js
+
+# --- Docker files themselves ---
+docker-compose*.yml
+**/Dockerfile
+.dockerignore
+
+# --- Misc ---
+.DS_Store
+**/.DS_Store
+README.md
+designs
