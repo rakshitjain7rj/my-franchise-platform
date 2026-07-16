@@ -10,9 +10,8 @@
  *
  * ## Product path
  *
- * Storefront = PayPal JS SDK **Smart Buttons** (popup). Default provider
- * options intentionally omit returnUrl/cancelUrl so create-order stays in
- * Smart Buttons mode (`CREATED` + approve link). See `./order-contract.ts`.
+ * Storefront = full-page PayPal redirect. Provider options must include both
+ * returnUrl and cancelUrl so checkout never falls back to popup Smart Buttons.
  *
  * Amounts are Medusa-native major units (33.05 = £33.05). No unit conversion.
  */

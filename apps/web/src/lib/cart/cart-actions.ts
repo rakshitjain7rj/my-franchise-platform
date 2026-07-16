@@ -656,6 +656,50 @@ export function extractSmartButtonsOrderId(
 }
 
 /**
+ * Gets the PayPal-hosted approval URL for the full-page checkout flow.
+ * Redirect mode is deliberately separate from Smart Buttons: feeding a
+ * PAYER_ACTION_REQUIRED session to the JS SDK is what causes its permanent
+ * loading state.
+ */
+export function extractPaypalRedirectUrl(session: MedusaPaymentSession): string {
+  const data = session.data ?? {}
+  const status = String(data.status ?? "").toUpperCase()
+  if (status !== "PAYER_ACTION_REQUIRED") {
+    throw new Error(
+      "PayPal did not create a redirect checkout. Please try again."
+    )
+  }
+
+  const links = Array.isArray(data.links) ? data.links : []
+  const approval = links.find((link): link is { rel?: unknown; href?: unknown } =>
+    typeof link === "object" &&
+    link !== null &&
+    (link as { rel?: unknown }).rel !== undefined &&
+    ["payer-action", "approve"].includes(
+      String((link as { rel: unknown }).rel).toLowerCase()
+    )
+  )
+  const href = approval?.href
+  if (typeof href !== "string" || !href) {
+    throw new Error("PayPal did not return a checkout link. Please try again.")
+  }
+
+  let url: URL
+  try {
+    url = new URL(href)
+  } catch {
+    throw new Error("PayPal returned an invalid checkout link. Please try again.")
+  }
+  if (
+    url.protocol !== "https:" ||
+    (url.hostname !== "paypal.com" && !url.hostname.endsWith(".paypal.com"))
+  ) {
+    throw new Error("PayPal returned an unsafe checkout link. Please try again.")
+  }
+  return url.toString()
+}
+
+/**
  * Checkout step 4 of 4 — completes the cart. Medusa captures the pending
  * payment session (for PayPal this triggers Orders.capture) and creates the
  * order. Throws with Medusa's error message when the cart cannot complete

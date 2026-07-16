@@ -2,14 +2,14 @@
 
 ## Product contract
 
-**Storefront uses PayPal Smart Buttons (popup) only.**
+**Storefront uses a full-page PayPal redirect only.**
 
-| | Smart Buttons (default) | Redirect (optional) |
+| | Smart Buttons (legacy provider mode) | Redirect (Cake Break checkout) |
 |--|-------------------------|---------------------|
-| Config | No `PAYPAL_RETURN_URL` / `PAYPAL_CANCEL_URL` (or only one set) | **Both** env vars set |
+| Config | Legacy provider-only mode | **Both** env vars set (required by this storefront) |
 | Create-order body | `application_context` only — **never** `payment_source` | `payment_source.paypal.experience_context` + URLs |
 | PayPal order status | `CREATED` + `approve` link | `PAYER_ACTION_REQUIRED` + `payer-action` |
-| UI | `@paypal/react-paypal-js` buttons | Full-page redirect |
+| UI | Not used by Cake Break | Full-page redirect |
 
 ## Do not regress
 

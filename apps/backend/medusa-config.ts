@@ -73,11 +73,17 @@ const modules: Record<string, any> = {
 const paymentProviders: Record<string, any>[] = []
 
 if (process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET) {
+  if (!process.env.PAYPAL_RETURN_URL || !process.env.PAYPAL_CANCEL_URL) {
+    throw new Error(
+      "PayPal requires both PAYPAL_RETURN_URL and PAYPAL_CANCEL_URL. " +
+        "Without them the provider falls back to Smart Buttons, which this storefront does not use."
+    )
+  }
   paymentProviders.push({
     // Platform-owned provider (see src/modules/paypal/README.md).
-    // Product path = PayPal Smart Buttons (popup). Create-order is owned in
-    // order-contract.ts — do NOT set only one of return/cancel URL or you may
-    // still stay on Smart Buttons; set BOTH only for full redirect mode.
+    // Product path = full-page PayPal redirect. Both URLs are required: a
+    // partial configuration silently falls back to Smart Buttons and brings
+    // back the popup loading failure this flow is designed to avoid.
     // Amounts are Medusa-native major units platform-wide.
     resolve: "./src/modules/paypal",
     id: "paypal", // -> resolves to provider id "pp_paypal_paypal"
@@ -88,7 +94,7 @@ if (process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET) {
       // Cake Break is collection-first; don't push address data to PayPal.
       includeShippingData: false,
       includeCustomerData: false,
-      // Redirect mode ONLY when both are set. Leave unset for Smart Buttons.
+      // Redirect mode requires both URLs. Deployment config must set both.
       ...(process.env.PAYPAL_RETURN_URL && {
         returnUrl: process.env.PAYPAL_RETURN_URL,
       }),

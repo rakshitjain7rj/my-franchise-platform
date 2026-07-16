@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation"
 import { useCart } from "@/lib/cart/cart-context"
 import {
   createPaymentCollection,
+  extractPaypalRedirectUrl,
+  initPaymentSession,
   placeOrder,
   prepareCartForCheckout,
-  type MedusaOrder,
+  PAYPAL_PROVIDER_ID,
 } from "@/lib/cart/cart-actions"
 import { getCurrentCustomer } from "@/lib/auth/auth-actions"
 import {
@@ -21,8 +23,7 @@ import {
 } from "@/types/cake-metadata"
 import Header from "../components/Header"
 import Footer from "../components/Footer"
-import PayPalProvider, { isPayPalConfigured } from "../components/PayPalProvider"
-import PayPalCheckoutButton from "../components/PayPalCheckoutButton"
+import { isPayPalConfigured } from "../components/PayPalProvider"
 import { Playfair_Display } from "next/font/google"
 
 const playfair = Playfair_Display({
@@ -188,17 +189,6 @@ export default function CheckoutPage() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [orderNumber, setOrderNumber] = useState<number | null>(null)
 
-  // PayPal flow: set once the cart is prepared (contact/address/shipping
-  // saved) and its payment collection exists — the submit button then morphs
-  // into the PayPal smart buttons, whose createOrder callback initialises the
-  // pp_paypal_paypal session.
-  const [paypalCollectionId, setPaypalCollectionId] = useState<string | null>(null)
-  const [paypalNotice, setPaypalNotice] = useState<string | null>(null)
-  // While the PayPal popup is open, freeze anything that would remount the
-  // buttons (form re-submit, cart signature change). Remounting severs the
-  // popup bridge → APPROVED on PayPal but infinite spinner and no order.
-  const [paypalPopupOpen, setPaypalPopupOpen] = useState(false)
-
   const totalItems = cart?.items.reduce((a, i) => a + i.quantity, 0) ?? 0
 
   // Guard: verify the selected bakery can actually fulfill the cart. The cart
@@ -207,16 +197,6 @@ export default function CheckoutPage() {
   // stores. `true` = blocked.
   const [inventoryBlocked, setInventoryBlocked] = useState(false)
   const itemsSignature = cart?.items?.map((i) => `${i.id}-${i.quantity}`).join(",") ?? ""
-
-  // Anything that changes what the shopper is paying for (cart contents) or
-  // how (payment method) invalidates an already-prepared PayPal step — force
-  // them back through "Continue to PayPal" so amounts and details are fresh.
-  // NEVER do this while the PayPal popup is open.
-  useEffect(() => {
-    if (paypalPopupOpen) return
-    setPaypalCollectionId(null)
-    setPaypalNotice(null)
-  }, [paymentMethod, itemsSignature, paypalPopupOpen])
 
   useEffect(() => {
     const storeLocationId = getCookie("selected_store_location_id")
@@ -237,12 +217,6 @@ export default function CheckoutPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Enter-key / accidental re-submit while PayPal buttons are live must be
-    // a no-op. Re-running prepare + createPaymentCollection remounts the
-    // buttons and kills an open PayPal popup's onApprove bridge.
-    if (paymentMethod === "paypal" && paypalCollectionId) {
-      return
-    }
     if (!cart || cart.items.length === 0) {
       setSubmitError("Your cart is empty — add a cake before checking out.")
       return
@@ -268,15 +242,16 @@ export default function CheckoutPage() {
 
     setSubmitting(true)
     setSubmitError(null)
-    setPaypalNotice(null)
     try {
       if (paymentMethod === "paypal") {
-        // PayPal is a two-step flow: save details + shipping and create the
-        // payment collection now, then hand over to the PayPal buttons that
-        // replace this submit button. Cart completion happens in onApprove.
+        // One full-page handoff. Do not mount Smart Buttons here: their extra
+        // funding-source step and popup bridge were the source of recurring
+        // loading hangs. Redirect mode always returns to paypal-return.
         await prepareCartForCheckout(cart.id, details)
         const collection = await createPaymentCollection(cart.id)
-        setPaypalCollectionId(collection.id)
+        const session = await initPaymentSession(collection.id, PAYPAL_PROVIDER_ID)
+        window.location.assign(extractPaypalRedirectUrl(session))
+        return
       } else {
         // Card / pay-on-collection — single-shot via the system provider.
         const order = await placeOrder(cart.id, details)
@@ -293,13 +268,6 @@ export default function CheckoutPage() {
     } finally {
       setSubmitting(false)
     }
-  }
-
-  const handlePayPalSuccess = (order: MedusaOrder) => {
-    setPaypalPopupOpen(false)
-    setOrderNumber(order.display_id)
-    setSubmitted(true)
-    clearCart()
   }
 
   const subtotalVal = cart?.subtotal ?? 0
@@ -382,8 +350,7 @@ export default function CheckoutPage() {
   }
 
   return (
-    <PayPalProvider>
-      <div className={`flex flex-col min-h-screen ${playfair.variable}`}>
+    <div className={`flex flex-col min-h-screen ${playfair.variable}`}>
         <Header />
         <main className="flex-grow pt-28 pb-16 bg-[#EEDFF5] w-full">
           <div className="max-w-[1100px] mx-auto px-6 lg:px-8">
@@ -924,66 +891,7 @@ export default function CheckoutPage() {
                     </div>
                   )}
 
-                  {paypalNotice && (
-                    <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 mb-4">
-                      <span className="material-symbols-outlined text-amber-500 text-[18px] shrink-0">info</span>
-                      <p className="text-xs text-amber-700 font-semibold leading-relaxed">{paypalNotice}</p>
-                    </div>
-                  )}
-
-                  {/* Submit area — morphs into the PayPal smart buttons once the
-                    cart is prepared for a PayPal payment. */}
-                  {paymentMethod === "paypal" && paypalCollectionId && cart ? (
-                    <div
-                      className="rounded-lg border border-outline-variant bg-on-surface/[0.02] p-4"
-                      // Keep PayPal's iframe/button tree outside implicit
-                      // form-submit paths (Enter in address fields, etc.).
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") e.preventDefault()
-                      }}
-                    >
-                      <p className="text-xs font-semibold text-on-surface-variant mb-3 flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-[16px]">lock</span>
-                        Finish paying securely with PayPal
-                      </p>
-                      {paypalPopupOpen && (
-                        <p className="mb-3 text-[11px] font-semibold text-on-surface-variant leading-relaxed">
-                          Complete payment in the PayPal window. Keep this page open until you see the confirmation screen.
-                        </p>
-                      )}
-                      <PayPalCheckoutButton
-                        cartId={cart.id}
-                        paymentCollectionId={paypalCollectionId}
-                        disabled={inventoryBlocked}
-                        onSuccess={handlePayPalSuccess}
-                        onError={(err) => {
-                          setPaypalPopupOpen(false)
-                          setSubmitError(err.message)
-                        }}
-                        onCancel={() => {
-                          setPaypalPopupOpen(false)
-                          setPaypalNotice(
-                            "Payment was cancelled. You can try again below, or choose a different payment method."
-                          )
-                        }}
-                        onPopupStateChange={setPaypalPopupOpen}
-                      />
-                      <button
-                        type="button"
-                        disabled={paypalPopupOpen}
-                        onClick={() => {
-                          if (paypalPopupOpen) return
-                          setPaypalCollectionId(null)
-                          setPaypalNotice(null)
-                          setSubmitError(null)
-                        }}
-                        className="w-full mt-1 text-[11px] font-semibold text-on-surface-variant hover:text-[#4A154B] underline underline-offset-2 transition-colors disabled:opacity-40 disabled:no-underline"
-                      >
-                        Edit order details
-                      </button>
-                    </div>
-                  ) : (
-                    <button
+                  <button
                       type="submit"
                       disabled={submitting || inventoryBlocked}
                       id="complete-order-btn"
@@ -1005,8 +913,7 @@ export default function CheckoutPage() {
                           Complete Order &amp; Pay
                         </>
                       )}
-                    </button>
-                  )}
+                  </button>
 
                   <div className="mt-4 flex flex-col items-center gap-2">
                     <p className="text-[10px] text-on-surface-variant/80 flex items-center">
@@ -1026,6 +933,5 @@ export default function CheckoutPage() {
         </main>
         <Footer />
       </div>
-    </PayPalProvider>
   )
 }

@@ -3,12 +3,12 @@
  *
  * ## Product decision (do not “modernise” away)
  *
- * Cake Break’s storefront uses the PayPal JS SDK **Smart Buttons** (popup).
- * That is the default and only storefront path today.
+ * Cake Break’s storefront uses the **redirect** path. The legacy Smart Buttons
+ * branch remains supported by the provider contract only, not by the UI.
  *
  * | Mode            | When                                      | Create-order shape                         | Expected PayPal status   |
  * |-----------------|-------------------------------------------|--------------------------------------------|--------------------------|
- * | smart_buttons   | returnUrl/cancelUrl not both set (default)| NO `payment_source`; `application_context` | `CREATED` + `approve`    |
+ * | smart_buttons   | returnUrl/cancelUrl not both set           | NO `payment_source`; `application_context` | `CREATED` + `approve`    |
  * | redirect        | BOTH returnUrl and cancelUrl configured   | `payment_source.paypal.experience_context` | `PAYER_ACTION_REQUIRED`  |
  *
  * ## Why this exists (regression history)
