@@ -21,6 +21,7 @@ import {
   isHiddenAttrKey,
   labelForAttrKey,
 } from "@/types/cake-metadata"
+import { getBrowserCookie, STORE_ID_COOKIE } from "@/lib/store-cookies"
 import Header from "../components/Header"
 import Footer from "../components/Footer"
 import { isPayPalConfigured } from "../components/PayPalProvider"
@@ -38,12 +39,6 @@ function fmt(amount: number, currency: string) {
     currency: currency?.toUpperCase() ?? "GBP",
     maximumFractionDigits: 2,
   }).format(amount)
-}
-
-function getCookie(name: string): string | null {
-  if (typeof document === "undefined") return null
-  const m = document.cookie.split("; ").find((r) => r.startsWith(`${name}=`))
-  return m ? decodeURIComponent(m.split("=")[1]) : null
 }
 
 export default function CheckoutPage() {
@@ -199,7 +194,7 @@ export default function CheckoutPage() {
   const itemsSignature = cart?.items?.map((i) => `${i.id}-${i.quantity}`).join(",") ?? ""
 
   useEffect(() => {
-    const storeLocationId = getCookie("selected_store_location_id")
+    const storeLocationId = getBrowserCookie(STORE_ID_COOKIE)
     if (!cart?.id || !storeLocationId || !cart.items.length) {
       setInventoryBlocked(false)
       return

@@ -8,6 +8,12 @@
  *  - Next.js caching / revalidation directives are applied uniformly.
  */
 
+import {
+  FRANCHISE_COOKIE,
+  getBrowserCookie,
+  STORE_ID_COOKIE,
+} from "@/lib/store-cookies";
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -47,41 +53,6 @@ export interface MedusaFetchResult<TData = unknown> {
   data: TData | null;
   error: string | null;
   status: number;
-}
-
-// ---------------------------------------------------------------------------
-// Cookie helper
-// ---------------------------------------------------------------------------
-
-/**
- * Reads a cookie value by name from `document.cookie`.
- *
- * This is a plain implementation so we don't need to ship `js-cookie`
- * as an extra dependency.  It works in any browser context (Client
- * Components and Route Handlers running in the browser).
- *
- * For Server Components / Route Handlers running in Node, cookies should
- * be read from the incoming request via `next/headers` instead and passed
- * explicitly as a header — see the overload in `medusaFetch`.
- */
-function getCookie(name: string): string | null {
-  if (typeof document === "undefined") {
-    // Server-side — cookies cannot be accessed via document.cookie.
-    // The caller should pass `franchiseId` explicitly via the `headers` option.
-    return null;
-  }
-
-  const cookieName = `${name}=`;
-  const cookies = document.cookie.split(";");
-
-  for (const rawCookie of cookies) {
-    const cookie = rawCookie.trimStart();
-    if (cookie.startsWith(cookieName)) {
-      return decodeURIComponent(cookie.slice(cookieName.length));
-    }
-  }
-
-  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -144,7 +115,7 @@ export async function medusaFetch<TData = unknown, TBody = unknown>(
   // Inject franchise header from cookie if present and not already overridden
   // by the caller (e.g. a Server Component that reads cookies() directly).
   if (!headers["x-franchise-id"]) {
-    const franchiseId = getCookie("franchise_id");
+    const franchiseId = getBrowserCookie(FRANCHISE_COOKIE);
     if (franchiseId) {
       headers["x-franchise-id"] = franchiseId;
     }
@@ -154,7 +125,7 @@ export async function medusaFetch<TData = unknown, TBody = unknown>(
   // (cookie set by MapRoutingShell / BakerySidebar), this forwards it so the
   // backend applies per-store product availability filtering.
   if (!headers["x-store-location-id"]) {
-    const storeLocationId = getCookie("selected_store_location_id");
+    const storeLocationId = getBrowserCookie(STORE_ID_COOKIE);
     if (storeLocationId) {
       headers["x-store-location-id"] = storeLocationId;
     }
@@ -162,7 +133,7 @@ export async function medusaFetch<TData = unknown, TBody = unknown>(
 
   // Inject user auth token as Authorization header if present.
   if (!headers["Authorization"]) {
-    const token = getCookie("medusa_auth_token");
+    const token = getBrowserCookie("medusa_auth_token");
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }

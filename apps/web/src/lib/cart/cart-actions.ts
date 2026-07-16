@@ -17,6 +17,11 @@
 
 import { getMedusaHeadersSync } from "@/lib/medusa/headers"
 import {
+  FRANCHISE_COOKIE,
+  getBrowserCookie,
+  STORE_ID_COOKIE,
+} from "@/lib/store-cookies"
+import {
   mergeCustomAttributes,
   normalizeCustomAttributes,
   type LineItemCakeMetadata,
@@ -82,14 +87,6 @@ export interface MedusaCart {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function getCookie(name: string): string | null {
-  if (typeof document === "undefined") return null
-  const match = document.cookie
-    .split("; ")
-    .find((row) => row.startsWith(`${name}=`))
-  return match ? decodeURIComponent(match.split("=")[1]) : null
-}
-
 async function cartFetch<T = unknown>(
   path: string,
   options: RequestInit = {}
@@ -127,8 +124,8 @@ export async function createCart(options?: {
   storeLocationId?: string
 }): Promise<MedusaCart> {
   const storeLocationId =
-    options?.storeLocationId ?? getCookie("selected_store_location_id") ?? undefined
-  const franchiseId = getCookie("franchise_id") ?? undefined
+    options?.storeLocationId ?? getBrowserCookie(STORE_ID_COOKIE) ?? undefined
+  const franchiseId = getBrowserCookie(FRANCHISE_COOKIE) ?? undefined
 
   const metadata: Record<string, unknown> = {}
   if (storeLocationId) metadata.store_location_id = storeLocationId
@@ -472,7 +469,7 @@ export async function prepareCartForCheckout(
   // Prefer cart metadata, then cookie, then any line-item bakery stamp.
   // Cart-level store_location_id is sometimes missing even when the cookie
   // and line items are set (e.g. restored account carts / cookie-only pick).
-  const cookieStoreId = getCookie("selected_store_location_id")
+  const cookieStoreId = getBrowserCookie(STORE_ID_COOKIE)
   const lineStoreId = current.items
     .map((i) => i.metadata?.store_location_id)
     .find((id): id is string => typeof id === "string" && id.length > 0)

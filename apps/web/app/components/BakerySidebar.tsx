@@ -3,12 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import type { StoreLocationCard } from "../map-routing/page";
-import {
-  FRANCHISE_COOKIE,
-  setPersistentCookie,
-  STORE_ID_COOKIE,
-  STORE_NAME_COOKIE,
-} from "@/lib/store-cookies";
+import { selectStore } from "@/lib/store-selection";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -95,22 +90,14 @@ export default function BakerySidebar({
       setLocalSelectedId(location.id);
       setLocalIsNavigating(true);
       // Explicit user choice — persists until they pick another bakery.
-      setPersistentCookie(FRANCHISE_COOKIE, location.franchiseId);
-      setPersistentCookie(STORE_ID_COOKIE, location.id);
-      setPersistentCookie(STORE_NAME_COOKIE, location.name);
-      try {
-        window.dispatchEvent(
-          new CustomEvent("store-selection-changed", {
-            detail: {
-              storeLocationId: location.id,
-              storeName: location.name,
-              source: "user-select",
-            },
-          })
-        );
-      } catch {
-        // ignore
-      }
+      selectStore(
+        {
+          storeLocationId: location.id,
+          storeName: location.name,
+          franchiseId: location.franchiseId,
+        },
+        "user-select"
+      );
 
       // Honour the ?redirect= param set by Next.js middleware when the user
       // was redirected here from a gated page. Fall back to home.

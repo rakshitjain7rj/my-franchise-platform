@@ -2,13 +2,17 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import {
+  readSelectedStore,
+  subscribeToStoreSelection,
+} from "@/lib/store-selection";
 
 /**
  * StoreSelectionBanner — A dismissable top-banner nudging visitors to pick
  * their nearest store location.
  *
  * Shows when:
- *   - No `selected_store_location_id` cookie is present
+ *   - No selected store cookie is present
  *   - The user hasn't dismissed the banner in the last 24 hours
  *
  * Stored dismissal key: `store_banner_dismissed_at` in localStorage.
@@ -17,26 +21,16 @@ import { useState, useEffect } from "react";
 const DISMISS_KEY = "store_banner_dismissed_at";
 const DISMISS_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-function getCookie(name: string): string | null {
-  if (typeof document === "undefined") return null;
-  const match = document.cookie
-    .split("; ")
-    .find((row) => row.startsWith(`${name}=`));
-  return match ? decodeURIComponent(match.split("=")[1]) : null;
-}
-
 export default function StoreSelectionBanner() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     const evaluate = () => {
-      const storeId = getCookie("selected_store_location_id");
-      if (storeId) {
+      if (readSelectedStore().storeLocationId) {
         setVisible(false);
         return;
       }
 
-      // Check if previously dismissed within the cool-down period
       try {
         const dismissedAt = localStorage.getItem(DISMISS_KEY);
         if (dismissedAt) {
@@ -54,10 +48,7 @@ export default function StoreSelectionBanner() {
     };
 
     evaluate();
-
-    // Hide immediately when DefaultStoreBootstrap or the map picker writes a store.
-    window.addEventListener("store-selection-changed", evaluate);
-    return () => window.removeEventListener("store-selection-changed", evaluate);
+    return subscribeToStoreSelection(evaluate);
   }, []);
 
   const handleDismiss = () => {

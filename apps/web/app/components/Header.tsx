@@ -19,23 +19,16 @@ import {
 import StoreSelectionBanner from "@/components/store-selection-banner";
 import { getCurrentCustomer, logoutCustomer } from "@/lib/auth/auth-actions";
 import { useCart } from "@/lib/cart/cart-context";
+import { useSelectedStore } from "@/lib/store-selection";
 import { setWishlistCustomerId } from "@/lib/wishlist";
 import MegaMenu from "./MegaMenu";
-
-function getCookie(name: string): string | null {
-  if (typeof document === "undefined") return null;
-  const match = document.cookie
-    .split("; ")
-    .find((row) => row.startsWith(`${name}=`));
-  return match ? decodeURIComponent(match.split("=")[1]) : null;
-}
 
 export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
   const { totalItems, clearCart } = useCart();
+  const { storeName: selectedStoreName } = useSelectedStore();
 
-  const [selectedStoreName, setSelectedStoreName] = useState<string | null>(null);
   const [customer, setCustomer] = useState<{ first_name?: string | null; email: string } | null>(null);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -62,22 +55,6 @@ export default function Header() {
     return () => window.removeEventListener("wishlist-updated", updateWishlistCount);
   }, []);
 
-  // Keep the selected-store label in sync with the store-selection cookie
-  // and with DefaultStoreBootstrap / map-routing selection events.
-  useEffect(() => {
-    const syncStoreName = () => {
-      const storeName = getCookie("selected_store_name");
-      if (storeName) {
-        setSelectedStoreName(storeName);
-      }
-    };
-
-    syncStoreName();
-
-    const onStoreChanged = () => syncStoreName();
-    window.addEventListener("store-selection-changed", onStoreChanged);
-    return () => window.removeEventListener("store-selection-changed", onStoreChanged);
-  }, [pathname]);
 
   // Resolve the logged-in customer whenever the route changes (e.g. after
   // login → home) and whenever auth code dispatches `auth-changed`.

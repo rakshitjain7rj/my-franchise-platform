@@ -2,12 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useMemo } from "react";
-import {
-  FRANCHISE_COOKIE,
-  setPersistentCookie,
-  STORE_ID_COOKIE,
-  STORE_NAME_COOKIE,
-} from "@/lib/store-cookies";
+import { selectStore } from "@/lib/store-selection";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -185,22 +180,14 @@ const StoreMapContent = dynamic(
         } else {
           // Standalone mode — write cookie then navigate.
           // Explicit user choice persists until they pick another bakery.
-          setPersistentCookie(FRANCHISE_COOKIE, marker.franchiseId);
-          setPersistentCookie(STORE_ID_COOKIE, marker.id);
-          setPersistentCookie(STORE_NAME_COOKIE, marker.name);
-          try {
-            window.dispatchEvent(
-              new CustomEvent("store-selection-changed", {
-                detail: {
-                  storeLocationId: marker.id,
-                  storeName: marker.name,
-                  source: "user-select",
-                },
-              })
-            );
-          } catch {
-            // ignore
-          }
+          selectStore(
+            {
+              storeLocationId: marker.id,
+              storeName: marker.name,
+              franchiseId: marker.franchiseId,
+            },
+            "user-select"
+          );
 
           // Honour the ?redirect= param set by middleware. Fall back to home.
           const params = new URLSearchParams(window.location.search);

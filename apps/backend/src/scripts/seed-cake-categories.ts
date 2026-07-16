@@ -124,6 +124,42 @@ const FEATURED_CATEGORIES: CakeCategoryDef[] = [
     description: "Cakes for Umrah and Hajj celebrations.",
     rank: 150,
   },
+  {
+    name: "Vegan & Dairy Free Cakes",
+    handle: "vegan-cakes-dairy-free",
+    description: "Vegan and dairy-free cakes.",
+    rank: 160,
+  },
+  {
+    name: "Cupcakes, Slices and Extras",
+    handle: "cupcakes-slices-and-extras",
+    description: "Delicious cupcakes, cake slices, and extra treats.",
+    rank: 170,
+  },
+  {
+    name: "Giant Cookies",
+    handle: "giant-cookies",
+    description: "Decorated giant cookies for celebrations.",
+    rank: 180,
+  },
+  {
+    name: "Chocolate Bouquets",
+    handle: "chocolate-bouquets",
+    description: "Gift chocolate bouquets.",
+    rank: 190,
+  },
+  {
+    name: "Photo Cakes",
+    handle: "photo-cake",
+    description: "Custom printed edible photo cakes.",
+    rank: 145,
+  },
+  {
+    name: "Double Tall Cakes",
+    handle: "double-tall-cakes",
+    description: "Extra height double-tall celebration cakes.",
+    rank: 35,
+  },
 ]
 
 /** Seasonal / occasion categories. */
@@ -231,18 +267,24 @@ const PREFIX_TO_HANDLES: Record<string, string[]> = {
   lo: ["lohri-cakes"],
   rb: ["raksha-bandhan"],
   e: ["eid-cakes"],
-  // Cupcakes / extras — leave uncategorised by prefix; scrape may still tag them
-  c: [],
-  ex: [],
-  v: [], // vegan — shape-agnostic
-  gc: [],
-  cb: [],
+  // Cupcakes / extras
+  c: ["cupcakes-slices-and-extras"],
+  ex: ["cupcakes-slices-and-extras"],
+  v: ["vegan-cakes-dairy-free"], // vegan
+  gc: ["giant-cookies"],
+  cb: ["chocolate-bouquets"],
   um: ["umrah-and-hajj-mubarak-cake"],
   uhm: ["umrah-and-hajj-mubarak-cake"],
 }
 
 /** Title/handle keyword overrides that always add categories. */
 const KEYWORD_RULES: Array<{ pattern: RegExp; handles: string[] }> = [
+  { pattern: /vegan|dairy[\s-]*free/i, handles: ["vegan-cakes-dairy-free"] },
+  { pattern: /cupcake/i, handles: ["cupcakes-slices-and-extras"] },
+  { pattern: /cookie/i, handles: ["giant-cookies"] },
+  { pattern: /bouquet/i, handles: ["chocolate-bouquets"] },
+  { pattern: /photo/i, handles: ["photo-cake"] },
+  { pattern: /double[\s-]*tall/i, handles: ["double-tall-cakes"] },
   { pattern: /wedding/i, handles: ["wedding-cakes"] },
   { pattern: /graduation|grad\b/i, handles: ["graduation-cakes"] },
   { pattern: /christening|baptism|communion|baby\s*shower|gender\s*reveal/i, handles: ["baby-shower-cakes"] },

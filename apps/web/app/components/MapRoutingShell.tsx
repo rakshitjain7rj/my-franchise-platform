@@ -23,11 +23,9 @@ import BakerySidebar, { type Franchise } from "./BakerySidebar";
 import StoreMap, { type MapMarker } from "./LeafletMap";
 import type { StoreLocationCard } from "../map-routing/page";
 import {
-  FRANCHISE_COOKIE,
-  setPersistentCookie,
-  STORE_ID_COOKIE,
-  STORE_NAME_COOKIE,
-} from "@/lib/store-cookies";
+  readSelectedStore,
+  selectStore,
+} from "@/lib/store-selection";
 import { saveStorePreference } from "@/lib/auth/storePreferenceActions";
 
 interface MapRoutingShellProps {
@@ -59,14 +57,6 @@ interface MapRoutingShellProps {
   isLoggedIn?: boolean;
 }
 
-function getCookie(name: string): string | null {
-  if (typeof document === "undefined") return null;
-  const match = document.cookie
-    .split("; ")
-    .find((row) => row.startsWith(`${name}=`));
-  return match ? decodeURIComponent(match.split("=")[1] ?? "") : null;
-}
-
 export default function MapRoutingShell({
   franchiseId,
   locations,
@@ -91,30 +81,19 @@ export default function MapRoutingShell({
   // Never overwrite an existing user choice.
   useEffect(() => {
     if (selectionSource !== "default" || !initialSelectedId) return;
-    if (getCookie(STORE_ID_COOKIE)?.trim()) return;
+    if (readSelectedStore().storeLocationId) return;
 
     const loc = locations.find((l) => l.id === initialSelectedId);
     if (!loc) return;
 
-    setPersistentCookie(STORE_ID_COOKIE, loc.id);
-    setPersistentCookie(STORE_NAME_COOKIE, loc.name);
-    if (loc.franchiseId) {
-      setPersistentCookie(FRANCHISE_COOKIE, loc.franchiseId);
-    }
-
-    try {
-      window.dispatchEvent(
-        new CustomEvent("store-selection-changed", {
-          detail: {
-            storeLocationId: loc.id,
-            storeName: loc.name,
-            source: "default-map",
-          },
-        })
-      );
-    } catch {
-      // ignore
-    }
+    selectStore(
+      {
+        storeLocationId: loc.id,
+        storeName: loc.name,
+        franchiseId: loc.franchiseId,
+      },
+      "default-map"
+    );
   }, [selectionSource, initialSelectedId, locations]);
 
   const handleSelectStore = (storeId: string, franchiseId: string, storeName: string) => {
@@ -126,9 +105,14 @@ export default function MapRoutingShell({
 
     // Persist until the shopper picks another bakery (long-lived cookies).
     // Explicit user choice always wins over the admin default bootstrap.
-    setPersistentCookie(STORE_ID_COOKIE, storeId);
-    setPersistentCookie(STORE_NAME_COOKIE, storeName);
-    setPersistentCookie(FRANCHISE_COOKIE, franchiseId);
+    selectStore(
+      {
+        storeLocationId: storeId,
+        storeName,
+        franchiseId,
+      },
+      "user-select"
+    );
 
     // If the user is logged in, also persist the preference to the server so
     // it survives cookie expiration and syncs across devices.
@@ -136,20 +120,6 @@ export default function MapRoutingShell({
       saveStorePreference(storeId, storeName).catch((err) =>
         console.error("[MapRoutingShell] Failed to save store preference:", err)
       );
-    }
-
-    try {
-      window.dispatchEvent(
-        new CustomEvent("store-selection-changed", {
-          detail: {
-            storeLocationId: storeId,
-            storeName,
-            source: "user-select",
-          },
-        })
-      );
-    } catch {
-      // ignore
     }
 
     // Show toast message

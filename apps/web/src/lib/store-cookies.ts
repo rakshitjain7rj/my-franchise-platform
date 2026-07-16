@@ -13,6 +13,18 @@ export const FRANCHISE_COOKIE = "franchise_id";
 /** ~6 months in seconds — compliant with UK/GDPR rules. */
 export const STORE_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 180;
 
+/**
+ * Read a browser cookie by name. Client-side only (`document.cookie`).
+ * Returns null when unavailable (SSR) or when the cookie is missing.
+ */
+export function getBrowserCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith(`${name}=`));
+  if (!match) return null;
+  return decodeURIComponent(match.split("=").slice(1).join("=") ?? "");
+}
 
 /**
  * Write a browser cookie that does not expire with the session.

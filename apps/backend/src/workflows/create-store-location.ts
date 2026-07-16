@@ -3,12 +3,14 @@
  *
  * Atomic, compensatable workflow that provisions a fully-wired store location:
  *
+ *   0. Assert franchise has at least one sales channel (fail closed — no orphan rows)
  *   1. Create the StoreLocation row (custom franchise module)
- *   2. Create a shadow StockLocation (Medusa core)
+ *   2. Create a shadow StockLocation (Medusa core) + required fulfillment providers
  *   3. Link StoreLocation ↔ StockLocation (Medusa Link Engine)
  *   4. Associate StockLocation with the franchise's SalesChannel(s)
  *
- * If any step fails, all previous steps roll back automatically.
+ * If any required step fails, previous steps roll back automatically.
+ * Partial / "repair later" success is intentionally not supported.
  *
  * This replaces the old pattern of:
  *   POST /admin/franchise-locations → bare createStoreLocations()
@@ -23,6 +25,7 @@ import {
 } from "@medusajs/framework/workflows-sdk"
 import {
   ContainerRegistrationKeys,
+  MedusaError,
   Modules,
 } from "@medusajs/framework/utils"
 import {
@@ -48,6 +51,76 @@ export interface CreateStoreLocationWorkflowInput {
   opening_hours?: Record<string, any> | null
   metadata?: Record<string, any> | null
 }
+
+/** Fulfillment providers every new stock location must expose. */
+const REQUIRED_FULFILLMENT_PROVIDERS = ["manual_manual", "cake_cake"] as const
+
+/**
+ * True only for known "link already present" failures.
+ * Never match bare "exist" / "unique" / "already" — those hit phrases like
+ * "does not exist" or "unique to this provider" and would falsely mark a
+ * failed fulfillment-provider link as success (half-wired store).
+ */
+function isBenignLinkError(err: unknown): boolean {
+  const message =
+    err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase()
+  return (
+    /already\s+(exists?|linked|associated|created)/.test(message) ||
+    message.includes("duplicate key") ||
+    message.includes("unique constraint") ||
+    message.includes("unique_violation") ||
+    message.includes("violates unique")
+  )
+}
+
+async function resolveFranchiseSalesChannelIds(
+  container: { resolve: (key: string) => any },
+  franchiseId: string
+): Promise<string[]> {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data: scLinks } = await query.graph({
+    entity: FranchiseSalesChannelLink.entryPoint,
+    fields: ["sales_channel_id"],
+    filters: { franchise_id: franchiseId },
+  })
+
+  return Array.from(
+    new Set(
+      (scLinks as Array<{ sales_channel_id?: string }>)
+        .map((l) => l.sales_channel_id)
+        .filter((id): id is string => Boolean(id))
+    )
+  )
+}
+
+// ─── Step 0: Preconditions (fail before any writes) ─────────────────────────
+
+const assertFranchiseReadyStep = createStep(
+  "assert-franchise-ready-for-store-step",
+  async (input: { franchise_id: string }, { container }) => {
+    const logger = container.resolve("logger")
+    const salesChannelIds = await resolveFranchiseSalesChannelIds(
+      container,
+      input.franchise_id
+    )
+
+    if (!salesChannelIds.length) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Cannot create store location: franchise "${input.franchise_id}" has no ` +
+          `sales channel linked via franchise-sales-channel. Link a sales channel ` +
+          `to the franchise first, then retry. Partial stores are not allowed.`
+      )
+    }
+
+    logger.info(
+      `[create-store-location] ✓ Step 0: Franchise ${input.franchise_id} has ` +
+        `${salesChannelIds.length} sales channel(s)`
+    )
+
+    return new StepResponse({ sales_channel_ids: salesChannelIds })
+  }
+)
 
 // ─── Step 1: Create StoreLocation ───────────────────────────────────────────
 
@@ -129,8 +202,11 @@ const createShadowStockLocationStep = createStep(
 
     // Enable fulfillment providers on the new stock location so shipping
     // options (manual flat pickup + cake calculated delivery) can serve it.
+    // Fail closed on real errors; "already linked" is benign.
     const remoteLink = container.resolve(ContainerRegistrationKeys.REMOTE_LINK)
-    for (const providerId of ["manual_manual", "cake_cake"]) {
+    const linkedProviders: string[] = []
+
+    for (const providerId of REQUIRED_FULFILLMENT_PROVIDERS) {
       try {
         await remoteLink.create({
           [Modules.STOCK_LOCATION]: {
@@ -140,13 +216,39 @@ const createShadowStockLocationStep = createStep(
             fulfillment_provider_id: providerId,
           },
         })
-      } catch {
-        // provider may already be linked or not yet registered
+        linkedProviders.push(providerId)
+      } catch (err) {
+        if (isBenignLinkError(err)) {
+          logger.info(
+            `[create-store-location] Provider ${providerId} already linked to ` +
+              `StockLocation ${stockLocation.id}`
+          )
+          linkedProviders.push(providerId)
+          continue
+        }
+
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Cannot create store location: failed to link fulfillment provider ` +
+            `"${providerId}" to stock location ${stockLocation.id}. ` +
+            `Ensure providers are registered, then retry. ` +
+            `(${err instanceof Error ? err.message : String(err)})`
+        )
       }
     }
 
+    if (linkedProviders.length !== REQUIRED_FULFILLMENT_PROVIDERS.length) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Cannot create store location: expected fulfillment providers ` +
+          `[${REQUIRED_FULFILLMENT_PROVIDERS.join(", ")}] on stock location ` +
+          `${stockLocation.id}; only linked [${linkedProviders.join(", ")}].`
+      )
+    }
+
     logger.info(
-      `[create-store-location] ✓ Step 2: Created StockLocation ${stockLocation.id} ("${stockLocation.name}")`
+      `[create-store-location] ✓ Step 2: Created StockLocation ${stockLocation.id} ` +
+        `("${stockLocation.name}") with providers [${linkedProviders.join(", ")}]`
     )
 
     return new StepResponse(stockLocation, stockLocation.id)
@@ -227,33 +329,21 @@ type SalesChannelLinkInput = {
 const linkStockToSalesChannelsStep = createStep(
   "link-stock-to-sales-channels-step",
   async (input: SalesChannelLinkInput, { container }) => {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
     const logger = container.resolve("logger")
 
-    // Resolve the franchise's sales channel IDs
-    const { data: scLinks } = await query.graph({
-      entity: FranchiseSalesChannelLink.entryPoint,
-      fields: ["sales_channel_id"],
-      filters: { franchise_id: input.franchise_id },
-    })
-
-    const salesChannelIds = Array.from(
-      new Set(
-        (scLinks as Array<{ sales_channel_id?: string }>)
-          .map((l) => l.sales_channel_id)
-          .filter((id): id is string => Boolean(id))
-      )
+    // Re-resolve (do not trust stale IDs from step 0 alone — links may have changed).
+    const salesChannelIds = await resolveFranchiseSalesChannelIds(
+      container,
+      input.franchise_id
     )
 
     if (!salesChannelIds.length) {
-      logger.warn(
-        `[create-store-location] ⚠ Step 4: No sales channels linked to franchise ${input.franchise_id} — ` +
-          `skipping sales-channel ↔ stock-location association. ` +
-          `The stock location will need to be manually associated later.`
-      )
-      return new StepResponse(
-        { linked: false, sales_channel_ids: [] },
-        null
+      // Fail closed — never return a half-provisioned store that needs link-stores.
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Cannot create store location: franchise "${input.franchise_id}" has no ` +
+          `sales channel linked via franchise-sales-channel. The stock location ` +
+          `will not be associated; create is aborted and prior steps will roll back.`
       )
     }
 
@@ -270,7 +360,10 @@ const linkStockToSalesChannelsStep = createStep(
 
     return new StepResponse(
       { linked: true, sales_channel_ids: salesChannelIds },
-      { stock_location_id: input.stock_location_id, sales_channel_ids: salesChannelIds }
+      {
+        stock_location_id: input.stock_location_id,
+        sales_channel_ids: salesChannelIds,
+      }
     )
   },
   // Compensation: remove the sales channel associations
@@ -303,6 +396,11 @@ export const createStoreLocationWorkflowId = "create-store-location-workflow"
 export const createStoreLocationWorkflow = createWorkflow(
   createStoreLocationWorkflowId,
   (input: CreateStoreLocationWorkflowInput) => {
+    // Step 0: Fail before any writes if franchise cannot fully provision a store
+    assertFranchiseReadyStep({
+      franchise_id: input.franchise_id,
+    })
+
     // Step 1: Create the StoreLocation
     const storeLocation = createStoreLocationStep(input)
 

@@ -9,8 +9,9 @@
  * ─── DEPRECATION NOTICE ─────────────────────────────────────────────────────
  * The auto-match (fuzzy name) mode has been RETIRED. New store locations
  * created via POST /admin/franchise-locations or POST /admin/super-admin/locations
- * are now fully provisioned atomically — StockLocation, link, and sales-channel
- * association are all created in one workflow step.
+ * are fully provisioned atomically and fail closed (no half-wired stores) —
+ * StockLocation, store↔stock link, sales-channel association, and required
+ * fulfillment providers are all created in one workflow.
  *
  * This endpoint now ONLY supports explicit manual mappings for repairing
  * legacy stores that were created before the workflow existed.
