@@ -14,6 +14,8 @@
  *    don't have to remember to add it manually.
  */
 
+import { AUTH_COOKIE_NAME } from "@/lib/auth/auth-cookie";
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -139,8 +141,8 @@ export async function getMedusaHeaders(
     headers["x-store-location-id"] = storeLocationId;
   }
 
-  // Attempt to read the customer's medusa_auth_token and inject it as Authorization header
-  const customerToken = cookieStore?.get("medusa_auth_token")?.value?.trim();
+  // Session JWT (httpOnly) → Authorization. Name shared with auth-actions.
+  const customerToken = cookieStore?.get(AUTH_COOKIE_NAME)?.value?.trim();
   if (customerToken) {
     headers["Authorization"] = `Bearer ${customerToken}`;
   }
@@ -160,14 +162,14 @@ export async function getMedusaHeaders(
  * not viable. For Server Components, always prefer `getMedusaHeaders()`.
  *
  * ⚠️ **This helper NEVER includes an `Authorization` header.** The customer
- * auth token (`medusa_auth_token`) is an httpOnly cookie by design — it is
- * invisible to `document.cookie`, so it *cannot* be read here. Any client-side
- * flow that needs an authenticated Medusa request MUST go through a Server
- * Action (see `src/lib/auth/auth-actions.ts`) or a Route Handler, where
- * `getMedusaHeaders()` reads the cookie via `next/headers` and attaches the
- * Bearer token. Do not re-add a `document.cookie` token read: it would only
- * work by downgrading the cookie to `httpOnly: false`, exposing the session
- * token to any XSS payload.
+ * auth token (`AUTH_COOKIE_NAME` / `medusa_auth_token`) is an httpOnly cookie
+ * by design — it is invisible to `document.cookie`, so it *cannot* be read
+ * here. Any client-side flow that needs an authenticated Medusa request MUST
+ * go through a Server Action (see `src/lib/auth/auth-actions.ts`) or a Route
+ * Handler, where `getMedusaHeaders()` reads the cookie via `next/headers` and
+ * attaches the Bearer token. Do not re-add a `document.cookie` token read: it
+ * would only work by downgrading the cookie to `httpOnly: false`, exposing
+ * the session token to any XSS payload.
  *
  * @example
  * ```ts
@@ -211,8 +213,8 @@ export function getMedusaHeadersSync(
       headers["x-store-location-id"] = decodeURIComponent(storeLocationId).trim();
     }
 
-    // NOTE: `medusa_auth_token` is deliberately NOT read here. It is httpOnly
-    // (see auth-actions.ts) and therefore unreadable from document.cookie — a
+    // NOTE: AUTH_COOKIE_NAME is deliberately NOT read here. It is httpOnly
+    // (see auth-cookie.ts) and therefore unreadable from document.cookie — a
     // read attempt would silently produce unauthenticated requests. See the
     // JSDoc above for the required Server Action pattern.
   }

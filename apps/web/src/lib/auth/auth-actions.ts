@@ -12,6 +12,11 @@
 import { cookies } from "next/headers";
 import { getMedusaHeaders } from "@/lib/medusa/headers";
 import {
+  AUTH_COOKIE_NAME,
+  getAuthCookieClearOptions,
+  getAuthCookieOptions,
+} from "@/lib/auth/auth-cookie";
+import {
   clearSessionStoreCookies,
   loadStorePreferenceFromServer,
   saveStorePreference,
@@ -45,19 +50,25 @@ export interface AuthResponse {
 /**
  * Persist the JWT session token in the HTTP-only auth cookie.
  *
- * `sameSite: "lax"` matches the other storefront cookies (franchise_id, store
- * selection) and still blocks cross-site POST CSRF while allowing the cookie
- * to be sent on top-level navigations after login.
+ * Cookie flags (Secure / SameSite / path / maxAge) come from
+ * `getAuthCookieOptions()` so Docker HTTP and HTTPS production share one
+ * policy. See `auth-cookie.ts` for the COOKIE_SECURE contract.
  */
 async function setAuthCookie(token: string): Promise<void> {
   const cookieStore = await cookies();
-  cookieStore.set("medusa_auth_token", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7, // 1 week session
-  });
+  cookieStore.set(AUTH_COOKIE_NAME, token, getAuthCookieOptions());
+}
+
+/**
+ * Remove the session cookie with attributes that match the write path.
+ * A path/secure mismatch leaves a zombie cookie the browser still sends.
+ */
+async function clearAuthCookie(): Promise<void> {
+  const cookieStore = await cookies();
+  // Prefer overwrite+expire over delete(): Next.js delete() does not always
+  // emit the same Secure/Path attributes the browser used when storing the
+  // cookie, which can leave the session token alive after "log out".
+  cookieStore.set(AUTH_COOKIE_NAME, "", getAuthCookieClearOptions());
 }
 
 /**
@@ -423,8 +434,7 @@ export async function registerCustomer(
  */
 export async function logoutCustomer(): Promise<AuthResponse> {
   try {
-    const cookieStore = await cookies();
-    cookieStore.delete("medusa_auth_token");
+    await clearAuthCookie();
     // Clear store selection cookies so the next visit falls back to the
     // franchise default instead of stale data. The preference is safely
     // persisted in Medusa metadata and will be restored on next login.
@@ -443,20 +453,13 @@ export async function logoutCustomer(): Promise<AuthResponse> {
 export async function getCurrentCustomer(): Promise<CustomerProfile | null> {
   try {
     const headers = await getMedusaHeaders();
-    
-    console.log("[getCurrentCustomer] Resolving customer with headers:", {
-      ...headers,
-      Authorization: headers["Authorization"] ? `${headers["Authorization"].substring(0, 15)}...` : undefined
-    });
 
     // If there's no auth token cookie, we aren't logged in.
     if (!headers["Authorization"]) {
-      console.log("[getCurrentCustomer] No Authorization header found.");
       return null;
     }
 
     const url = `${BACKEND_URL}/store/customers/me`;
-    console.log("[getCurrentCustomer] Fetching", url);
     // cache: "no-store" is required — Next's fetch cache keys primarily on URL,
     // so a pre-login 401 (or empty response) must never be reused after auth.
     const response = await fetch(url, {
@@ -464,15 +467,20 @@ export async function getCurrentCustomer(): Promise<CustomerProfile | null> {
       cache: "no-store",
     });
 
-    console.log("[getCurrentCustomer] Response status:", response.status);
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("[getCurrentCustomer] Fetch failed:", errorText);
+      // 401 = expired/invalid session. Other failures are logged without
+      // treating the user as authenticated.
+      if (response.status !== 401) {
+        const errorText = await response.text().catch(() => "");
+        console.error(
+          `[getCurrentCustomer] ${response.status} from /store/customers/me:`,
+          errorText.slice(0, 300)
+        );
+      }
       return null;
     }
 
     const body = await response.json();
-    console.log("[getCurrentCustomer] Resolved customer profile successfully:", body.customer?.email);
     return body.customer ?? null;
   } catch (err) {
     console.error("[getCurrentCustomer] Error resolving customer:", err);

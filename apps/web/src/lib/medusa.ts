@@ -131,13 +131,10 @@ export async function medusaFetch<TData = unknown, TBody = unknown>(
     }
   }
 
-  // Inject user auth token as Authorization header if present.
-  if (!headers["Authorization"]) {
-    const token = getBrowserCookie("medusa_auth_token");
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-  }
+  // Auth JWT is httpOnly (AUTH_COOKIE_NAME) and intentionally NOT readable
+  // from document.cookie. Client-side medusaFetch never attaches Authorization;
+  // authenticated calls must go through Server Actions / getMedusaHeaders().
+  // Leaving this branch out prevents a false sense of "auth" from a missing cookie.
 
   // Remove the header entirely if the caller passed an empty string
   // (avoids sending `x-franchise-id: ""`  which could confuse the backend).

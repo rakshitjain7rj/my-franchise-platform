@@ -43,6 +43,12 @@ const REALISTIC_LOCATIONS = [
 
 export default async function seedStoreLocations({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+
+  if (process.env.NODE_ENV === "production") {
+    logger.warn("⚠️ seedStoreLocations was called in a production environment. Aborting to prevent seeding mock data.")
+    return
+  }
+
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
   const franchiseService = container.resolve("franchise") as any
 

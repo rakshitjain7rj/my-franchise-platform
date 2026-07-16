@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { AUTH_COOKIE_NAME } from "@/lib/auth/auth-cookie";
 
 // ---------------------------------------------------------------------------
 // Subdomain → franchise ID mapping
@@ -141,7 +142,7 @@ export async function middleware(request: NextRequest) {
   // their preference on next login. Guests get 6-month persistent cookies so
   // their bakery choice survives browser restarts without any login.
   const isAuthenticated = Boolean(
-    request.cookies.get("medusa_auth_token")?.value?.trim()
+    request.cookies.get(AUTH_COOKIE_NAME)?.value?.trim()
   );
 
   const storeCookieOpts = isAuthenticated
