@@ -150,7 +150,7 @@ async function getStoreLocations(franchiseId: string): Promise<{
   }
 
   const locations: StoreLocationCard[] = allLocations.map((loc) => {
-    let hoursStr = "10:00 PM";
+    let hoursStr = "18:00";
     if (loc.opening_hours) {
       const days = [
         "sunday",

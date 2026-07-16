@@ -29,13 +29,13 @@ const WEEKDAYS = [
 
 /** Default bakery hours used when a store has no opening_hours configured. */
 export const DEFAULT_OPENING_HOURS: OpeningHours = {
-  monday: { open: "08:00", close: "22:00" },
-  tuesday: { open: "08:00", close: "22:00" },
-  wednesday: { open: "08:00", close: "22:00" },
-  thursday: { open: "08:00", close: "22:00" },
-  friday: { open: "08:00", close: "22:00" },
-  saturday: { open: "08:00", close: "22:00" },
-  sunday: { open: "08:00", close: "22:00" },
+  monday: { open: "09:00", close: "18:00" },
+  tuesday: { open: "09:00", close: "18:00" },
+  wednesday: { open: "09:00", close: "18:00" },
+  thursday: { open: "09:00", close: "18:00" },
+  friday: { open: "09:00", close: "18:00" },
+  saturday: { open: "09:00", close: "18:00" },
+  sunday: { open: "09:00", close: "18:00" },
 }
 
 export function parseHHMM(value: string): number | null {
@@ -86,7 +86,7 @@ function hasValidDayHours(hours: OpeningHours | null | undefined): boolean {
  * Resolve a usable weekday map from:
  *  1. native `opening_hours` column
  *  2. legacy `metadata.store_hours` ({ open, close })
- *  3. platform default (08:00–22:00 every day)
+ *  3. platform default (09:00–18:00 every day)
  *
  * Seed data historically only wrote metadata.store_hours, leaving
  * opening_hours null — without this fallback the slots API returns [].

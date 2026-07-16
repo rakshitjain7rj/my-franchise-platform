@@ -4,7 +4,6 @@ import FranchiseProductLink from "../links/franchise-product"
 import {
   DEFAULT_OPENING_HOURS,
   expandDailyHours,
-  resolveOpeningHours,
 } from "../utils/logistics"
 
 const REALISTIC_LOCATIONS = [
@@ -90,41 +89,31 @@ export default async function seedStoreLocations({ container }: ExecArgs) {
       franchise_id: franchise.id
     })
 
-    // ── Backfill: older seeds only wrote metadata.store_hours and left
-    // opening_hours null, which made GET /store/stores/:id/slots return [].
-    // Heal in place so re-seeding is not required for existing DBs.
-    const needsHours = existingLocations.filter((loc: any) => {
-      const resolved = resolveOpeningHours(loc.opening_hours, loc.metadata)
-      // If we would fall through to platform default AND column is empty,
-      // write a real column value (prefer legacy store_hours when present).
-      const hasNative =
-        loc.opening_hours &&
-        typeof loc.opening_hours === "object" &&
-        Object.keys(loc.opening_hours).length > 0
-      return !hasNative
-    })
+    // ── Normalize opening hours for every store location.
+    // Platform standard is DEFAULT_OPENING_HOURS (09:00–18:00).
+    // Also heals older seeds that only wrote metadata.store_hours and left
+    // opening_hours null (which made GET /store/stores/:id/slots return []).
+    const standardDayHours = { open: "09:00", close: "18:00" }
+    const standardHours = DEFAULT_OPENING_HOURS
 
-    if (needsHours.length > 0) {
-      for (const loc of needsHours) {
-        const meta = (loc.metadata ?? {}) as Record<string, unknown>
-        const raw = meta.store_hours as { open?: string; close?: string } | undefined
-        const hours =
-          raw?.open && raw?.close
-            ? expandDailyHours(String(raw.open), String(raw.close))
-            : DEFAULT_OPENING_HOURS
+    if (existingLocations.length > 0) {
+      for (const loc of existingLocations) {
+        const meta = { ...((loc.metadata ?? {}) as Record<string, unknown>) }
+        meta.store_hours = standardDayHours
         await franchiseService.updateStoreLocations([
           {
             id: loc.id,
-            opening_hours: hours,
+            opening_hours: standardHours,
+            metadata: meta,
             is_accepting_orders: loc.is_accepting_orders ?? true,
             custom_lead_time_hours: loc.custom_lead_time_hours ?? 24,
             daily_order_capacity: loc.daily_order_capacity ?? 10,
           },
         ])
       }
-      totalBackfilled += needsHours.length
+      totalBackfilled += existingLocations.length
       logger.info(
-        `  🔧 Backfilled opening_hours on ${needsHours.length} location(s) for ${franchise.name || franchise.id}`
+        `  🔧 Set opening_hours to 09:00–18:00 on ${existingLocations.length} location(s) for ${franchise.name || franchise.id}`
       )
     }
 
@@ -160,7 +149,7 @@ export default async function seedStoreLocations({ container }: ExecArgs) {
       if (locationsToCreate.length >= needed) break
       if (existingNames.has(geo.name)) continue
         
-      const dayHours = { open: "08:00", close: "22:00" }
+      const dayHours = { open: "09:00", close: "18:00" }
       // Keep capacity fields consistent: daily_order_capacity is the native
       // "orders per 30-min slot" column (see StoreLocation model). Do not
       // leave a conflicting max_orders_per_slot in metadata.

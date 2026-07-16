@@ -111,10 +111,10 @@ describe("buildDaySlots", () => {
       leadTimeHours: 0,
       now,
     })
-    // 08:00–22:00 → 28 half-hour slots
-    expect(slots.length).toBe(28)
-    expect(slots[0].time).toBe("08:00")
-    expect(slots[slots.length - 1].time).toBe("21:30")
+    // 09:00–18:00 → 18 half-hour slots
+    expect(slots.length).toBe(18)
+    expect(slots[0].time).toBe("09:00")
+    expect(slots[slots.length - 1].time).toBe("17:30")
   })
 
   it("marks slots inside lead-time window unbookable", () => {

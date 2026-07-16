@@ -34,7 +34,7 @@ export default async function seedTestFranchises({ container }: ExecArgs) {
       latitude: 52.4796,
       longitude: -1.8981,
       address: "New Street, Birmingham City Centre, B2 4RX",
-      hours: "7:00 PM",
+      hours: "9:00 AM - 6:00 PM",
     },
     {
       id: "01KVA1YYMGRBTV46R63QDT0FW0",
@@ -44,7 +44,7 @@ export default async function seedTestFranchises({ container }: ExecArgs) {
       latitude: 31.634,
       longitude: 74.8723,
       address: "Lawrence Road, Amritsar, Punjab 143001",
-      hours: "9:00 PM",
+      hours: "9:00 AM - 6:00 PM",
     },
     {
       id: "01KVA1YYMGRBTV46R63QDT0FW1",
@@ -54,7 +54,7 @@ export default async function seedTestFranchises({ container }: ExecArgs) {
       latitude: 30.6273,
       longitude: 76.3901,
       address: "GT Road, Sirhind, Punjab 140406",
-      hours: "8:00 PM",
+      hours: "9:00 AM - 6:00 PM",
     },
     {
       id: "01KVA1YYMGRBTV46R63QDT0FW2",
@@ -64,7 +64,7 @@ export default async function seedTestFranchises({ container }: ExecArgs) {
       latitude: 52.5002,
       longitude: -1.9322,
       address: "Soho Road, Handsworth, Birmingham, B21 9BT",
-      hours: "6:00 PM",
+      hours: "9:00 AM - 6:00 PM",
     },
     {
       id: "01KVA1YYMGRBTV46R63QDT0FW3",
@@ -74,7 +74,7 @@ export default async function seedTestFranchises({ container }: ExecArgs) {
       latitude: 52.4779,
       longitude: -1.8934,
       address: "Bullring Shopping Centre, Birmingham, B5 4BU",
-      hours: "9:00 PM",
+      hours: "9:00 AM - 6:00 PM",
     },
   ]
 
