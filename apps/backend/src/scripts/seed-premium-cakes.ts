@@ -213,9 +213,9 @@ export default async function seedPremiumCakes({ container }: ExecArgs) {
           supports_photo_upload: cakeIndex % 10 === 0 ? "true" : "false",
           // Per-product sponge flavours when the product has no Flavor option.
           supported_flavours: JSON.stringify([
-            "Victoria Sponge",
-            "Chocolate",
-            "Red Velvet",
+            "Eggless Vanilla",
+            "Eggless Chocolate",
+            "Eggless Red Velvet",
             flavor.name,
           ]),
           // Size → servings mapping (product-detail derives from this).

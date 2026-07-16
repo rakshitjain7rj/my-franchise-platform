@@ -134,14 +134,32 @@ export async function middleware(request: NextRequest) {
   //     medusaFetch(), enabling per-store product filtering on the backend
   //     (see src/api/middlewares/filter-products-by-franchise.ts:259).
   const storeLocationParam = request.nextUrl.searchParams.get("store")?.trim();
-  // Store cookies use a long max-age (~10y) so the shopper's bakery choice
-  // persists until they pick another (browsers cannot set truly infinite cookies).
-  const storeCookieOpts = {
-    path: "/" as const,
-    sameSite: "lax" as const,
-    httpOnly: false,
-    maxAge: 60 * 60 * 24 * 365 * 10,
-  };
+
+  // Detect whether the visitor is logged in by the presence of the auth cookie.
+  // Logged-in users get session cookies (no maxAge — cleared on browser close);
+  // the server metadata is their permanent source of truth and will restore
+  // their preference on next login. Guests get 6-month persistent cookies so
+  // their bakery choice survives browser restarts without any login.
+  const isAuthenticated = Boolean(
+    request.cookies.get("medusa_auth_token")?.value?.trim()
+  );
+
+  const storeCookieOpts = isAuthenticated
+    ? {
+        // Session cookie — cleared when the browser closes.
+        // Preference is durably stored in Medusa customer metadata.
+        path: "/" as const,
+        sameSite: "lax" as const,
+        httpOnly: false,
+      }
+    : {
+        // Persistent cookie — 6 months, compliant with UK/GDPR rules.
+        path: "/" as const,
+        sameSite: "lax" as const,
+        httpOnly: false,
+        maxAge: 60 * 60 * 24 * 180,
+      };
+
   if (storeLocationParam) {
     response.cookies.set(
       "selected_store_location_id",
@@ -180,6 +198,7 @@ export async function middleware(request: NextRequest) {
       response.headers.set("x-store-location-id", existingStore);
     }
   }
+
 
   return response;
 }

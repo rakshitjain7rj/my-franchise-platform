@@ -16,9 +16,9 @@ import {
 } from "@medusajs/framework/utils"
 
 const DEFAULT_FLAVOURS = [
-  "Victoria Sponge",
-  "Chocolate",
-  "Red Velvet",
+  "Eggless Vanilla",
+  "Eggless Chocolate",
+  "Eggless Red Velvet",
 ]
 
 const DEFAULT_SERVINGS_MAP: Record<string, string> = {

@@ -11,6 +11,11 @@
 
 import { cookies } from "next/headers";
 import { getMedusaHeaders } from "@/lib/medusa/headers";
+import {
+  clearSessionStoreCookies,
+  loadStorePreferenceFromServer,
+  saveStorePreference,
+} from "@/lib/auth/storePreferenceActions";
 
 const BACKEND_URL =
   (process.env.MEDUSA_BACKEND_URL ?? process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL) ?? "http://localhost:9000";
@@ -235,6 +240,32 @@ export async function loginCustomer(
 
     await setAuthCookie(sessionToken);
 
+    // ── Store preference sync ─────────────────────────────────────────────
+    // 1. Try to load a previously saved server preference (server wins).
+    const serverPref = await loadStorePreferenceFromServer();
+
+    if (!serverPref) {
+      // 2. No server preference yet — check for a guest cookie and promote it.
+      const cookieStore = await cookies();
+      const guestStoreId = cookieStore
+        .get("selected_store_location_id")
+        ?.value?.trim();
+      const guestStoreName = cookieStore
+        .get("selected_store_name")
+        ?.value?.trim() ?? "";
+
+      if (guestStoreId) {
+        // Save the guest cookie choice as the permanent server preference
+        // and downgrade the cookie to a session cookie (no maxAge).
+        await saveStorePreference(guestStoreId, guestStoreName);
+        console.log(
+          "[loginCustomer] Promoted guest cookie store to server metadata:",
+          guestStoreId
+        );
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     return { success: true };
   } catch (err: unknown) {
     console.error("[loginCustomer] Error authenticating:", err);
@@ -357,6 +388,26 @@ export async function registerCustomer(
 
     await setAuthCookie(login.token);
 
+    // ── Store preference sync ─────────────────────────────────────────────
+    // On fresh registration there is no server preference yet.
+    // Promote the guest cookie (if any) to the server metadata.
+    const cookieStore = await cookies();
+    const guestStoreId = cookieStore
+      .get("selected_store_location_id")
+      ?.value?.trim();
+    const guestStoreName = cookieStore
+      .get("selected_store_name")
+      ?.value?.trim() ?? "";
+
+    if (guestStoreId) {
+      await saveStorePreference(guestStoreId, guestStoreName);
+      console.log(
+        "[registerCustomer] Promoted guest cookie store to server metadata:",
+        guestStoreId
+      );
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     return { success: true };
   } catch (err: unknown) {
     console.error("[registerCustomer] Error during registration:", err);
@@ -374,6 +425,10 @@ export async function logoutCustomer(): Promise<AuthResponse> {
   try {
     const cookieStore = await cookies();
     cookieStore.delete("medusa_auth_token");
+    // Clear store selection cookies so the next visit falls back to the
+    // franchise default instead of stale data. The preference is safely
+    // persisted in Medusa metadata and will be restored on next login.
+    await clearSessionStoreCookies();
     return { success: true };
   } catch (err: unknown) {
     console.error("[logoutCustomer] Error clearing session:", err);

@@ -7,7 +7,8 @@
  *  - Character limits for inscription / baker instructions
  *
  * Backend order decorator (`/admin/cake-orders`) reads these keys (plus
- * legacy capitalized aliases) via case-insensitive matching.
+ * legacy capitalized aliases) via case-insensitive matching, including `jam`
+ * ("Mixed Jam" | "No Jam") for the product-detail jam-filling selector.
  */
 
 // ---------------------------------------------------------------------------
@@ -27,6 +28,7 @@ export const MESSAGE_MAX_LENGTH = 200
 export const CAKE_ATTR = {
   flavour: "flavour",
   servings: "servings",
+  jam: "jam",
   date: "date",
   time: "time",
   message: "message",
@@ -35,6 +37,11 @@ export const CAKE_ATTR = {
 
 export type CakeAttrKey = (typeof CAKE_ATTR)[keyof typeof CAKE_ATTR]
 
+/** Jam filling choices offered on the product detail page. */
+export const JAM_OPTIONS = ["Mixed Jam", "No Jam"] as const
+export type JamOption = (typeof JAM_OPTIONS)[number]
+export const DEFAULT_JAM_OPTION: JamOption = "Mixed Jam"
+
 /**
  * Shape stored under `line_item.metadata.custom_attributes`.
  * Inscription lives at top-level `metadata.inscription` (historical contract).
@@ -42,6 +49,8 @@ export type CakeAttrKey = (typeof CAKE_ATTR)[keyof typeof CAKE_ATTR]
 export type LineItemCakeAttributes = {
   flavour?: string
   servings?: string
+  /** "Mixed Jam" | "No Jam" (or free-form from older carts). */
+  jam?: string
   date?: string
   time?: string
   message?: string
@@ -183,6 +192,7 @@ export function resolveStorageServingText(
 export const CAKE_ATTR_LABELS: Record<string, string> = {
   flavour: "Flavour",
   servings: "Servings",
+  jam: "Jam",
   date: "Collection Date",
   time: "Collection Time",
   message: "Instructions",
@@ -200,6 +210,9 @@ const LEGACY_TO_CANONICAL: Record<string, CakeAttrKey> = {
   "sponge flavour": "flavour",
   servings: "servings",
   "number of servings": "servings",
+  jam: "jam",
+  "jam filling": "jam",
+  "jam option": "jam",
   date: "date",
   "collection date": "date",
   time: "time",
@@ -247,6 +260,7 @@ export function isSizeOptionTitle(title: string): boolean {
 export function buildCustomAttributes(input: {
   flavour?: string
   servings?: string
+  jam?: string
   date?: string
   time?: string
   message?: string
@@ -263,6 +277,7 @@ export function buildCustomAttributes(input: {
 
   set(CAKE_ATTR.flavour, input.flavour)
   set(CAKE_ATTR.servings, input.servings)
+  set(CAKE_ATTR.jam, input.jam)
   set(CAKE_ATTR.date, input.date)
   set(CAKE_ATTR.time, input.time)
   set(CAKE_ATTR.message, input.message)

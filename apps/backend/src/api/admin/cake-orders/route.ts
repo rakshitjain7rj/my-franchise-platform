@@ -2,7 +2,8 @@
  * @file GET /admin/cake-orders
  * @description Bakery-facing order feed. Returns orders enriched with the
  * cake-specific data the storefront captures at add-to-cart time (sponge
- * flavour, servings, collection date/time, special message, inscription) plus
+ * flavour, servings, jam filling, collection date/time, special message,
+ * inscription) plus
  * the fulfilling StoreLocation, so the bakery owner sees exactly what to bake,
  * for whom, and when — without digging through raw JSON metadata.
  *
@@ -41,6 +42,8 @@ import OrderStoreLocationLink from "../../../links/order-store-location"
 type CakeCustomization = {
   flavor: string | null
   servings: string | null
+  /** "Mixed Jam" | "No Jam" (storefront custom_attributes.jam). */
+  jam: string | null
   collection_date: string | null
   collection_time: string | null
   special_message: string | null
@@ -97,6 +100,7 @@ const KNOWN_ATTRIBUTE_KEYS: Record<string, keyof CakeCustomization> = {
   flavour: "flavor",
   flavor: "flavor",
   servings: "servings",
+  jam: "jam",
   photo_url: "photo_url",
   // Legacy capitalised / long-form labels
   "collection date": "collection_date",
@@ -107,8 +111,65 @@ const KNOWN_ATTRIBUTE_KEYS: Record<string, keyof CakeCustomization> = {
   "sponge flavor": "flavor",
   "sponge flavour": "flavor",
   "number of servings": "servings",
+  "jam filling": "jam",
+  "jam option": "jam",
   photo: "photo_url",
   "photo url": "photo_url",
+}
+
+/**
+ * Coerce Medusa money values (number | string | BigNumber-like) to a finite
+ * number. Returns null when the value is missing or unparseable.
+ */
+const toAmount = (value: unknown): number | null => {
+  if (value == null || value === "") return null
+  if (typeof value === "number") return Number.isFinite(value) ? value : null
+  if (typeof value === "string") {
+    const n = Number(value)
+    return Number.isFinite(n) ? n : null
+  }
+  if (typeof value === "object") {
+    const raw =
+      (value as { numeric?: unknown }).numeric ??
+      (value as { value?: unknown }).value
+    if (raw != null && raw !== value) return toAmount(raw)
+  }
+  return null
+}
+
+/**
+ * Order totals are NOT a DB column on `order`. Medusa stores them on
+ * `order_summary.totals` and exposes them via the `summary` relation as
+ * `current_order_total`. Requesting the computed Graph field `total` without
+ * the full relation set used by the order module (items + unit_price +
+ * tax_lines + shipping_methods + adjustments) yields 0 — which is what the
+ * Cake Orders board was showing (€0.00 / £0.00).
+ *
+ * Always read the summary total first; fall back to a computed `total` only
+ * if a future Medusa version starts populating it reliably for sparse graphs.
+ */
+const resolveOrderTotal = (order: {
+  total?: unknown
+  summary?: unknown
+}): number | null => {
+  const summary = order.summary as
+    | Record<string, unknown>
+    | Array<{ totals?: Record<string, unknown> } & Record<string, unknown>>
+    | null
+    | undefined
+
+  let totals: Record<string, unknown> | null = null
+  if (Array.isArray(summary) && summary.length) {
+    totals = (summary[0]?.totals ?? summary[0]) as Record<string, unknown>
+  } else if (summary && typeof summary === "object") {
+    totals = summary as Record<string, unknown>
+  }
+
+  return (
+    toAmount(totals?.current_order_total) ??
+    toAmount(totals?.original_order_total) ??
+    toAmount(order.total)
+  )
 }
 
 const parseCakeCustomization = (
@@ -117,6 +178,7 @@ const parseCakeCustomization = (
   const cake: CakeCustomization = {
     flavor: null,
     servings: null,
+    jam: null,
     collection_date: null,
     collection_time: null,
     special_message: null,
@@ -257,7 +319,9 @@ export const GET = async (
       "created_at",
       "email",
       "currency_code",
-      "total",
+      // Prefer order_summary totals over the computed `total` field — see
+      // resolveOrderTotal(). `summary.*` is the authoritative money source.
+      "summary.*",
       "metadata",
       "items.id",
       "items.title",
@@ -361,7 +425,7 @@ export const GET = async (
       created_at: order.created_at,
       email: order.email ?? null,
       currency_code: order.currency_code ?? null,
-      total: order.total != null ? Number(order.total) : null,
+      total: resolveOrderTotal(order),
       customer_name: customerName,
       phone: shippingAddress?.phone ?? null,
       fulfillment_method:

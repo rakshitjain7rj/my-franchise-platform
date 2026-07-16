@@ -11,17 +11,17 @@ type FlavorItem = {
 
 const flavors: FlavorItem[] = [
   {
-    name: "Red Velvet",
+    name: "Eggless Red Velvet",
     imageSrc: "/images/flavors/red-velvet.png",
     href: "/cake-catalogue?flavour=red-velvet",
   },
   {
-    name: "Chocolate",
+    name: "Eggless Chocolate",
     imageSrc: "/images/flavors/dark-truffle.png",
     href: "/cake-catalogue?flavour=chocolate",
   },
   {
-    name: "Victoria Sponge",
+    name: "Eggless Vanilla",
     imageSrc: "/images/flavors/madagascar-vanilla.png",
     href: "/cake-catalogue?flavour=victoria",
   },

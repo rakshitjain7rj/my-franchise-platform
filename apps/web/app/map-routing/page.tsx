@@ -19,6 +19,7 @@ import { unstable_cache } from "next/cache";
 import { medusaFetch } from "@/lib/medusa";
 import MapRoutingShell from "../components/MapRoutingShell";
 import type { MapMarker } from "../components/LeafletMap";
+import { getCurrentCustomer } from "@/lib/auth/auth-actions";
 
 // ---------------------------------------------------------------------------
 // Medusa response types
@@ -271,15 +272,16 @@ export default async function MapRoutingPage() {
     .get("selected_store_location_id")
     ?.value?.trim();
 
-  // Load pins + live default in parallel. The default-location endpoint is
-  // uncached so admin "Default" toggles show up on the map immediately
-  // (location list cache may still be up to 1h old for pin coordinates).
-  const [{ locations, markers }, apiDefaultId] = await Promise.all([
+  // Resolve auth + store locations in parallel.
+  const [{ locations, markers }, apiDefaultId, currentCustomer] = await Promise.all([
     getStoreLocations(franchiseId),
     cookieStoreId
       ? Promise.resolve<string | null>(null)
       : fetchDefaultLocationId(franchiseId),
+    getCurrentCustomer().catch(() => null),
   ]);
+
+  const isLoggedIn = currentCustomer !== null;
 
   const hasExistingSelection = Boolean(
     cookieStoreId && locations.some((l) => l.id === cookieStoreId)
@@ -317,6 +319,7 @@ export default async function MapRoutingPage() {
       initialHighlightedId={initialStoreId}
       initialSelectedId={initialStoreId}
       selectionSource={hasExistingSelection ? "cookie" : "default"}
+      isLoggedIn={isLoggedIn}
     />
   );
 }

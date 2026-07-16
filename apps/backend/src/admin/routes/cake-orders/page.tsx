@@ -80,6 +80,7 @@ const CakeItemCard = ({ item }: { item: CakeOrderItem }) => {
 
         {cake.flavor && <SpecRow label="Flavour" value={cake.flavor} />}
         {cake.servings && <SpecRow label="Servings" value={cake.servings} />}
+        {cake.jam && <SpecRow label="Jam" value={cake.jam} />}
         {cake.collection_time && (
           <SpecRow label="Time slot" value={cake.collection_time} />
         )}

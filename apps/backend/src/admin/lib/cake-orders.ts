@@ -8,6 +8,8 @@ import { sdk } from "./sdk"
 export type CakeCustomization = {
   flavor: string | null
   servings: string | null
+  /** "Mixed Jam" | "No Jam" from storefront line-item custom_attributes.jam */
+  jam: string | null
   collection_date: string | null
   collection_time: string | null
   special_message: string | null

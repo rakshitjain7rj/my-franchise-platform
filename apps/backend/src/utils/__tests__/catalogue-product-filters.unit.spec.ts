@@ -9,10 +9,25 @@ import {
 
 describe("spongeNeedlesFor", () => {
   it("maps known handles to option needles", () => {
-    expect(spongeNeedlesFor("chocolate")).toEqual(["chocolate"])
-    expect(spongeNeedlesFor("victoria")).toEqual(["victoria"])
-    expect(spongeNeedlesFor("red-velvet")).toEqual(["red velvet", "red-velvet"])
-    expect(spongeNeedlesFor("vanilla")).toEqual(["victoria"])
+    expect(spongeNeedlesFor("chocolate")).toEqual([
+      "eggless chocolate",
+      "chocolate",
+    ])
+    expect(spongeNeedlesFor("victoria")).toEqual([
+      "eggless vanilla",
+      "victoria",
+      "vanilla",
+    ])
+    expect(spongeNeedlesFor("red-velvet")).toEqual([
+      "eggless red velvet",
+      "red velvet",
+      "red-velvet",
+    ])
+    expect(spongeNeedlesFor("vanilla")).toEqual([
+      "eggless vanilla",
+      "victoria",
+      "vanilla",
+    ])
   })
 
   it("returns null for empty", () => {

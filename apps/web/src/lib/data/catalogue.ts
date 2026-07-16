@@ -552,22 +552,25 @@ export function isProductAvailable(product: CatalogueProduct): boolean {
  * Canonical sponge options present on the live import catalogue.
  * URL values are short handles; `needles` match option value text (and
  * title/description fallback) case-insensitively.
+ *
+ * Display names are eggless-prefixed (brand is egg-free). Internal handles
+ * (`victoria`, `chocolate`, `red-velvet`) stay stable for existing URLs.
  */
 export const FLAVOUR_OPTIONS = [
   {
     value: "victoria",
-    label: "Victoria sponge",
-    needles: ["victoria"],
+    label: "Eggless Vanilla",
+    needles: ["eggless vanilla", "victoria", "vanilla"],
   },
   {
     value: "chocolate",
-    label: "Chocolate",
-    needles: ["chocolate"],
+    label: "Eggless Chocolate",
+    needles: ["eggless chocolate", "chocolate"],
   },
   {
     value: "red-velvet",
-    label: "Red velvet",
-    needles: ["red velvet", "red-velvet"],
+    label: "Eggless Red Velvet",
+    needles: ["eggless red velvet", "red velvet", "red-velvet"],
   },
 ] as const;
 
@@ -582,13 +585,16 @@ export function normalizeFlavourParam(
   // Map marketing/home labels → real sponge handles
   const aliases: Record<string, string> = {
     vanilla: "victoria",
+    "eggless-vanilla": "victoria",
     "madagascar-vanilla": "victoria",
     "pure-vanilla": "victoria",
     "victoria-sponge": "victoria",
     "chocolate-sponge": "chocolate",
+    "eggless-chocolate": "chocolate",
     "dark-truffle": "chocolate",
     "red velvet": "red-velvet",
     redvelvet: "red-velvet",
+    "eggless-red-velvet": "red-velvet",
   };
   const mapped = aliases[v] ?? v;
   if (FLAVOUR_OPTIONS.some((o) => o.value === mapped)) return mapped;

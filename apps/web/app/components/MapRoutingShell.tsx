@@ -28,6 +28,7 @@ import {
   STORE_ID_COOKIE,
   STORE_NAME_COOKIE,
 } from "@/lib/store-cookies";
+import { saveStorePreference } from "@/lib/auth/storePreferenceActions";
 
 interface MapRoutingShellProps {
   /** The active Franchise (brand) ID — read-only, never mutated. */
@@ -50,6 +51,12 @@ interface MapRoutingShellProps {
    * the admin default is applied and the visitor has no store cookie yet.
    */
   selectionSource?: "cookie" | "default";
+  /**
+   * Whether the current visitor is logged in.
+   * When true, store selection changes are persisted to the server metadata
+   * in addition to the local session cookie.
+   */
+  isLoggedIn?: boolean;
 }
 
 function getCookie(name: string): string | null {
@@ -67,6 +74,7 @@ export default function MapRoutingShell({
   initialHighlightedId = null,
   initialSelectedId = null,
   selectionSource = "default",
+  isLoggedIn = false,
 }: MapRoutingShellProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -121,6 +129,14 @@ export default function MapRoutingShell({
     setPersistentCookie(STORE_ID_COOKIE, storeId);
     setPersistentCookie(STORE_NAME_COOKIE, storeName);
     setPersistentCookie(FRANCHISE_COOKIE, franchiseId);
+
+    // If the user is logged in, also persist the preference to the server so
+    // it survives cookie expiration and syncs across devices.
+    if (isLoggedIn) {
+      saveStorePreference(storeId, storeName).catch((err) =>
+        console.error("[MapRoutingShell] Failed to save store preference:", err)
+      );
+    }
 
     try {
       window.dispatchEvent(

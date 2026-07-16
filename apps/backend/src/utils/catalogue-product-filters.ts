@@ -53,15 +53,19 @@ const PRICE_ORDER_DESC = "-variants.calculated_price.calculated_amount"
 // ---------------------------------------------------------------------------
 
 const SPONGE_ALIASES: Record<string, string[]> = {
-  victoria: ["victoria"],
-  chocolate: ["chocolate"],
-  "red-velvet": ["red velvet", "red-velvet"],
-  vanilla: ["victoria"],
-  "madagascar-vanilla": ["victoria"],
-  "victoria-sponge": ["victoria"],
-  "chocolate-sponge": ["chocolate"],
-  "dark-truffle": ["chocolate"],
-  redvelvet: ["red velvet"],
+  // Prefer eggless display names; keep legacy needles for unmigrated data.
+  victoria: ["eggless vanilla", "victoria", "vanilla"],
+  chocolate: ["eggless chocolate", "chocolate"],
+  "red-velvet": ["eggless red velvet", "red velvet", "red-velvet"],
+  vanilla: ["eggless vanilla", "victoria", "vanilla"],
+  "eggless-vanilla": ["eggless vanilla", "victoria", "vanilla"],
+  "madagascar-vanilla": ["eggless vanilla", "victoria", "vanilla"],
+  "victoria-sponge": ["eggless vanilla", "victoria", "vanilla"],
+  "chocolate-sponge": ["eggless chocolate", "chocolate"],
+  "eggless-chocolate": ["eggless chocolate", "chocolate"],
+  "dark-truffle": ["eggless chocolate", "chocolate"],
+  redvelvet: ["eggless red velvet", "red velvet"],
+  "eggless-red-velvet": ["eggless red velvet", "red velvet", "red-velvet"],
 }
 
 const SPONGE_OPTION_TITLE_RE = "^(flavou?r|sponge)(\\s*[0-9]+)?$"

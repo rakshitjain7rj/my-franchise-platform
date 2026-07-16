@@ -29,7 +29,9 @@ import {
 import { addToWishlist, removeFromWishlist, isInWishlist } from "@/lib/wishlist";
 import { defaultMinCollectionDate } from "@/lib/data/logistics";
 import {
+  DEFAULT_JAM_OPTION,
   INSCRIPTION_MAX_LENGTH,
+  JAM_OPTIONS,
   MESSAGE_MAX_LENGTH,
   buildCustomAttributes,
   isFlavourOptionTitle,
@@ -39,6 +41,7 @@ import {
   resolveServingsForVariant,
   resolveStorageServingText,
   resolveSupportedFlavours,
+  type JamOption,
 } from "@/types/cake-metadata";
 
 function getCookie(name: string): string | null {
@@ -251,6 +254,14 @@ const FlavorIcon = () => (
   </svg>
 );
 
+const JamIcon = () => (
+  <svg className="w-4 h-4 text-vibrant-magenta shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M8 3h8l1 3H7l1-3z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M7 6h10v2a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V6z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8v9a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-9z" />
+  </svg>
+);
+
 const EditIcon = () => (
   <svg className="w-4 h-4 text-vibrant-magenta shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -403,6 +414,8 @@ export default function ProductDetail({
   const [collectionDate, setCollectionDate] = useState(defaultMinCollectionDate());
   const [collectionTime, setCollectionTime] = useState(""); // HH:mm slot start
   const [collectionTimeLabel, setCollectionTimeLabel] = useState("");
+  /** Jam filling: Mixed Jam | No Jam — written to line-item custom_attributes.jam */
+  const [jamOption, setJamOption] = useState<JamOption>(DEFAULT_JAM_OPTION);
   const [specialMessage, setSpecialMessage] = useState("");
   const [inscription, setInscription] = useState("");
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -731,6 +744,7 @@ export default function ProductDetail({
       const customAttributes = buildCustomAttributes({
         flavour: resolvedFlavour || undefined,
         servings: servingsLabel || undefined,
+        jam: jamOption,
         date: collectionDate,
         time: collectionTimeLabel || collectionTime,
         message: specialMessage.trim() || undefined,
@@ -772,6 +786,7 @@ export default function ProductDetail({
     collectionDate,
     collectionTime,
     collectionTimeLabel,
+    jamOption,
     specialMessage,
     photoUrl,
     resolvedFlavour,
@@ -919,62 +934,126 @@ export default function ProductDetail({
               Customize Your Cake
             </h3>
 
-            {/* Collection bakery — change store without leaving the product page */}
-            <div className="flex flex-col gap-2 bg-white p-3.5 rounded-2xl border border-outline-variant/30 transition-all duration-300">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 text-vibrant-magenta">
-                  <MapPin className="h-4 w-4 shrink-0" strokeWidth={2.5} />
-                  <span className="text-xs font-bold text-on-surface-variant/90 uppercase tracking-wider">
-                    Collection bakery
-                  </span>
+            {/* Collection bakery + jam filling — side-by-side on sm+ to save vertical space */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Collection bakery — change store without leaving the product page */}
+              <div className="flex flex-col gap-2 bg-white p-3.5 rounded-2xl border border-outline-variant/30 transition-all duration-300">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-vibrant-magenta">
+                    <MapPin className="h-4 w-4 shrink-0" strokeWidth={2.5} />
+                    <span className="text-xs font-bold text-on-surface-variant/90 uppercase tracking-wider">
+                      Collection bakery
+                    </span>
+                  </div>
+                  {storeLocations.length > 1 && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/70">
+                      Change anytime
+                    </span>
+                  )}
                 </div>
-                {storeLocations.length > 1 && (
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/70">
-                    Change anytime
-                  </span>
+                {storesLoading ? (
+                  <div className="h-10 w-full animate-pulse rounded-full bg-lavender-bg/80" />
+                ) : storeSelectOptions.length > 0 ? (
+                  <>
+                    <PremiumSelect
+                      label="Collection bakery"
+                      value={storeLocationId ?? ""}
+                      placeholder="Select a bakery"
+                      options={storeSelectOptions}
+                      onChange={handleStoreChange}
+                      active={Boolean(storeLocationId)}
+                      fullWidth
+                      contentClassName="z-50"
+                    />
+                    {storeName && storeLocationId && (
+                      <p className="text-[11px] text-on-surface-variant leading-relaxed">
+                        Ordering from{" "}
+                        <span className="font-semibold text-deep-plum">
+                          {storeName}
+                        </span>
+                        . Collection slots and stock update for this bakery.
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-sm text-on-surface-variant">
+                      {storeName
+                        ? `Current bakery: ${storeName}`
+                        : "No bakery selected yet."}
+                    </p>
+                    <Link
+                      href={`/map-routing?redirect=${encodeURIComponent(
+                        `/products/${product.handle}`
+                      )}`}
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-deep-plum/20 bg-deep-plum px-3.5 text-xs font-semibold text-white shadow-[0_4px_14px_-4px_rgba(74,21,75,0.45)] transition-all hover:bg-vibrant-magenta"
+                    >
+                      Choose bakery
+                    </Link>
+                  </div>
                 )}
               </div>
-              {storesLoading ? (
-                <div className="h-10 w-full animate-pulse rounded-full bg-lavender-bg/80" />
-              ) : storeSelectOptions.length > 0 ? (
-                <>
-                  <PremiumSelect
-                    label="Collection bakery"
-                    value={storeLocationId ?? ""}
-                    placeholder="Select a bakery"
-                    options={storeSelectOptions}
-                    onChange={handleStoreChange}
-                    active={Boolean(storeLocationId)}
-                    fullWidth
-                    contentClassName="z-50"
-                  />
-                  {storeName && storeLocationId && (
-                    <p className="text-[11px] text-on-surface-variant leading-relaxed">
-                      Ordering from{" "}
-                      <span className="font-semibold text-deep-plum">
-                        {storeName}
-                      </span>
-                      . Collection slots and stock update for this bakery.
-                    </p>
-                  )}
-                </>
-              ) : (
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm text-on-surface-variant">
-                    {storeName
-                      ? `Current bakery: ${storeName}`
-                      : "No bakery selected yet."}
-                  </p>
-                  <Link
-                    href={`/map-routing?redirect=${encodeURIComponent(
-                      `/products/${product.handle}`
-                    )}`}
-                    className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-deep-plum/20 bg-deep-plum px-3.5 text-xs font-semibold text-white shadow-[0_4px_14px_-4px_rgba(74,21,75,0.45)] transition-all hover:bg-vibrant-magenta"
-                  >
-                    Choose bakery
-                  </Link>
+
+              {/* Jam filling — Mixed Jam / No Jam as paired choice cards (delivery-method style) */}
+              <div className="flex flex-col gap-2 bg-white p-3.5 rounded-2xl border border-outline-variant/30 transition-all duration-300">
+                <div className="flex items-center gap-2 text-vibrant-magenta">
+                  <JamIcon />
+                  <span className="text-xs font-bold text-on-surface-variant/90 uppercase tracking-wider">
+                    Jam Filling
+                  </span>
                 </div>
-              )}
+                <div
+                  className="grid grid-cols-2 gap-2"
+                  role="radiogroup"
+                  aria-label="Jam filling"
+                >
+                  {JAM_OPTIONS.map((opt) => {
+                    const selected = jamOption === opt;
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => {
+                          setJamOption(opt);
+                          setAddedToCart(false);
+                          setCartError(null);
+                        }}
+                        className={`w-full rounded-xl border-2 px-3 py-3 text-left transition-all ${
+                          selected
+                            ? "border-vibrant-magenta bg-vibrant-magenta/10 shadow-sm"
+                            : "border-outline-variant/40 bg-lavender-bg/20 hover:border-vibrant-magenta/40"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span
+                            className={`text-sm font-semibold leading-snug ${
+                              selected ? "text-deep-plum" : "text-on-surface-variant"
+                            }`}
+                          >
+                            {opt}
+                          </span>
+                          <span
+                            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                              selected
+                                ? "border-vibrant-magenta"
+                                : "border-outline-variant"
+                            }`}
+                            aria-hidden
+                          >
+                            <span
+                              className={`h-2 w-2 rounded-full bg-vibrant-magenta transition-transform duration-150 ${
+                                selected ? "scale-100" : "scale-0"
+                              }`}
+                            />
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
             {/* Medusa product options (Size, Flavor-as-option, …) */}
@@ -1039,44 +1118,48 @@ export default function ProductDetail({
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Metadata-driven sponge flavour (when not a Medusa option) */}
-              {!hasFlavourOption && metadataFlavours.length > 0 && (
-                <div className="flex flex-col gap-2 bg-white p-3.5 rounded-2xl border border-outline-variant/30 transition-all duration-300">
-                  <div className="flex items-center gap-2 text-vibrant-magenta">
-                    <FlavorIcon />
-                    <span className="text-xs font-bold text-on-surface-variant/90 uppercase tracking-wider">
-                      Sponge Flavour
-                    </span>
+            {/* Flavour / servings — only when there is something to show */}
+            {((!hasFlavourOption && metadataFlavours.length > 0) ||
+              (servingsLabel && selectableOptions.length === 0)) && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Metadata-driven sponge flavour (when not a Medusa option) */}
+                {!hasFlavourOption && metadataFlavours.length > 0 && (
+                  <div className="flex flex-col gap-2 bg-white p-3.5 rounded-2xl border border-outline-variant/30 transition-all duration-300">
+                    <div className="flex items-center gap-2 text-vibrant-magenta">
+                      <FlavorIcon />
+                      <span className="text-xs font-bold text-on-surface-variant/90 uppercase tracking-wider">
+                        Sponge Flavour
+                      </span>
+                    </div>
+                    <PremiumSelect
+                      label="Sponge flavour"
+                      value={metadataFlavour}
+                      placeholder="Select flavour"
+                      options={metadataFlavours.map((f) => ({
+                        value: f,
+                        label: f,
+                      }))}
+                      onChange={setMetadataFlavour}
+                      active={Boolean(metadataFlavour)}
+                      fullWidth
+                    />
                   </div>
-                  <PremiumSelect
-                    label="Sponge flavour"
-                    value={metadataFlavour}
-                    placeholder="Select flavour"
-                    options={metadataFlavours.map((f) => ({
-                      value: f,
-                      label: f,
-                    }))}
-                    onChange={setMetadataFlavour}
-                    active={Boolean(metadataFlavour)}
-                    fullWidth
-                  />
-                </div>
-              )}
+                )}
 
-              {/* Derived servings (read-only when no size option to host the hint) */}
-              {servingsLabel && selectableOptions.length === 0 && (
-                <div className="flex flex-col gap-1.5 bg-white p-3.5 rounded-2xl border border-outline-variant/30">
-                  <div className="flex items-center gap-2 text-vibrant-magenta">
-                    <ServingsIcon />
-                    <span className="text-xs font-bold text-on-surface-variant/90 uppercase tracking-wider">
-                      Servings
-                    </span>
+                {/* Derived servings (read-only when no size option to host the hint) */}
+                {servingsLabel && selectableOptions.length === 0 && (
+                  <div className="flex flex-col gap-1.5 bg-white p-3.5 rounded-2xl border border-outline-variant/30">
+                    <div className="flex items-center gap-2 text-vibrant-magenta">
+                      <ServingsIcon />
+                      <span className="text-xs font-bold text-on-surface-variant/90 uppercase tracking-wider">
+                        Servings
+                      </span>
+                    </div>
+                    <p className="pt-1.5 text-sm text-deep-plum">{servingsLabel}</p>
                   </div>
-                  <p className="pt-1.5 text-sm text-deep-plum">{servingsLabel}</p>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
 
             {/* Inscription — cake surface text (100 ch) */}
             {supportsInscription && (

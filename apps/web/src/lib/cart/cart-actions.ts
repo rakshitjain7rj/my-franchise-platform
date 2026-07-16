@@ -179,7 +179,7 @@ export async function getCart(cartId: string): Promise<MedusaCart | null> {
  * Attaches `store_location_id`, canonical `custom_attributes`, and optional
  * `inscription` into the line item metadata so cake fields survive to the
  * order. Attribute keys are normalised to the Phase-0 contract
- * (`flavour|servings|date|time|message|photo_url`).
+ * (`flavour|servings|jam|date|time|message|photo_url`).
  *
  * When `existingCustomAttributes` is provided (re-add / edit flows), updates
  * are **spread-merged** so partial writes cannot wipe flavour/date/etc.

@@ -2,16 +2,17 @@
  * Store-selection cookie helpers.
  *
  * `selected_store_location_id` / `selected_store_name` must survive until the
- * shopper explicitly picks another bakery (or clears site data). Browsers do
- * not support infinite cookies, so we use a long max-age (~10 years).
+ * shopper explicitly picks another bakery (or clears site data). We use a 6-month
+ * max-age to remain compliant with UK/GDPR rules.
  */
 
 export const STORE_ID_COOKIE = "selected_store_location_id";
 export const STORE_NAME_COOKIE = "selected_store_name";
 export const FRANCHISE_COOKIE = "franchise_id";
 
-/** ~10 years in seconds — effectively “no expiry until changed”. */
-export const STORE_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365 * 10;
+/** ~6 months in seconds — compliant with UK/GDPR rules. */
+export const STORE_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 180;
+
 
 /**
  * Write a browser cookie that does not expire with the session.

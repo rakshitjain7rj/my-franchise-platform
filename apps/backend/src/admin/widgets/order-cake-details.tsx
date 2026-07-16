@@ -3,8 +3,8 @@
  *
  * Widget injected at the top of the native admin order-detail page. Surfaces
  * the cake-specific data the storefront stored in line-item / order metadata
- * (sponge flavour, servings, collection date & time, inscription, special
- * message, fulfilling store) so the bakery owner never has to read raw JSON.
+ * (sponge flavour, servings, jam filling, collection date & time, inscription,
+ * special message, fulfilling store) so the bakery owner never has to read raw JSON.
  *
  * Data source: GET /admin/cake-orders?order_id=… (franchise + store scoped
  * server-side; see src/api/admin/cake-orders/route.ts).
@@ -36,6 +36,7 @@ const ItemSpecs = ({ item }: { item: CakeOrderItem }) => {
   const hasCakeData =
     cake.flavor ||
     cake.servings ||
+    cake.jam ||
     cake.collection_date ||
     cake.collection_time ||
     cake.inscription ||
@@ -75,6 +76,7 @@ const ItemSpecs = ({ item }: { item: CakeOrderItem }) => {
             )}
             {cake.flavor && <Spec label="Sponge flavour" value={cake.flavor} />}
             {cake.servings && <Spec label="Servings" value={cake.servings} />}
+            {cake.jam && <Spec label="Jam filling" value={cake.jam} />}
             {Object.entries(cake.options).map(([key, value]) => (
               <Spec key={key} label={key} value={value} />
             ))}
