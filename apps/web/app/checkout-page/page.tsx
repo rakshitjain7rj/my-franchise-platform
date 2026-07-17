@@ -183,6 +183,7 @@ export default function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [orderNumber, setOrderNumber] = useState<number | null>(null)
+  const [summaryOpen, setSummaryOpen] = useState(false)
 
   const totalItems = cart?.items.reduce((a, i) => a + i.quantity, 0) ?? 0
 
@@ -347,10 +348,10 @@ export default function CheckoutPage() {
   return (
     <div className={`flex flex-col min-h-screen ${playfair.variable}`}>
         <Header />
-        <main className="flex-grow pt-28 pb-16 bg-[#EEDFF5] w-full">
-          <div className="max-w-[1100px] mx-auto px-6 lg:px-8">
-            <div className="mb-10">
-              <h1 className={`text-3xl font-bold text-[#4A154B] mb-2 ${playfair.className}`}>Secure Checkout</h1>
+        <main className="flex-grow pt-20 sm:pt-28 pb-20 md:pb-16 bg-[#EEDFF5] w-full">
+          <div className="max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="mb-6 sm:mb-10">
+              <h1 className={`text-2xl sm:text-3xl font-bold text-[#4A154B] mb-2 ${playfair.className}`}>Secure Checkout</h1>
               <div className="flex items-center text-sm text-on-surface-variant">
                 <span className="relative flex h-2 w-2 mr-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
@@ -362,11 +363,11 @@ export default function CheckoutPage() {
 
             <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative">
               {/* Left Column: Form Sections */}
-              <div className="lg:col-span-7 space-y-6">
+              <div className="lg:col-span-7 space-y-4 sm:space-y-6">
                 <div className="bg-white rounded-lg shadow-sm border border-outline-variant overflow-hidden">
 
                   {/* Contact Information */}
-                  <section className="p-6">
+                  <section className="p-4 sm:p-6">
                     <h2 className={`text-lg font-semibold text-[#4A154B] mb-5 flex items-center ${playfair.className}`}>
                       <span className="material-symbols-outlined mr-2 text-[#4A154B]/80 text-[20px]">contact_mail</span>
                       Contact Information
@@ -419,7 +420,7 @@ export default function CheckoutPage() {
                   <div className="border-t border-outline-variant"></div>
 
                   {/* Delivery Details */}
-                  <section className="p-6">
+                  <section className="p-4 sm:p-6">
                     <h2 className={`text-lg font-semibold text-[#4A154B] mb-5 flex items-center ${playfair.className}`}>
                       <span className="material-symbols-outlined mr-2 text-[#4A154B]/80 text-[20px]">local_shipping</span>
                       Delivery Details
@@ -583,7 +584,7 @@ export default function CheckoutPage() {
                   <div className="border-t border-outline-variant"></div>
 
                   {/* Payment Method */}
-                  <section className="p-6">
+                  <section className="p-4 sm:p-6">
                     <h2 className={`text-lg font-semibold text-[#4A154B] mb-1 flex items-center ${playfair.className}`}>
                       <span className="material-symbols-outlined mr-2 text-[#4A154B]/80 text-[20px]">payment</span>
                       Payment Method
@@ -700,7 +701,7 @@ export default function CheckoutPage() {
                   <div className="border-t border-outline-variant"></div>
 
                   {/* Special Notes */}
-                  <section className="p-6">
+                  <section className="p-4 sm:p-6">
                     <h2 className={`text-lg font-semibold text-[#4A154B] mb-5 flex items-center ${playfair.className}`}>
                       <span className="material-symbols-outlined mr-2 text-[#4A154B]/80 text-[20px]">edit_note</span>
                       Special Notes
@@ -726,7 +727,20 @@ export default function CheckoutPage() {
 
               {/* Right Column: Order Summary */}
               <div className="lg:col-span-5">
-                <div className="sticky top-24 bg-white rounded-lg shadow-sm border border-outline-variant p-6">
+                {/* Mobile accordion toggle — only visible below lg */}
+                <button
+                  type="button"
+                  onClick={() => setSummaryOpen((v) => !v)}
+                  className="lg:hidden w-full flex items-center justify-between bg-white rounded-lg shadow-sm border border-outline-variant p-4 text-sm font-semibold text-[#4A154B] mb-2"
+                  aria-expanded={summaryOpen}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="material-symbols-outlined !text-[18px]">receipt_long</span>
+                    Order Summary
+                  </span>
+                  <span className={`material-symbols-outlined !text-[20px] transition-transform duration-200 ${summaryOpen ? "rotate-180" : ""}`}>expand_more</span>
+                </button>
+                <div className={`bg-white rounded-lg shadow-sm border border-outline-variant p-4 sm:p-6 lg:sticky lg:top-24 ${summaryOpen ? "block" : "hidden lg:block"}`}>
                   <h2 className={`text-lg font-semibold text-[#4A154B] mb-6 ${playfair.className}`}>Order Summary</h2>
 
                   {isLoading ? (

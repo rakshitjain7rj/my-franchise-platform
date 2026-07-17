@@ -73,24 +73,53 @@ function Sidebar({
 
   return (
     <aside className="w-full md:w-64 shrink-0">
-      {/* Avatar card */}
-      <div className="bg-white rounded-2xl shadow-sm border border-purple-100 p-5 mb-4 text-center">
-        <div className="mx-auto h-16 w-16 rounded-full bg-deep-plum flex items-center justify-center text-white text-2xl font-bold mb-3 shadow-lg">
+      {/* Avatar card — shown on md+ as standalone, compact on mobile */}
+      <div className="bg-white rounded-2xl shadow-sm border border-purple-100 p-4 md:p-5 mb-4 md:text-center flex md:flex-col items-center md:items-center gap-3 md:gap-0">
+        <div className="h-12 w-12 md:h-16 md:w-16 md:mx-auto rounded-full bg-deep-plum flex items-center justify-center text-white text-xl md:text-2xl font-bold md:mb-3 shadow-lg shrink-0">
           {(customer.first_name?.[0] ?? customer.email[0]).toUpperCase()}
         </div>
-        <p className="font-bold text-deep-plum text-sm leading-tight">
-          {customer.first_name} {customer.last_name}
-        </p>
-        <p className="text-xs text-on-surface-variant mt-0.5 truncate">{customer.email}</p>
+        <div className="flex-1 min-w-0 text-left md:text-center">
+          <p className="font-bold text-deep-plum text-sm leading-tight truncate">
+            {customer.first_name} {customer.last_name}
+          </p>
+          <p className="text-xs text-on-surface-variant mt-0.5 truncate">{customer.email}</p>
+        </div>
+        {/* Sign out inline on mobile */}
+        <button
+          onClick={onLogout}
+          disabled={isPending}
+          className="md:hidden p-2 text-red-500 hover:bg-red-50 rounded-full transition-all shrink-0"
+          aria-label="Sign out"
+        >
+          <LogOut className="h-4 w-4" />
+        </button>
       </div>
 
-      {/* Nav */}
+      {/* Nav — horizontal scroll strip on mobile, vertical list on md+ */}
       <nav className="bg-white rounded-2xl shadow-sm border border-purple-100 overflow-hidden mb-4">
+        {/* Mobile: horizontal scroll */}
+        <div className="flex md:hidden overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden gap-1 p-2">
+          {nav.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setTab(item.id)}
+              className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${
+                active === item.id
+                  ? "bg-deep-plum text-white"
+                  : "text-on-surface hover:bg-lavender-bg"
+              }`}
+            >
+              {item.icon}
+              {item.label}
+            </button>
+          ))}
+        </div>
+        {/* Desktop: vertical list */}
         {nav.map((item) => (
           <button
             key={item.id}
             onClick={() => setTab(item.id)}
-            className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all text-left border-b border-purple-50 last:border-0 ${
+            className={`hidden md:flex w-full items-center gap-3 px-4 py-3 text-sm font-medium transition-all text-left border-b border-purple-50 last:border-0 ${
               active === item.id
                 ? "bg-deep-plum text-white"
                 : "text-on-surface hover:bg-lavender-bg"
@@ -106,7 +135,7 @@ function Sidebar({
       <button
         onClick={onLogout}
         disabled={isPending}
-        className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50 bg-white border border-red-100 rounded-2xl transition-all"
+        className="hidden md:flex w-full items-center gap-2 px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50 bg-white border border-red-100 rounded-2xl transition-all"
       >
         <LogOut className="h-4 w-4" />
         {isPending ? "Signing out…" : "Sign Out"}

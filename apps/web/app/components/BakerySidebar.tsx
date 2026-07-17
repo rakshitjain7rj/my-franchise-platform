@@ -120,8 +120,12 @@ export default function BakerySidebar({
           h-full
         "
       >
+        {/* ── Drag handle — visible on mobile, hidden on desktop ────────── */}
+        <div className="flex justify-center pt-2.5 pb-0 md:hidden" aria-hidden="true">
+          <div className="w-10 h-1 rounded-full bg-deep-plum/20" />
+        </div>
         {/* ── Brand header ─────────────────────────────────────────────── */}
-        <div className="px-8 pt-8 pb-6 border-b border-outline-variant/20">
+        <div className="px-5 pt-4 pb-5 md:px-8 md:pt-8 md:pb-6 border-b border-outline-variant/20">
           {/* Logo / brand name */}
           <div className="flex items-center gap-3 mb-1">
             <div className="w-8 h-8 rounded-full bg-deep-plum flex items-center justify-center shrink-0">
@@ -134,7 +138,7 @@ export default function BakerySidebar({
             </span>
           </div>
 
-          <h1 className="font-headline text-3xl font-extrabold text-deep-plum leading-tight mt-2">
+          <h1 className="font-headline text-2xl md:text-3xl font-extrabold text-deep-plum leading-tight mt-2">
             Choose Your{" "}
             <span className="text-vibrant-magenta italic font-light">
               Bakery
@@ -246,7 +250,7 @@ export default function BakerySidebar({
                       </div>
                     </div>
 
-                    {/* Meta row: coordinates hint */}
+                    {/* Meta row: human-readable address */}
                     <div
                       className={`flex flex-wrap gap-x-4 gap-y-1 mt-3 text-xs ${
                         isActive ? "text-white/70" : "text-on-surface-variant"
@@ -256,7 +260,7 @@ export default function BakerySidebar({
                         <span className="material-symbols-outlined !text-[14px]">
                           location_on
                         </span>
-                        {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
+                        {location.address || `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`}
                       </span>
                     </div>
 

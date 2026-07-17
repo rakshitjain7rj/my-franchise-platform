@@ -69,15 +69,15 @@ export default function SignupPage() {
     <div className="flex flex-col min-h-screen bg-lavender-bg">
       <Header />
       
-      <main className="flex-grow flex items-center justify-center pt-32 pb-16 px-6">
+      <main className="flex-grow flex items-center justify-center pt-20 sm:pt-32 pb-20 md:pb-16 px-4 sm:px-6">
         <div className="w-full max-w-[500px]">
           
           {/* Brand/Welcome Header */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-6 sm:mb-8">
             <div className="inline-flex items-center justify-center p-3 rounded-full bg-white shadow-sm border border-outline-variant/30 mb-4">
               <Cake className="h-10 w-10 text-secondary" />
             </div>
-            <h1 className="text-3xl font-extrabold font-heading text-deep-plum tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-extrabold font-heading text-deep-plum tracking-tight">
               Create Your Account
             </h1>
             <p className="text-on-surface-variant font-body text-sm mt-2">

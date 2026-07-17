@@ -4,7 +4,7 @@ import React from "react";
 
 export default function FooterPromoCards() {
   return (
-    <section className="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
+    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-gutter">
       {/* Loyalty Progress Card (1/3 width) */}
       <div
         className="
@@ -56,12 +56,12 @@ export default function FooterPromoCards() {
         className="
           lg:col-span-2
           bg-white
-          p-8 md:p-10
+          p-6 sm:p-8 md:p-10
           rounded-3xl
           border border-outline-variant/30
           premium-shadow
-          flex flex-col md:flex-row
-          gap-8 md:gap-12
+          flex flex-col sm:flex-row
+          gap-6 sm:gap-8 md:gap-12
           items-center
           min-h-[280px]
         "
@@ -96,7 +96,7 @@ export default function FooterPromoCards() {
         </div>
 
         {/* Visual Delivery Icon Container */}
-        <div className="w-48 h-48 bg-[#F8F5FB] rounded-3xl flex items-center justify-center p-8 border border-outline-variant/10 relative shrink-0">
+        <div className="w-32 h-32 sm:w-48 sm:h-48 bg-[#F8F5FB] rounded-3xl flex items-center justify-center p-6 sm:p-8 border border-outline-variant/10 relative shrink-0">
           <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center shadow-md relative">
             <span className="material-symbols-outlined text-vibrant-magenta !text-[36px]">
               local_shipping

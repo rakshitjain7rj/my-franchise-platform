@@ -55,7 +55,7 @@ export function CartOrderSummary({
   onClearDiscountMessages,
 }: CartOrderSummaryProps) {
   return (
-    <div className="sticky top-24 bg-white rounded-lg shadow-sm border border-outline-variant p-6">
+    <div className="lg:sticky lg:top-24 bg-white rounded-lg shadow-sm border border-outline-variant p-4 sm:p-6">
       <h2 className="text-lg font-semibold font-headline text-primary mb-6">
         Order Summary
       </h2>
@@ -109,7 +109,7 @@ export function CartOrderSummary({
       </ul>
 
       <div className="mb-6 pt-6 border-t border-outline-variant">
-        <div className="flex space-x-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <input
             type="text"
             value={discountCode}
@@ -126,7 +126,7 @@ export function CartOrderSummary({
             onClick={onApplyDiscount}
             id="apply-discount-btn"
             disabled={discountLoading || !discountCode.trim() || !cartId}
-            className="bg-on-surface/5 text-on-surface px-4 py-2 rounded-lg text-xs font-semibold hover:bg-on-surface/10 transition-colors disabled:opacity-50"
+            className="w-full sm:w-auto bg-on-surface/5 text-on-surface px-4 py-2 rounded-lg text-xs font-semibold hover:bg-on-surface/10 transition-colors disabled:opacity-50"
           >
             {discountLoading ? "…" : "Apply"}
           </button>

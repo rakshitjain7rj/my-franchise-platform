@@ -10,6 +10,7 @@ import CookieConsent from "./components/CookieConsent";
 import PwaRegister from "./components/PwaRegister";
 import PwaInstallPrompt from "./components/PwaInstallPrompt";
 import DefaultStoreBootstrap from "@/components/default-store-bootstrap";
+import BottomNav from "./components/BottomNav";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -85,6 +86,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
           {/* Auto-select franchise default bakery for first-time visitors only. */}
           <DefaultStoreBootstrap />
           {children}
+          <BottomNav />
           <WhatsAppWidget />
           <CookieConsent />
           <PwaInstallPrompt />

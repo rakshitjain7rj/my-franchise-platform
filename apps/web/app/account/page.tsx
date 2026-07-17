@@ -43,7 +43,7 @@ export default async function AccountPage({
   return (
     <div className="flex flex-col min-h-screen bg-lavender-bg">
       <Header />
-      <main className="flex-grow pt-28 pb-16 px-4 md:px-6">
+      <main className="flex-grow pt-20 sm:pt-28 pb-20 md:pb-16 px-4 md:px-6">
         <AccountDashboard
           customer={customer}
           addresses={addresses}

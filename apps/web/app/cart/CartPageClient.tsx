@@ -32,9 +32,9 @@ export default function CartPageClient({
   return (
     <div className="flex flex-col min-h-screen bg-[#EEDFF5] font-body selection:bg-secondary selection:text-on-secondary">
       <Header />
-      <main className="flex-grow w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-8 lg:py-16 bg-transparent pt-28">
-        <div className="mb-10">
-          <h1 className="font-headline text-[32px] md:text-[40px] font-extrabold tracking-tight text-primary">
+      <main className="flex-grow w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-8 lg:py-16 bg-transparent pt-20 sm:pt-28 pb-20 md:pb-16">
+        <div className="mb-6 sm:mb-10">
+          <h1 className="font-headline text-[28px] sm:text-[32px] md:text-[40px] font-extrabold tracking-tight text-primary">
             Your Confectionery Cart
           </h1>
           <p className="text-on-surface-variant text-body-lg mt-2">

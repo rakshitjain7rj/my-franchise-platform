@@ -187,7 +187,7 @@ export default function Header() {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-pink-500"></span>
               </span>
             </div>
-            <h1 className="text-xl md:text-2xl lg:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-purple-900 via-purple-700 to-pink-600 bg-clip-text text-transparent group-hover:opacity-90 transition-opacity hidden xs:block">
+            <h1 className="text-lg md:text-2xl lg:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-purple-900 via-purple-700 to-pink-600 bg-clip-text text-transparent group-hover:opacity-90 transition-opacity">
               Cake Break
             </h1>
           </Link>
@@ -267,7 +267,7 @@ export default function Header() {
                   ? "/account?tab=wishlist"
                   : `/login?redirect=${encodeURIComponent("/account?tab=wishlist")}`
               }
-              className="relative p-2 text-purple-700 hover:text-purple-900 hover:bg-purple-50 rounded-full transition-all duration-300"
+              className="relative p-2.5 text-purple-700 hover:text-purple-900 hover:bg-purple-50 rounded-full transition-all duration-300"
               aria-label="Wishlist"
             >
               <Heart className="h-5.5 w-5.5 md:h-6 md:w-6" />
@@ -281,7 +281,7 @@ export default function Header() {
             {/* Cart */}
             <Link
               href="/cart"
-              className="relative p-2 text-purple-700 hover:text-purple-900 hover:bg-purple-50 rounded-full transition-all duration-300"
+              className="relative p-2.5 text-purple-700 hover:text-purple-900 hover:bg-purple-50 rounded-full transition-all duration-300"
               aria-label="Cart"
             >
               <ShoppingCart className="h-5.5 w-5.5 md:h-6 md:w-6" />
@@ -375,8 +375,9 @@ export default function Header() {
             {/* Mobile Menu Button */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2 text-purple-800 hover:bg-purple-50 rounded-full md:hidden transition-all"
+              className="p-2.5 text-purple-800 hover:bg-purple-50 rounded-full md:hidden transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
               aria-label="Toggle menu"
+              aria-expanded={isMobileMenuOpen}
             >
               {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
@@ -385,7 +386,7 @@ export default function Header() {
 
         {/* Mobile Navigation Drawer */}
         {isMobileMenuOpen && (
-          <div className="md:hidden absolute top-full left-0 w-full bg-white/95 backdrop-blur-md border-b border-purple-100 shadow-lg py-5 px-5 z-40 animate-in slide-in-from-top-4 duration-300 flex flex-col gap-4">
+          <div className="md:hidden absolute top-full left-0 w-full bg-white/95 backdrop-blur-md border-b border-purple-100 shadow-lg py-4 sm:py-5 px-4 sm:px-5 z-40 animate-in slide-in-from-top-4 duration-300 flex flex-col gap-4 max-h-[85vh] overflow-y-auto">
             
             {/* Mobile User Profile Section */}
             <div className="pb-4 border-b border-purple-50">

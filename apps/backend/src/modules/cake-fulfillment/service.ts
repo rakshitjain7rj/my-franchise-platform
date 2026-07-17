@@ -7,10 +7,16 @@
  *   GET /store/stores/:id/delivery-fee. Never trusts client-set metadata.fee alone.
  *
  * Registered as provider id `cake_cake` (module id "cake" + service identifier).
+ *
+ * DI note: Medusa module providers receive an Awilix *cradle* (proxy), not a full
+ * container with `.resolve()`. Cross-module services (`franchise`, `query`) are
+ * also not registered in the fulfillment module sandbox. Shared resources that
+ * *are* available include `__pg_connection__` — use that for store/cart lookups.
  */
 
 import {
   AbstractFulfillmentProviderService,
+  ContainerRegistrationKeys,
   MedusaError,
 } from "@medusajs/framework/utils"
 import type {
@@ -29,6 +35,28 @@ import {
 const CACHE_TTL_MS = 15 * 60 * 1000
 
 type GeoPoint = { lat: number; lng: number }
+
+type StoreLocationRow = {
+  id: string
+  latitude: number | null
+  longitude: number | null
+  name: string
+  metadata: Record<string, unknown> | null
+}
+
+/** Minimal knex-like surface used for the shared PG connection. */
+type PgConnection = {
+  (table: string): {
+    select: (...cols: string[]) => {
+      where: (clause: Record<string, unknown>) => {
+        whereNull: (col: string) => {
+          first: () => Promise<Record<string, unknown> | undefined>
+        }
+        first: () => Promise<Record<string, unknown> | undefined>
+      }
+    }
+  }
+}
 
 async function geocodeUkPostcode(postcode: string): Promise<GeoPoint | null> {
   const key = `geo:pc:${postcode.toUpperCase().replace(/\s+/g, "")}`
@@ -131,27 +159,7 @@ class CakeFulfillmentProviderService extends AbstractFulfillmentProviderService 
       )
     }
 
-    const franchiseService = this.container_.resolve("franchise") as {
-      listStoreLocations: (
-        filters?: Record<string, unknown>,
-        config?: Record<string, unknown>
-      ) => Promise<
-        Array<{
-          id: string
-          latitude: number | null
-          longitude: number | null
-          name: string
-          metadata: Record<string, unknown> | null
-        }>
-      >
-    }
-
-    const [location] = await franchiseService.listStoreLocations(
-      { id: storeId },
-      {
-        select: ["id", "latitude", "longitude", "name", "metadata"],
-      }
-    )
+    const location = await this.loadStoreLocation(storeId)
 
     if (!location || location.latitude == null || location.longitude == null) {
       throw new MedusaError(
@@ -195,13 +203,95 @@ class CakeFulfillmentProviderService extends AbstractFulfillmentProviderService 
   }
 
   /**
+   * Shared PG connection from the module cradle.
+   * Do NOT call `container.resolve(...)` — providers get a cradle proxy.
+   */
+  private getPg(): PgConnection | null {
+    const c = this.container_
+    if (!c) return null
+    const key = ContainerRegistrationKeys.PG_CONNECTION
+    try {
+      const viaCradle = c[key] ?? c.__pg_connection__
+      if (viaCradle) return viaCradle as PgConnection
+    } catch {
+      // Unregistered cradle key throws from Awilix proxy.
+    }
+    // Rare: full Medusa container (e.g. unit tests).
+    if (typeof c.resolve === "function") {
+      try {
+        return c.resolve(key, { allowUnregistered: true }) as PgConnection
+      } catch {
+        return null
+      }
+    }
+    return null
+  }
+
+  private async loadStoreLocation(
+    storeId: string
+  ): Promise<StoreLocationRow | null> {
+    const knex = this.getPg()
+    if (!knex) {
+      throw new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
+        "Delivery pricing is temporarily unavailable (database connection missing)."
+      )
+    }
+
+    const row = await knex("store_location")
+      .select("id", "latitude", "longitude", "name", "metadata")
+      .where({ id: storeId })
+      .whereNull("deleted_at")
+      .first()
+
+    if (!row) return null
+
+    return {
+      id: String(row.id),
+      latitude:
+        row.latitude == null || row.latitude === ""
+          ? null
+          : Number(row.latitude),
+      longitude:
+        row.longitude == null || row.longitude === ""
+          ? null
+          : Number(row.longitude),
+      name: String(row.name ?? ""),
+      metadata:
+        row.metadata && typeof row.metadata === "object"
+          ? (row.metadata as Record<string, unknown>)
+          : null,
+    }
+  }
+
+  private async loadCartMetadata(
+    cartId: string
+  ): Promise<Record<string, unknown> | null> {
+    const knex = this.getPg()
+    if (!knex) return null
+
+    try {
+      const row = await knex("cart")
+        .select("metadata")
+        .where({ id: cartId })
+        .first()
+      if (row?.metadata && typeof row.metadata === "object") {
+        return row.metadata as Record<string, unknown>
+      }
+    } catch {
+      // Fall through.
+    }
+    return null
+  }
+
+  /**
    * Resolve the Cake Break store location used for delivery pricing.
    *
    * Priority:
    *  1. shipping-method `data.store_location_id` (passed by storefront)
    *  2. `context.metadata.store_location_id` (only if Medusa included metadata)
    *  3. line-item metadata (items.* is always in the pricing field set)
-   *  4. cart.metadata loaded by cart id (authoritative fallback)
+   *  4. cart.metadata loaded by cart id via PG (authoritative fallback)
    */
   private async resolveStoreLocationId(
     context: CalculateShippingOptionPriceDTO["context"],
@@ -233,28 +323,12 @@ class CakeFulfillmentProviderService extends AbstractFulfillmentProviderService 
         : null
     if (!cartId) return null
 
-    try {
-      const query = this.container_.resolve("query") as {
-        graph: (args: {
-          entity: string
-          fields: string[]
-          filters?: Record<string, unknown>
-        }) => Promise<{ data: Array<{ metadata?: Record<string, unknown> | null }> }>
-      }
-      const { data: carts } = await query.graph({
-        entity: "cart",
-        fields: ["id", "metadata"],
-        filters: { id: cartId },
-      })
-      const cartMeta = carts?.[0]?.metadata
-      if (
-        typeof cartMeta?.store_location_id === "string" &&
-        cartMeta.store_location_id.trim()
-      ) {
-        return cartMeta.store_location_id.trim()
-      }
-    } catch {
-      // Fall through — caller surfaces a clear invalid_data error.
+    const cartMeta = await this.loadCartMetadata(cartId)
+    if (
+      typeof cartMeta?.store_location_id === "string" &&
+      cartMeta.store_location_id.trim()
+    ) {
+      return cartMeta.store_location_id.trim()
     }
 
     return null

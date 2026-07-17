@@ -75,6 +75,8 @@ export default function MapRoutingShell({
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId);
   const [isNavigating, setIsNavigating] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  /** Controls whether the mobile bottom sheet is expanded (~90vh) or collapsed (~50vh). */
+  const [sheetExpanded, setSheetExpanded] = useState(false);
 
   // If the visitor has no store cookie yet, persist the admin default so the
   // rest of the storefront (cart, inventory, header) agrees with the map.
@@ -134,7 +136,7 @@ export default function MapRoutingShell({
 
   return (
     <div className="relative h-screen w-full overflow-hidden bg-[#E2D4F0]">
-      {/* ── Custom Keyframe Animations ────────────────────────────────────── */}
+      {/* ── Custom Keyframe Animations ──────────────────────────────────── */}
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes toastSlideIn {
           0% { opacity: 0; transform: translate(-50%, -20px) scale(0.95); }
@@ -151,7 +153,56 @@ export default function MapRoutingShell({
         }
       `}} />
 
-      {/* ── Premium Toast Notification ────────────────────────────────────── */}
+      {/* ── Floating glassmorphic top bar (mobile only) ────────────────────── */}
+      <div
+        className="
+          absolute top-4 left-4 right-4 z-[1002]
+          md:hidden
+          flex items-center gap-3
+          bg-white/75 backdrop-blur-xl
+          border border-white/50
+          rounded-2xl px-4 py-3
+          shadow-[0_4px_24px_-8px_rgba(74,21,75,0.25)]
+        "
+      >
+        {/* Back button */}
+        <button
+          onClick={() => {
+            // Use router.back() but fall back to '/' if there's no history
+            if (window.history.length > 1) {
+              router.back();
+            } else {
+              router.push("/");
+            }
+          }}
+          aria-label="Go back"
+          className="
+            w-9 h-9 rounded-full flex items-center justify-center
+            bg-deep-plum text-white
+            hover:bg-vibrant-magenta transition-colors shrink-0
+            active:scale-95
+          "
+        >
+          <span className="material-symbols-outlined !text-[18px]">arrow_back</span>
+        </button>
+
+        {/* Logo + brand */}
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className="w-7 h-7 rounded-full bg-deep-plum flex items-center justify-center shrink-0">
+            <span className="material-symbols-outlined !text-[14px] text-white">cake</span>
+          </div>
+          <span className="font-headline text-[13px] font-bold text-deep-plum truncate">
+            Cake Break
+          </span>
+        </div>
+
+        {/* "Find a bakery" label */}
+        <span className="text-[11px] font-semibold text-on-surface-variant shrink-0">
+          Find a bakery
+        </span>
+      </div>
+
+      {/* ── Premium Toast Notification ──────────────────────────────────── */}
       {toastMessage && (
         <div className="
           fixed top-6 left-1/2 -translate-x-1/2
@@ -177,7 +228,7 @@ export default function MapRoutingShell({
         </div>
       )}
 
-      {/* ── Full-bleed Leaflet Map ────────────────────────────────────────── */}
+      {/* ── Full-bleed Leaflet Map ──────────────────────────────────── */}
       <StoreMap
         markers={markers}
         selectedId={highlightedId}
@@ -185,9 +236,9 @@ export default function MapRoutingShell({
         onSelectStore={(marker) => handleSelectStore(marker.id, marker.franchiseId, marker.name)}
       />
 
-      {/* ── Floating sidebar overlay ──────────────────────────────────────── */}
+      {/* ── Floating sidebar overlay ──────────────────────────────────── */}
       {/*
-          On mobile: anchored to the bottom, scrolling horizontally.
+          On mobile: anchored to the bottom, draggable sheet.
           On desktop: fixed to the left, full height, 420 px wide.
           z-index must clear Leaflet's z-1000 control layer.
       */}
@@ -197,18 +248,59 @@ export default function MapRoutingShell({
           md:inset-x-auto md:left-6 md:top-6 md:bottom-6
           flex items-end md:items-stretch
           pointer-events-none
+          transition-all duration-300
         "
       >
-        <div className="pointer-events-auto w-full md:w-auto px-3 pb-3 md:p-0 md:h-full">
-          <BakerySidebar
-            franchiseId={franchiseId}
-            locations={locations}
-            highlightedId={highlightedId}
-            onHighlight={(id) => setHighlightedId(id)}
-            onSelectStore={(franchise) => handleSelectStore(franchise.id, franchise.franchiseId, franchise.name)}
-            selectedId={selectedId}
-            isNavigating={isNavigating}
-          />
+        {/* Mobile: draggable sheet wrapper */}
+        <div
+          className={`
+            pointer-events-auto w-full md:w-auto md:p-0 md:h-full
+            transition-all duration-300 ease-in-out
+            ${sheetExpanded
+              ? "h-[90vh] px-0 pb-0"
+              : "h-[52vh] px-3 pb-3"
+            }
+            md:h-full md:px-0 md:pb-0
+          `}
+        >
+          {/*
+           * On mobile: we render our own wrapper so the drag-handle tap target
+           * sits OUTSIDE BakerySidebar (which owns the scrollable list).
+           * On desktop: BakerySidebar fills the column naturally.
+           */}
+          <div
+            className="
+              relative w-full md:w-auto h-full
+              flex flex-col
+            "
+          >
+            {/* Drag strip — mobile only. Tapping toggles expansion. */}
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label={sheetExpanded ? "Collapse bakery list" : "Expand bakery list"}
+              onClick={() => setSheetExpanded((v) => !v)}
+              onKeyDown={(e) => e.key === "Enter" && setSheetExpanded((v) => !v)}
+              className="
+                md:hidden
+                absolute top-0 inset-x-0 h-8 z-10
+                flex items-start justify-center pt-2
+                cursor-grab active:cursor-grabbing
+              "
+            >
+              <div className="w-10 h-1 rounded-full bg-deep-plum/25" />
+            </div>
+
+            <BakerySidebar
+              franchiseId={franchiseId}
+              locations={locations}
+              highlightedId={highlightedId}
+              onHighlight={(id) => setHighlightedId(id)}
+              onSelectStore={(franchise) => handleSelectStore(franchise.id, franchise.franchiseId, franchise.name)}
+              selectedId={selectedId}
+              isNavigating={isNavigating}
+            />
+          </div>
         </div>
       </div>
 

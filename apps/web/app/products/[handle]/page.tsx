@@ -292,7 +292,7 @@ export default async function ProductDetailPage({
       <Header />
 
       <main className="pb-20 bg-[#FDFBFE]">
-        <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin-desktop px-12 pb-12 pt-8 md:px-margin-desktop  md:pb-20 md:pt-08 space-y-20">
+        <div className="max-w-[1440px] mx-auto px-4 sm:px-margin-mobile md:px-margin-desktop pb-12 pt-20 sm:pt-8 md:pb-20 space-y-16 sm:space-y-20">
           {/* ── Product Detail ─────────────────────────────────────────── */}
           <ProductDetail product={product} dietaryTags={dietaryTags} />
 

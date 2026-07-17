@@ -51,7 +51,7 @@ export default function HeroCarousel() {
 
   return (
     <section
-      className="relative h-[550px] md:h-[620px] rounded-3xl overflow-hidden premium-shadow bg-lavender-bg"
+      className="relative h-[480px] sm:h-[540px] md:h-[620px] rounded-2xl sm:rounded-3xl overflow-hidden premium-shadow bg-lavender-bg"
       id="hero-carousel"
       aria-label="Featured Collections Carousel"
     >
@@ -62,44 +62,44 @@ export default function HeroCarousel() {
           <div
             key={idx}
             className={cn(
-              "absolute inset-0 w-full h-full flex flex-col md:flex-row items-center transition-all duration-1000 ease-in-out",
+              "absolute inset-0 w-full h-full flex flex-col md:flex-row items-end md:items-center transition-all duration-1000 ease-in-out",
               isActive
                 ? "opacity-100 translate-x-0 z-10 pointer-events-auto"
                 : "opacity-0 translate-x-4 z-0 pointer-events-none"
             )}
           >
             {/* Left side: Content Card */}
-            <div className="relative z-20 w-full md:w-[45%] h-full flex items-center justify-center p-6 md:p-12">
-              <div className="bg-white/80 backdrop-blur-xl p-8 md:p-12 rounded-3xl border border-white/60 shadow-[0_20px_50px_-20px_rgba(74,21,75,0.15)] space-y-6 max-w-lg -mr-0 md:-mr-24 relative z-30">
+            <div className="relative z-20 w-full md:w-[45%] h-auto md:h-full flex items-end md:items-center justify-center p-4 sm:p-6 md:p-12 pb-10 sm:pb-12">
+              <div className="bg-white/90 md:bg-white/80 backdrop-blur-xl p-5 sm:p-7 md:p-12 rounded-2xl md:rounded-3xl border border-white/60 shadow-[0_20px_50px_-20px_rgba(74,21,75,0.15)] space-y-3 sm:space-y-5 md:space-y-6 w-full max-w-lg md:-mr-24 relative z-30">
                 {/* Badge */}
                 <span className="inline-block px-4 py-1.5 rounded-full bg-vibrant-magenta text-white text-[10px] font-label-bold uppercase tracking-widest">
                   {slide.tag}
                 </span>
 
                 {/* Title */}
-                <h1 className="font-headline text-4xl md:text-5xl font-extrabold text-deep-plum leading-[1.1]">
+                <h1 className="font-headline text-2xl sm:text-3xl md:text-5xl font-extrabold text-deep-plum leading-[1.1]">
                   {slide.title} <br />
-                  <span className="text-vibrant-magenta font-light italic font-serif text-3xl md:text-4xl block mt-1">
+                  <span className="text-vibrant-magenta font-light italic font-serif text-xl sm:text-2xl md:text-4xl block mt-1">
                     {slide.titleEmphasis}
                   </span>
                 </h1>
 
                 {/* Description */}
-                <p className="font-body text-on-surface-variant text-sm md:text-base leading-relaxed">
+                <p className="font-body text-on-surface-variant text-xs sm:text-sm md:text-base leading-relaxed hidden sm:block">
                   {slide.description}
                 </p>
 
                 {/* Actions */}
-                <div className="flex items-center gap-4 pt-2">
+                <div className="flex items-center gap-3 sm:gap-4 pt-1 sm:pt-2">
                   <a
-                    className="bg-vibrant-magenta text-white px-8 py-3.5 rounded-full font-label-bold text-xs uppercase tracking-widest hover:bg-deep-plum transition-all duration-300 active:scale-95 shadow-md hover:shadow-lg"
+                    className="bg-vibrant-magenta text-white px-5 sm:px-8 py-2.5 sm:py-3.5 rounded-full font-label-bold text-xs uppercase tracking-widest hover:bg-deep-plum transition-all duration-300 active:scale-95 shadow-md hover:shadow-lg"
                     href={slide.primaryCta.href}
                   >
                     {slide.primaryCta.label}
                   </a>
                   {slide.secondaryCta && (
                     <a
-                      className="text-deep-plum font-label-bold text-xs uppercase tracking-widest border-b-2 border-transparent hover:border-deep-plum transition-all pb-0.5 px-1"
+                      className="text-deep-plum font-label-bold text-xs uppercase tracking-widest border-b-2 border-transparent hover:border-deep-plum transition-all pb-0.5 px-1 hidden sm:inline"
                       href={slide.secondaryCta.href}
                     >
                       {slide.secondaryCta.label}
@@ -109,8 +109,8 @@ export default function HeroCarousel() {
               </div>
             </div>
 
-            {/* Right side: Image */}
-            <div className="w-full md:w-[65%] h-full overflow-hidden absolute md:relative right-0 top-0">
+            {/* Right side: Image — full bleed behind content on mobile */}
+            <div className="w-full md:w-[65%] h-full overflow-hidden absolute md:relative right-0 top-0 -z-0 md:z-0">
               <img
                 alt={slide.imageAlt}
                 className={cn(
@@ -119,7 +119,9 @@ export default function HeroCarousel() {
                 )}
                 src={slide.imageSrc}
               />
-              {/* Soft vignette overlay */}
+              {/* Mobile: gradient from bottom so text card is readable */}
+              <div className="absolute inset-0 bg-gradient-to-t from-lavender-bg/80 via-lavender-bg/20 to-transparent pointer-events-none md:hidden" />
+              {/* Desktop: gradient from left */}
               <div className="absolute inset-0 bg-gradient-to-r from-lavender-bg/40 via-transparent to-transparent pointer-events-none hidden md:block" />
             </div>
           </div>

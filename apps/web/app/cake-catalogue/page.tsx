@@ -348,7 +348,7 @@ export default async function CakeCataloguePage({
     <div className="min-h-screen bg-[#FAF7FC]">
       <Header />
 
-      <main>
+      <main className="pb-16 md:pb-0">
         <Suspense fallback={<CatalogueShellSkeleton />}>
           <CatalogueContentComponent searchParams={resolvedParams} />
         </Suspense>

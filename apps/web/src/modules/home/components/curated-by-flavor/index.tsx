@@ -47,7 +47,7 @@ export default function CuratedByFlavor() {
     <section className="space-y-8" aria-label="Curated by Flavor">
       {/* Header */}
       <div className="flex items-end justify-between border-b border-outline-variant/20 pb-4">
-        <h2 className="font-headline text-2xl md:text-3xl font-extrabold text-deep-plum">
+        <h2 className="font-headline text-xl sm:text-2xl md:text-3xl font-extrabold text-deep-plum">
           Curated by Flavor
         </h2>
         <Link
@@ -62,17 +62,17 @@ export default function CuratedByFlavor() {
       </div>
 
       {/* Flavors Grid */}
-      <div className="grid grid-cols-3 md:grid-cols-6 gap-6 md:gap-8 justify-items-center">
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-3 sm:gap-6 md:gap-8 justify-items-center">
         {flavors.map((flavor, index) => (
           <Link
             key={index}
             href={flavor.href}
-            className="group flex flex-col items-center space-y-3 focus:outline-none"
+            className="group flex flex-col items-center space-y-2 sm:space-y-3 focus:outline-none"
           >
             {/* Circle Image Wrapper */}
             <div
               className="
-                w-24 h-24 md:w-28 md:h-28
+                w-16 h-16 sm:w-20 sm:h-20 md:w-28 md:h-28
                 rounded-full
                 overflow-hidden
                 border-2 border-white
@@ -94,10 +94,11 @@ export default function CuratedByFlavor() {
             {/* Label */}
             <span
               className="
-                font-label-bold text-xs text-deep-plum text-center
+                font-label-bold text-[10px] sm:text-xs text-deep-plum text-center
                 group-hover:text-vibrant-magenta
                 transition-colors duration-200
                 tracking-wide
+                leading-tight
               "
             >
               {flavor.name}
