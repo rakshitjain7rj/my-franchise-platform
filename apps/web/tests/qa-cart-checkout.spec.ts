@@ -80,17 +80,28 @@ async function addCakeToCart(page) {
   await page.waitForURL(/.*\/products\/.*/, { timeout: 45000 });
   await clearOverlays(page);
   
-  const dateInput = page.locator("input[type='date']");
+  // Collection date (TimeSlotPicker)
+  const dateInput = page.locator('input[aria-label="Collection date"], input[type="date"]').first();
   await expect(dateInput).toBeVisible();
   const minDate = await dateInput.getAttribute("min");
   const val = await dateInput.inputValue();
   if (!val && minDate) {
     await dateInput.fill(minDate);
   }
-  
-  const timeSelect = page.locator("select");
-  await expect(timeSelect).toBeVisible();
-  await timeSelect.selectOption({ index: 1 });
+
+  // Time slots use PremiumSelect (button + listbox), not a native <select>.
+  const timeSlotBtn = page.locator('button[aria-label="Time slot"]');
+  await expect(timeSlotBtn).toBeVisible({ timeout: 15000 });
+  // Wait for slots API: button enables once bookable options exist.
+  await expect(timeSlotBtn).toBeEnabled({ timeout: 20000 });
+  await expect(timeSlotBtn).not.toContainText(/Loading|No slots available/i);
+
+  await timeSlotBtn.click();
+  const firstSlot = page
+    .locator('[role="listbox"][aria-label="Time slot"] [role="option"]')
+    .first();
+  await expect(firstSlot).toBeVisible({ timeout: 10000 });
+  await firstSlot.click();
   
   const addToCartBtn = page.locator("button#add-to-cart-button");
   await expect(addToCartBtn).toBeVisible();
@@ -524,6 +535,104 @@ test.describe("E. Regression & Edge Cases Tests", () => {
     // Still prefilled
     expect(await page.locator('input[name="first-name"]').inputValue()).toBe("Alex-Sasha-Fierce-Longname");
     expect(await page.locator('input[name="postal-code"]').inputValue()).toBe("B210AL");
+  });
+
+});
+
+test.describe("F. Checkout Client-Side Validation", () => {
+
+  test("F1 — Numeric-only first name shows inline letter error", async ({ page }) => {
+    await registerUser(page, "Alex", "Baker", "07111 111111");
+    await addCakeToCart(page);
+
+    await page.goto(`${BASE_URL}/checkout-page`);
+    await clearOverlays(page);
+
+    await page.fill('input[name="first-name"]', "12345");
+
+    await expect(
+      page.locator("text=First name must contain at least one letter.")
+    ).toBeVisible();
+  });
+
+  test("F2 — Invalid postcode blocks place-order network calls on submit", async ({ page }) => {
+    await registerUser(page, "Alex", "Baker", "07111 111111");
+    await addAddressToBook(
+      page,
+      "Home",
+      "Alex",
+      "Baker",
+      "1 Self St",
+      "Birmingham",
+      "B21 0AL",
+      "07111 111111",
+      true
+    );
+    await addCakeToCart(page);
+
+    await page.goto(`${BASE_URL}/checkout-page`);
+    await clearOverlays(page);
+
+    // Fill remaining required fields so HTML constraint validation does not
+    // short-circuit before our client-side format guard runs.
+    await page.fill('input[name="email"]', "alex-validation@example.com");
+    await page.fill('input[name="phone"]', "07111111111");
+    await page.fill('input[name="first-name"]', "Alex");
+    await page.fill('input[name="last-name"]', "Baker");
+    await page.fill('input[name="address"]', "1 Self St");
+    await page.fill('input[name="city"]', "Birmingham");
+    await page.fill('input[name="postal-code"]', "ZZZZZ");
+
+    // Dummy card fields (required when card payment is selected).
+    await page.fill('input[placeholder="Card number"]', "4242424242424242");
+    await page.fill('input[placeholder="Name on card"]', "Alex Baker");
+    await page.fill('input[placeholder="Exp (MM / YY)"]', "12 / 30");
+    await page.fill('input[placeholder="CVV"]', "123");
+
+    await expect(
+      page.locator("text=Enter a valid UK postcode (e.g. SW1A 2AA).")
+    ).toBeVisible();
+
+    // Only count mutations that placeOrder / prepareCartForCheckout would fire.
+    const orderPlacementCalls: string[] = [];
+    page.on("request", (req) => {
+      const method = req.method();
+      if (method === "GET" || method === "OPTIONS" || method === "HEAD") return;
+      const url = req.url();
+      if (
+        url.includes("/store/carts/") ||
+        url.includes("/store/payment-collections") ||
+        url.includes("/delivery-fee")
+      ) {
+        if (url.includes("cart-inventory-check")) return;
+        orderPlacementCalls.push(`${method} ${url}`);
+      }
+    });
+
+    await page.click("button#complete-order-btn");
+    await page.waitForTimeout(2000);
+
+    expect(orderPlacementCalls).toEqual([]);
+    await expect(page).toHaveURL(`${BASE_URL}/checkout-page`);
+    await expect(
+      page.getByText(
+        "Please fix the following before placing your order: postal code."
+      )
+    ).toBeVisible();
+  });
+
+  test("F3 — UK mobile auto-formats to E.164 (+44…)", async ({ page }) => {
+    await registerUser(page, "Alex", "Baker", "07111 111111");
+    await addCakeToCart(page);
+
+    await page.goto(`${BASE_URL}/checkout-page`);
+    await clearOverlays(page);
+
+    const phoneInput = page.locator('input[name="phone"]');
+    await expect(phoneInput).toBeVisible();
+    await phoneInput.fill("07700900000");
+
+    expect(await phoneInput.inputValue()).toBe("+447700900000");
   });
 
 });

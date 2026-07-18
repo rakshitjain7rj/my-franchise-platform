@@ -41,9 +41,58 @@ function fmt(amount: number, currency: string) {
   }).format(amount)
 }
 
+// ---------------------------------------------------------------------------
+// Validation helpers
+// ---------------------------------------------------------------------------
+
+/** Returns true when the string contains at least one Unicode letter. */
+function hasLetter(value: string): boolean {
+  return /\p{L}/u.test(value.trim())
+}
+
+/**
+ * Validates a UK postcode (outward + inward code, space optional).
+ * Accepts: AN, ANN, AAN, AANN, ANA, AANA patterns.
+ */
+function isValidUKPostcode(value: string): boolean {
+  return /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i.test(value.trim())
+}
+
+/**
+ * Normalises a UK phone number to E.164 (+44…).
+ * Accepts: 07xxx (11 digits), 447xxx (12 digits), +447xxx.
+ * Returns null when the value cannot be recognised as a UK number.
+ */
+function normaliseUKPhone(raw: string): string | null {
+  const digits = raw.replace(/\D/g, "")
+  if (digits.startsWith("44") && digits.length === 12) return `+${digits}`
+  if (digits.startsWith("0") && digits.length === 11) return `+44${digits.slice(1)}`
+  return null
+}
+
+function isValidUKPhone(raw: string): boolean {
+  return normaliseUKPhone(raw) !== null
+}
+
+/** Inline field-level error message shown below an invalid input. */
+function FieldError({ message }: { message: string }) {
+  return (
+    <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+      <span className="material-symbols-outlined !text-[13px]">error</span>
+      {message}
+    </p>
+  )
+}
+
 export default function CheckoutPage() {
   const { cart, isLoading, clearCart, checkInventory } = useCart()
   const router = useRouter()
+
+  // Track which fields the user has interacted with so inline errors only
+  // appear after first touch (avoids penalising a freshly pre-filled form).
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
+  const touch = (field: string) =>
+    setTouched((t) => ({ ...t, [field]: true }))
 
   const [form, setForm] = useState({
     firstName: "",
@@ -187,6 +236,14 @@ export default function CheckoutPage() {
 
   const totalItems = cart?.items.reduce((a, i) => a + i.quantity, 0) ?? 0
 
+  // Empty-cart redirect: if loading is done and the cart has no items, send
+  // the shopper to the catalogue rather than showing a broken checkout.
+  useEffect(() => {
+    if (!isLoading && cart && cart.items.length === 0) {
+      router.replace("/cake-catalogue")
+    }
+  }, [isLoading, cart, router])
+
   // Guard: verify the selected bakery can actually fulfill the cart. The cart
   // page blocks checkout too, but the header links straight here, so this page
   // must not rely on the shopper having passed through /cart after switching
@@ -220,6 +277,27 @@ export default function CheckoutPage() {
     if (inventoryBlocked) {
       setSubmitError(
         "Some items in your cart aren't available at your selected bakery. Please review your cart before placing the order."
+      )
+      return
+    }
+
+    // Client-side format guard — block malformed fields before any network call.
+    const formatErrors: string[] = []
+    if (!hasLetter(form.firstName))  formatErrors.push("first name")
+    if (!hasLetter(form.lastName))   formatErrors.push("last name")
+    if (form.phone && !isValidUKPhone(form.phone)) formatErrors.push("phone number")
+    if (!isValidUKPostcode(form.postalCode))        formatErrors.push("postal code")
+
+    if (formatErrors.length > 0) {
+      setTouched((t) => ({
+        ...t,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        postalCode: true,
+      }))
+      setSubmitError(
+        `Please fix the following before placing your order: ${formatErrors.join(", ")}.`
       )
       return
     }
@@ -397,9 +475,24 @@ export default function CheckoutPage() {
                           name="phone"
                           type="tel"
                           value={form.phone}
-                          onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                          className="block w-full rounded-lg border border-outline-variant bg-on-surface/[0.02] text-sm py-2.5 px-3 transition-all focus:outline-none focus:ring-2 focus:ring-[#4A154B]/20 focus:border-[#4A154B]"
+                          onChange={(e) => {
+                            touch("phone")
+                            const raw = e.target.value
+                            // Strip everything except digits and a leading +
+                            const cleaned = raw.replace(/(?!^\+)[^\d]/g, "")
+                            // Normalise to +44 on the fly once the number looks complete
+                            const normalised = normaliseUKPhone(cleaned) ?? cleaned
+                            setForm((f) => ({ ...f, phone: normalised }))
+                          }}
+                          className={`block w-full rounded-lg border bg-on-surface/[0.02] text-sm py-2.5 px-3 transition-all focus:outline-none focus:ring-2 ${
+                            touched.phone && form.phone && !isValidUKPhone(form.phone)
+                              ? "border-red-400 focus:border-red-500 focus:ring-red-200"
+                              : "border-outline-variant focus:border-[#4A154B] focus:ring-[#4A154B]/20"
+                          }`}
                         />
+                        {touched.phone && form.phone && !isValidUKPhone(form.phone) && (
+                          <FieldError message="Enter a valid UK phone number (e.g. +44 7911 123456)." />
+                        )}
                       </div>
                       <div className="flex items-center">
                         <input
@@ -484,11 +577,19 @@ export default function CheckoutPage() {
                           type="text"
                           value={form.firstName}
                           onChange={(e) => {
+                            touch("firstName")
                             markCustomAddress()
                             setForm((f) => ({ ...f, firstName: e.target.value }))
                           }}
-                          className="block w-full rounded-lg border border-outline-variant bg-on-surface/[0.02] text-sm py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-[#4A154B]/20 focus:border-[#4A154B]"
+                          className={`block w-full rounded-lg border bg-on-surface/[0.02] text-sm py-2.5 px-3 focus:outline-none focus:ring-2 transition-all ${
+                            touched.firstName && !hasLetter(form.firstName)
+                              ? "border-red-400 focus:border-red-500 focus:ring-red-200"
+                              : "border-outline-variant focus:border-[#4A154B] focus:ring-[#4A154B]/20"
+                          }`}
                         />
+                        {touched.firstName && !hasLetter(form.firstName) && (
+                          <FieldError message="First name must contain at least one letter." />
+                        )}
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-on-surface-variant mb-1.5 uppercase tracking-wider" htmlFor="last-name">
@@ -501,11 +602,19 @@ export default function CheckoutPage() {
                           type="text"
                           value={form.lastName}
                           onChange={(e) => {
+                            touch("lastName")
                             markCustomAddress()
                             setForm((f) => ({ ...f, lastName: e.target.value }))
                           }}
-                          className="block w-full rounded-lg border border-outline-variant bg-on-surface/[0.02] text-sm py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-[#4A154B]/20 focus:border-[#4A154B]"
+                          className={`block w-full rounded-lg border bg-on-surface/[0.02] text-sm py-2.5 px-3 focus:outline-none focus:ring-2 transition-all ${
+                            touched.lastName && !hasLetter(form.lastName)
+                              ? "border-red-400 focus:border-red-500 focus:ring-red-200"
+                              : "border-outline-variant focus:border-[#4A154B] focus:ring-[#4A154B]/20"
+                          }`}
                         />
+                        {touched.lastName && !hasLetter(form.lastName) && (
+                          <FieldError message="Last name must contain at least one letter." />
+                        )}
                       </div>
                       <div className="md:col-span-2">
                         <label className="block text-xs font-semibold text-on-surface-variant mb-1.5 uppercase tracking-wider" htmlFor="address">
@@ -568,11 +677,25 @@ export default function CheckoutPage() {
                           type="text"
                           value={form.postalCode}
                           onChange={(e) => {
+                            touch("postalCode")
                             markCustomAddress()
-                            setForm((f) => ({ ...f, postalCode: e.target.value }))
+                            // Auto-format: uppercase + canonical inward-code space
+                            const raw = e.target.value.toUpperCase().replace(/\s+/g, "")
+                            const formatted =
+                              raw.length > 3
+                                ? `${raw.slice(0, -3)} ${raw.slice(-3)}`
+                                : raw
+                            setForm((f) => ({ ...f, postalCode: formatted }))
                           }}
-                          className="block w-full rounded-lg border border-outline-variant bg-on-surface/[0.02] text-sm py-2.5 px-3 focus:outline-none focus:ring-2 focus:ring-[#4A154B]/20 focus:border-[#4A154B]"
+                          className={`block w-full rounded-lg border bg-on-surface/[0.02] text-sm py-2.5 px-3 focus:outline-none focus:ring-2 transition-all ${
+                            touched.postalCode && form.postalCode && !isValidUKPostcode(form.postalCode)
+                              ? "border-red-400 focus:border-red-500 focus:ring-red-200"
+                              : "border-outline-variant focus:border-[#4A154B] focus:ring-[#4A154B]/20"
+                          }`}
                         />
+                        {touched.postalCode && form.postalCode && !isValidUKPostcode(form.postalCode) && (
+                          <FieldError message="Enter a valid UK postcode (e.g. SW1A 2AA)." />
+                        )}
                       </div>
                     </div>
                     <p className="mt-3 text-[11px] text-on-surface-variant">
