@@ -4,11 +4,11 @@
  * One-shot production catalogue setup. Runs the full pipeline in order:
  *
  *   0. purge-all-products
- *   1. seed-franchise-data          (franchise + store + sales channel links)
- *   2. setup-uk-market              (UK region, GBP, shipping, CAKEBREAK promo)
- *   3. enable-paypal-on-region      (optional; soft-fails if PayPal env missing)
+ *   1. seed-franchise-data
+ *   2. setup-uk-market
+ *   3. enable-paypal-on-region (optional)
  *   4. seed-cake-categories
- *   5. import-all-missing-products  (crawl eggfreecakebreak.com)
+ *   5. import-all-missing-products
  *   6. backfill-product-cake-details
  *   7. one-off/backfill-inventory-items
  *
@@ -18,18 +18,29 @@
  *   RUN_SEED=true
  *   SEED_SCRIPTS=production-catalogue-bootstrap.ts
  *   Then recreate the backend container. Set RUN_SEED=false afterwards.
- *
- * Local:
- *   npx medusa exec ./src/scripts/production-catalogue-bootstrap.ts
  */
 
 import { ExecArgs } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
+// .js extensions required under node16/nodenext moduleResolution (medusa build).
+import purgeAllProducts from "./purge-all-products.js"
+import seedFranchiseData from "./seed-franchise-data.js"
+import setupUkMarket from "./setup-uk-market.js"
+import enablePaypalOnRegion from "./enable-paypal-on-region.js"
+import seedCakeCategories from "./seed-cake-categories.js"
+import importAllMissingProducts from "./import-all-missing-products.js"
+import backfillProductCakeDetails from "./backfill-product-cake-details.js"
+import backfillInventoryItems from "./one-off/backfill-inventory-items.js"
+
 type StepFn = (args: ExecArgs) => Promise<void>
 
 async function runStep(
-  logger: { info: (m: string) => void; error: (m: string) => void; warn: (m: string) => void },
+  logger: {
+    info: (m: string) => void
+    error: (m: string) => void
+    warn: (m: string) => void
+  },
   name: string,
   fn: StepFn,
   args: ExecArgs,
@@ -59,24 +70,6 @@ export default async function productionCatalogueBootstrap(args: ExecArgs) {
   logger.info("║  Production catalogue bootstrap                             ║")
   logger.info("║  purge → franchise → UK → PayPal → categories → import…     ║")
   logger.info("╚══════════════════════════════════════════════════════════════╝")
-
-  // Dynamic imports keep this file resilient if a script is renamed at build.
-  const { default: purgeAllProducts } = await import("./purge-all-products")
-  const { default: seedFranchiseData } = await import("./seed-franchise-data")
-  const { default: setupUkMarket } = await import("./setup-uk-market")
-  const { default: enablePaypalOnRegion } = await import(
-    "./enable-paypal-on-region"
-  )
-  const { default: seedCakeCategories } = await import("./seed-cake-categories")
-  const { default: importAllMissingProducts } = await import(
-    "./import-all-missing-products"
-  )
-  const { default: backfillProductCakeDetails } = await import(
-    "./backfill-product-cake-details"
-  )
-  const { default: backfillInventoryItems } = await import(
-    "./one-off/backfill-inventory-items"
-  )
 
   await runStep(logger, "0. purge-all-products", purgeAllProducts, args)
   await runStep(logger, "1. seed-franchise-data", seedFranchiseData, args)
