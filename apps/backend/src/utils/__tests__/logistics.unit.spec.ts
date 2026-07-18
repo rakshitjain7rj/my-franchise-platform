@@ -13,7 +13,10 @@ import {
   formatHHMM,
   haversineKm,
   parseHHMM,
+  quoteLocalDelivery,
   resolveOpeningHours,
+  roundDistanceKm,
+  type DeliveryFeeConfig,
 } from "../logistics"
 
 describe("parseHHMM / formatHHMM", () => {
@@ -195,5 +198,133 @@ describe("computeDeliveryFee / haversineKm", () => {
     const km = haversineKm(52.48, -1.9, 52.49, -1.91)
     expect(km).toBeGreaterThan(0)
     expect(km).toBeLessThan(5)
+  })
+})
+
+describe("quoteLocalDelivery — canonical quote/charge policy", () => {
+  const cfg: DeliveryFeeConfig = {
+    baseFee: 2.5,
+    perKm: 0.75,
+    freeUnderKm: 0,
+    maxFee: 15,
+    roadFactor: 1.3,
+    defaultRadiusKm: 10,
+  }
+
+  const store = {
+    id: "stloc_1",
+    name: "Cake Break Test",
+    latitude: 52.48,
+    longitude: -1.9,
+    metadata: { delivery_radius_km: 10 },
+  }
+
+  it("produces a deterministic fee for fixed destination coordinates", async () => {
+    const dest = { lat: 52.49, lng: -1.91 }
+    const a = await quoteLocalDelivery({ store, dest, config: cfg })
+    const b = await quoteLocalDelivery({ store, dest, config: cfg })
+    expect(a.deliverable).toBe(true)
+    expect(b.deliverable).toBe(true)
+    expect(a.fee).toBe(b.fee)
+    expect(a.distance_km).toBe(b.distance_km)
+    expect(a.source).toBe("haversine")
+  })
+
+  it("prevents quote-vs-charge penny splits from unrounded distance", async () => {
+    // Raw haversine×roadFactor of 4.6349 km used to diverge after fee rounding
+    // depending on whether distance was rounded first. Both call shapes must match.
+    const drivingDistance = async () => ({ km: 4.6349, minutes: 12 })
+    const viaDriving = await quoteLocalDelivery({
+      store,
+      dest: { lat: 1, lng: 1 },
+      config: cfg,
+      drivingDistance,
+    })
+    const rounded = roundDistanceKm(4.6349)
+    expect(rounded).toBe(4.63)
+    expect(viaDriving.distance_km).toBe(rounded)
+    expect(viaDriving.fee).toBe(computeDeliveryFee(rounded, cfg))
+    // Second independent call (simulates endpoint vs provider) is identical.
+    const again = await quoteLocalDelivery({
+      store,
+      dest: { lat: 1, lng: 1 },
+      config: cfg,
+      drivingDistance,
+    })
+    expect(again.fee).toBe(viaDriving.fee)
+    expect(again.distance_km).toBe(viaDriving.distance_km)
+  })
+
+  it("treats distance equal to radius as deliverable", async () => {
+    const drivingDistance = async () => ({ km: 10, minutes: 20 })
+    const quote = await quoteLocalDelivery({
+      store,
+      dest: { lat: 1, lng: 1 },
+      config: cfg,
+      drivingDistance,
+    })
+    expect(quote.deliverable).toBe(true)
+    expect(quote.fee).toBe(computeDeliveryFee(10, cfg))
+  })
+
+  it("rejects destinations outside the radius", async () => {
+    const drivingDistance = async () => ({ km: 10.01, minutes: 25 })
+    const quote = await quoteLocalDelivery({
+      store,
+      dest: { lat: 1, lng: 1 },
+      config: cfg,
+      drivingDistance,
+    })
+    expect(quote.deliverable).toBe(false)
+    expect(quote.error).toBe("outside_radius")
+    expect(quote.fee).toBe(0)
+  })
+
+  it("honours freeUnderKm and fee cap", async () => {
+    const freeCfg: DeliveryFeeConfig = { ...cfg, freeUnderKm: 5, maxFee: 4 }
+    const free = await quoteLocalDelivery({
+      store,
+      dest: { lat: 1, lng: 1 },
+      config: freeCfg,
+      drivingDistance: async () => ({ km: 3, minutes: 5 }),
+    })
+    expect(free.deliverable).toBe(true)
+    expect(free.fee).toBe(0)
+
+    const capped = await quoteLocalDelivery({
+      store,
+      dest: { lat: 1, lng: 1 },
+      config: freeCfg,
+      drivingDistance: async () => ({ km: 9, minutes: 15 }),
+    })
+    expect(capped.deliverable).toBe(true)
+    expect(capped.fee).toBe(4)
+  })
+
+  it("fails clearly when store has no coordinates", async () => {
+    const quote = await quoteLocalDelivery({
+      store: { ...store, latitude: null, longitude: null },
+      dest: { lat: 52.49, lng: -1.91 },
+      config: cfg,
+    })
+    expect(quote.deliverable).toBe(false)
+    expect(quote.error).toBe("missing_coords")
+  })
+
+  it("fails clearly when postcode cannot be resolved", async () => {
+    const quote = await quoteLocalDelivery({
+      store,
+      postcode: "ZZ1 1ZZ",
+      config: cfg,
+      geocode: async () => null,
+    })
+    expect(quote.deliverable).toBe(false)
+    expect(quote.error).toBe("unresolvable_postcode")
+  })
+
+  it("fails clearly when neither dest nor postcode is provided", async () => {
+    const quote = await quoteLocalDelivery({ store, config: cfg })
+    expect(quote.deliverable).toBe(false)
+    expect(quote.error).toBe("missing_destination")
   })
 })

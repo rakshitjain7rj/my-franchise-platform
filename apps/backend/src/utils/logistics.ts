@@ -291,3 +291,256 @@ export function cacheSet<T>(key: string, value: T, ttlMs: number): void {
     if (first) cacheStore.delete(first)
   }
 }
+
+// ── Canonical local-delivery quote (shared by fee endpoint + fulfillment) ────
+
+const GEO_CACHE_TTL_MS = 15 * 60 * 1000
+
+export type GeoPoint = { lat: number; lng: number }
+
+export type DeliveryQuoteStore = {
+  id: string
+  name: string
+  latitude: number | null | undefined
+  longitude: number | null | undefined
+  metadata?: Record<string, unknown> | null
+}
+
+export type QuoteLocalDeliveryError =
+  | "missing_coords"
+  | "missing_destination"
+  | "unresolvable_postcode"
+  | "outside_radius"
+
+export type QuoteLocalDeliveryResult = {
+  deliverable: boolean
+  fee: number
+  distance_km: number | null
+  duration_minutes: number | null
+  max_radius_km: number
+  source: "google" | "haversine" | null
+  error?: QuoteLocalDeliveryError
+  message?: string
+}
+
+export type QuoteLocalDeliveryInput = {
+  store: DeliveryQuoteStore
+  /** Destination coordinates when already known (skips geocoding). */
+  dest?: GeoPoint | null
+  /** UK postcode — used when `dest` is not provided. */
+  postcode?: string | null
+  config?: DeliveryFeeConfig
+  /** Test / DI hooks — production callers leave these unset. */
+  geocode?: (postcode: string) => Promise<GeoPoint | null>
+  drivingDistance?: (
+    origin: GeoPoint,
+    dest: GeoPoint
+  ) => Promise<{ km: number; minutes: number } | null>
+}
+
+/** Round distance to 2dp — single policy for quote and charge paths. */
+export function roundDistanceKm(distanceKm: number): number {
+  return Math.round(distanceKm * 100) / 100
+}
+
+/**
+ * Geocode a UK postcode via postcodes.io (in-process TTL cache).
+ */
+export async function geocodeUkPostcode(
+  postcode: string
+): Promise<GeoPoint | null> {
+  const normalised = postcode.trim()
+  if (!normalised) return null
+
+  const key = `geo:pc:${normalised.toUpperCase().replace(/\s+/g, "")}`
+  const cached = cacheGet<GeoPoint>(key)
+  if (cached) return cached
+
+  try {
+    const res = await fetch(
+      `https://api.postcodes.io/postcodes/${encodeURIComponent(normalised)}`,
+      { signal: AbortSignal.timeout(5000) }
+    )
+    if (!res.ok) return null
+    const json = (await res.json()) as {
+      result?: { latitude?: number; longitude?: number }
+    }
+    if (json.result?.latitude == null || json.result?.longitude == null) {
+      return null
+    }
+    const point: GeoPoint = {
+      lat: Number(json.result.latitude),
+      lng: Number(json.result.longitude),
+    }
+    cacheSet(key, point, GEO_CACHE_TTL_MS)
+    return point
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Google Distance Matrix driving distance when `GOOGLE_MAPS_API_KEY` is set.
+ * Returns null when the key is absent or the request fails.
+ */
+export async function googleDrivingDistanceKm(
+  origin: GeoPoint,
+  dest: GeoPoint
+): Promise<{ km: number; minutes: number } | null> {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY?.trim()
+  if (!apiKey) return null
+
+  const cacheKey = `gdm:${origin.lat.toFixed(4)},${origin.lng.toFixed(4)}>${dest.lat.toFixed(4)},${dest.lng.toFixed(4)}`
+  const cached = cacheGet<{ km: number; minutes: number }>(cacheKey)
+  if (cached) return cached
+
+  try {
+    const url = new URL(
+      "https://maps.googleapis.com/maps/api/distancematrix/json"
+    )
+    url.searchParams.set("origins", `${origin.lat},${origin.lng}`)
+    url.searchParams.set("destinations", `${dest.lat},${dest.lng}`)
+    url.searchParams.set("units", "metric")
+    url.searchParams.set("mode", "driving")
+    url.searchParams.set("key", apiKey)
+
+    const res = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) return null
+    const json = (await res.json()) as {
+      rows?: Array<{
+        elements?: Array<{
+          status?: string
+          distance?: { value?: number }
+          duration?: { value?: number }
+        }>
+      }>
+    }
+    const el = json.rows?.[0]?.elements?.[0]
+    if (!el || el.status !== "OK" || el.distance?.value == null) return null
+
+    const result = {
+      km: el.distance.value / 1000,
+      minutes: Math.round((el.duration?.value ?? 0) / 60),
+    }
+    cacheSet(cacheKey, result, GEO_CACHE_TTL_MS)
+    return result
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Canonical local-delivery quote used by:
+ *   - GET /store/stores/:id/delivery-fee
+ *   - CakeFulfillmentProviderService.calculatePrice
+ *
+ * Pure domain orchestration — no DI, no DB access.
+ * Callers load the store and decide how soft vs hard failures map to HTTP/Medusa errors.
+ */
+export async function quoteLocalDelivery(
+  input: QuoteLocalDeliveryInput
+): Promise<QuoteLocalDeliveryResult> {
+  const cfg = input.config ?? DEFAULT_DELIVERY_FEE_CONFIG
+  const store = input.store
+  const radiusKm =
+    Number(store.metadata?.delivery_radius_km) || cfg.defaultRadiusKm
+
+  if (store.latitude == null || store.longitude == null) {
+    return {
+      deliverable: false,
+      fee: 0,
+      distance_km: null,
+      duration_minutes: null,
+      max_radius_km: radiusKm,
+      source: null,
+      error: "missing_coords",
+      message: "This bakery has no map coordinates configured for delivery.",
+    }
+  }
+
+  const origin: GeoPoint = {
+    lat: Number(store.latitude),
+    lng: Number(store.longitude),
+  }
+
+  let dest: GeoPoint | null =
+    input.dest &&
+    Number.isFinite(input.dest.lat) &&
+    Number.isFinite(input.dest.lng)
+      ? { lat: Number(input.dest.lat), lng: Number(input.dest.lng) }
+      : null
+
+  if (!dest) {
+    const postcode = input.postcode?.trim() ?? ""
+    if (!postcode) {
+      return {
+        deliverable: false,
+        fee: 0,
+        distance_km: null,
+        duration_minutes: null,
+        max_radius_km: radiusKm,
+        source: null,
+        error: "missing_destination",
+        message: "Provide dest_lat & dest_lng, or a UK postcode",
+      }
+    }
+    const geocode = input.geocode ?? geocodeUkPostcode
+    dest = await geocode(postcode)
+    if (!dest) {
+      return {
+        deliverable: false,
+        fee: 0,
+        distance_km: null,
+        duration_minutes: null,
+        max_radius_km: radiusKm,
+        source: null,
+        error: "unresolvable_postcode",
+        message: "Could not resolve that postcode. Please check and try again.",
+      }
+    }
+  }
+
+  let distanceKm: number
+  let durationMinutes: number | null = null
+  let source: "google" | "haversine" = "haversine"
+
+  const drivingDistance = input.drivingDistance ?? googleDrivingDistanceKm
+  const google = await drivingDistance(origin, dest)
+  if (google) {
+    distanceKm = google.km
+    durationMinutes = google.minutes
+    source = "google"
+  } else {
+    distanceKm =
+      haversineKm(origin.lat, origin.lng, dest.lat, dest.lng) * cfg.roadFactor
+  }
+
+  // Single rounding policy for quote and charge (prevents penny splits).
+  distanceKm = roundDistanceKm(distanceKm)
+
+  if (distanceKm > radiusKm) {
+    return {
+      deliverable: false,
+      fee: 0,
+      distance_km: distanceKm,
+      duration_minutes: durationMinutes,
+      max_radius_km: radiusKm,
+      source,
+      error: "outside_radius",
+      message: `Sorry — this address is outside the ${radiusKm} km delivery radius for ${store.name}.`,
+    }
+  }
+
+  const fee = computeDeliveryFee(distanceKm, cfg)
+
+  return {
+    deliverable: true,
+    fee,
+    distance_km: distanceKm,
+    duration_minutes: durationMinutes,
+    max_radius_km: radiusKm,
+    source,
+  }
+}

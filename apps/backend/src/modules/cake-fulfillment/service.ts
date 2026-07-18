@@ -3,20 +3,22 @@
  *
  * - `cake-pickup`          : free collection (canCalculate = false; use flat £0 option)
  * - `cake-local-delivery`  : calculated local delivery — price is recomputed from
- *   store coords + shipping postcode using the same maths as
- *   GET /store/stores/:id/delivery-fee. Never trusts client-set metadata.fee alone.
+ *   store coords + shipping postcode via quoteLocalDelivery (same policy as
+ *   GET /store/stores/:id/delivery-fee). Never trusts client-set metadata.fee.
  *
  * Registered as provider id `cake_cake` (module id "cake" + service identifier).
  *
- * DI note: Medusa module providers receive an Awilix *cradle* (proxy), not a full
- * container with `.resolve()`. Cross-module services (`franchise`, `query`) are
- * also not registered in the fulfillment module sandbox. Shared resources that
- * *are* available include `__pg_connection__` — use that for store/cart lookups.
+ * DI note: Medusa registers fulfillment providers with an Awilix *cradle*
+ * (PROXY injection). Property access (this.container_.query) works;
+ * this.container_.resolve("…") does not — Awilix looks up a registration
+ * literally named "resolve" and throws AwilixResolutionError.
+ *
+ * Prefer lazy property access for `query` (do not capture in the constructor):
+ * QUERY is initially registered as undefined and re-bound after modules load.
  */
 
 import {
   AbstractFulfillmentProviderService,
-  ContainerRegistrationKeys,
   MedusaError,
 } from "@medusajs/framework/utils"
 import type {
@@ -24,66 +26,33 @@ import type {
   CalculateShippingOptionPriceDTO,
   CreateShippingOptionDTO,
 } from "@medusajs/framework/types"
-import {
-  DEFAULT_DELIVERY_FEE_CONFIG,
-  cacheGet,
-  cacheSet,
-  computeDeliveryFee,
-  haversineKm,
-} from "../../utils/logistics"
+import { quoteLocalDelivery } from "../../utils/logistics"
 
-const CACHE_TTL_MS = 15 * 60 * 1000
+/**
+ * Query entry point for `apps/backend/src/links/franchise-sales-channel.ts`.
+ * Hard-coded to avoid importing defineLink at provider load time (Awilix
+ * singleton construction can run outside full MedusaModule bootstrap in tests).
+ * Keep in sync with FranchiseSalesChannelLink.entryPoint.
+ */
+const FRANCHISE_SALES_CHANNEL_ENTRY = "franchise_sales_channel"
 
-type GeoPoint = { lat: number; lng: number }
+type GraphQuery = {
+  graph: (args: {
+    entity: string
+    fields: string[]
+    filters?: Record<string, unknown>
+  }) => Promise<{ data: unknown[] }>
+}
 
 type StoreLocationRow = {
   id: string
+  franchise_id: string
   latitude: number | null
   longitude: number | null
   name: string
+  is_active?: boolean
+  is_accepting_orders?: boolean
   metadata: Record<string, unknown> | null
-}
-
-/** Minimal knex-like surface used for the shared PG connection. */
-type PgConnection = {
-  (table: string): {
-    select: (...cols: string[]) => {
-      where: (clause: Record<string, unknown>) => {
-        whereNull: (col: string) => {
-          first: () => Promise<Record<string, unknown> | undefined>
-        }
-        first: () => Promise<Record<string, unknown> | undefined>
-      }
-    }
-  }
-}
-
-async function geocodeUkPostcode(postcode: string): Promise<GeoPoint | null> {
-  const key = `geo:pc:${postcode.toUpperCase().replace(/\s+/g, "")}`
-  const cached = cacheGet<GeoPoint>(key)
-  if (cached) return cached
-
-  try {
-    const res = await fetch(
-      `https://api.postcodes.io/postcodes/${encodeURIComponent(postcode)}`,
-      { signal: AbortSignal.timeout(5000) }
-    )
-    if (!res.ok) return null
-    const json = (await res.json()) as {
-      result?: { latitude?: number; longitude?: number }
-    }
-    if (json.result?.latitude == null || json.result?.longitude == null) {
-      return null
-    }
-    const point = {
-      lat: Number(json.result.latitude),
-      lng: Number(json.result.longitude),
-    }
-    cacheSet(key, point, CACHE_TTL_MS)
-    return point
-  } catch {
-    return null
-  }
 }
 
 class CakeFulfillmentProviderService extends AbstractFulfillmentProviderService {
@@ -140,9 +109,6 @@ class CakeFulfillmentProviderService extends AbstractFulfillmentProviderService 
       }
     }
 
-    // Medusa's cartFieldsForCalculateShippingOptionsPrices does NOT include
-    // cart.metadata, so context.metadata is usually empty even when the cart
-    // row has store_location_id. Resolve bakery id from every reliable source.
     const storeId = await this.resolveStoreLocationId(context, data)
     const postcode = this.resolveDeliveryPostcode(context)
 
@@ -160,178 +126,298 @@ class CakeFulfillmentProviderService extends AbstractFulfillmentProviderService 
     }
 
     const location = await this.loadStoreLocation(storeId)
-
-    if (!location || location.latitude == null || location.longitude == null) {
+    if (!location) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        "This bakery has no map coordinates configured for delivery."
+        "Selected bakery was not found for delivery pricing."
       )
     }
 
-    const dest = await geocodeUkPostcode(postcode)
-    if (!dest) {
+    if (location.is_active === false) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "This bakery is not currently available for delivery."
+      )
+    }
+
+    if (location.is_accepting_orders === false) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "This bakery is not accepting orders right now."
+      )
+    }
+
+    await this.assertStoreBelongsToCartFranchise(context, location)
+
+    const quote = await quoteLocalDelivery({
+      store: location,
+      postcode,
+    })
+
+    if (quote.error === "missing_coords") {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        quote.message ??
+          "This bakery has no map coordinates configured for delivery."
+      )
+    }
+    if (
+      quote.error === "unresolvable_postcode" ||
+      quote.error === "missing_destination"
+    ) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
         "Could not resolve that postcode for delivery pricing."
       )
     }
-
-    const cfg = DEFAULT_DELIVERY_FEE_CONFIG
-    const radiusKm =
-      Number(location.metadata?.delivery_radius_km) || cfg.defaultRadiusKm
-    const distanceKm =
-      haversineKm(
-        Number(location.latitude),
-        Number(location.longitude),
-        dest.lat,
-        dest.lng
-      ) * cfg.roadFactor
-
-    if (distanceKm > radiusKm) {
+    if (!quote.deliverable || quote.error === "outside_radius") {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        `Address is outside the ${radiusKm} km delivery radius for ${location.name}.`
+        quote.message ??
+          `Address is outside the delivery radius for ${location.name}.`
       )
     }
 
-    const fee = computeDeliveryFee(distanceKm, cfg)
-
     return {
-      calculated_amount: fee,
+      calculated_amount: quote.fee,
       is_calculated_price_tax_inclusive: true,
     }
   }
 
   /**
-   * Shared PG connection from the module cradle.
-   * Do NOT call `container.resolve(...)` — providers get a cradle proxy.
+   * Lazy cradle property access — never call container.resolve().
    */
-  private getPg(): PgConnection | null {
+  private getQuery(): GraphQuery {
     const c = this.container_
-    if (!c) return null
-    const key = ContainerRegistrationKeys.PG_CONNECTION
+    let query: GraphQuery | undefined
     try {
-      const viaCradle = c[key] ?? c.__pg_connection__
-      if (viaCradle) return viaCradle as PgConnection
+      query = c?.query as GraphQuery | undefined
     } catch {
-      // Unregistered cradle key throws from Awilix proxy.
+      query = undefined
     }
-    // Rare: full Medusa container (e.g. unit tests).
-    if (typeof c.resolve === "function") {
-      try {
-        return c.resolve(key, { allowUnregistered: true }) as PgConnection
-      } catch {
-        return null
-      }
+    if (!query || typeof query.graph !== "function") {
+      throw new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
+        "Delivery pricing is temporarily unavailable (query service missing)."
+      )
     }
-    return null
+    return query
   }
 
   private async loadStoreLocation(
     storeId: string
   ): Promise<StoreLocationRow | null> {
-    const knex = this.getPg()
-    if (!knex) {
+    try {
+      const query = this.getQuery()
+      const { data } = await query.graph({
+        entity: "store_location",
+        fields: [
+          "id",
+          "franchise_id",
+          "latitude",
+          "longitude",
+          "name",
+          "is_active",
+          "is_accepting_orders",
+          "metadata",
+        ],
+        filters: { id: storeId },
+      })
+      const row = (data?.[0] ?? null) as StoreLocationRow | null
+      if (!row) return null
+      return {
+        id: String(row.id),
+        franchise_id: String(row.franchise_id ?? ""),
+        latitude:
+          row.latitude == null || (row.latitude as unknown) === ""
+            ? null
+            : Number(row.latitude),
+        longitude:
+          row.longitude == null || (row.longitude as unknown) === ""
+            ? null
+            : Number(row.longitude),
+        name: String(row.name ?? ""),
+        is_active: row.is_active,
+        is_accepting_orders: row.is_accepting_orders,
+        metadata:
+          row.metadata && typeof row.metadata === "object"
+            ? (row.metadata as Record<string, unknown>)
+            : null,
+      }
+    } catch (err) {
+      if (err instanceof MedusaError) throw err
       throw new MedusaError(
         MedusaError.Types.UNEXPECTED_STATE,
-        "Delivery pricing is temporarily unavailable (database connection missing)."
+        "Delivery pricing is temporarily unavailable (store lookup failed)."
       )
-    }
-
-    const row = await knex("store_location")
-      .select("id", "latitude", "longitude", "name", "metadata")
-      .where({ id: storeId })
-      .whereNull("deleted_at")
-      .first()
-
-    if (!row) return null
-
-    return {
-      id: String(row.id),
-      latitude:
-        row.latitude == null || row.latitude === ""
-          ? null
-          : Number(row.latitude),
-      longitude:
-        row.longitude == null || row.longitude === ""
-          ? null
-          : Number(row.longitude),
-      name: String(row.name ?? ""),
-      metadata:
-        row.metadata && typeof row.metadata === "object"
-          ? (row.metadata as Record<string, unknown>)
-          : null,
     }
   }
 
   private async loadCartMetadata(
     cartId: string
   ): Promise<Record<string, unknown> | null> {
-    const knex = this.getPg()
-    if (!knex) return null
-
     try {
-      const row = await knex("cart")
-        .select("metadata")
-        .where({ id: cartId })
-        .first()
+      const query = this.getQuery()
+      const { data } = await query.graph({
+        entity: "cart",
+        fields: ["id", "metadata"],
+        filters: { id: cartId },
+      })
+      const row = data?.[0] as { metadata?: unknown } | undefined
       if (row?.metadata && typeof row.metadata === "object") {
         return row.metadata as Record<string, unknown>
       }
-    } catch {
-      // Fall through.
+    } catch (err) {
+      if (err instanceof MedusaError) throw err
+      // Fall through — store may still be resolved from the client hint.
     }
     return null
   }
 
   /**
-   * Resolve the Cake Break store location used for delivery pricing.
+   * Resolve franchise_id for the cart's sales_channel_id via the
+   * franchise-sales-channel link (Tier-1 source of truth).
+   */
+  private async resolveFranchiseIdForSalesChannel(
+    salesChannelId: string
+  ): Promise<string | null> {
+    try {
+      const query = this.getQuery()
+      const { data } = await query.graph({
+        entity: FRANCHISE_SALES_CHANNEL_ENTRY,
+        fields: ["franchise_id", "sales_channel_id"],
+        filters: { sales_channel_id: salesChannelId },
+      })
+      const row = data?.[0] as { franchise_id?: string } | undefined
+      const franchiseId = row?.franchise_id
+      return typeof franchiseId === "string" && franchiseId.trim()
+        ? franchiseId.trim()
+        : null
+    } catch (err) {
+      if (err instanceof MedusaError) throw err
+      throw new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
+        "Delivery pricing is temporarily unavailable (tenant lookup failed)."
+      )
+    }
+  }
+
+  /**
+   * cart.sales_channel_id is set at cart creation from the franchise header
+   * via franchiseTenantMiddleware → franchise-sales-channel link. It is the
+   * server-side tenant anchor for this charge path (not the client header).
+   */
+  private async assertStoreBelongsToCartFranchise(
+    context: CalculateShippingOptionPriceDTO["context"],
+    location: StoreLocationRow
+  ): Promise<void> {
+    const salesChannelRaw = (context as { sales_channel_id?: unknown })
+      .sales_channel_id
+    const salesChannelId =
+      typeof salesChannelRaw === "string" ? salesChannelRaw.trim() : ""
+
+    if (!salesChannelId) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "Delivery pricing requires a sales channel on the cart."
+      )
+    }
+
+    const franchiseId =
+      await this.resolveFranchiseIdForSalesChannel(salesChannelId)
+    if (!franchiseId) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "Could not resolve franchise for this cart's sales channel."
+      )
+    }
+
+    if (!location.franchise_id || location.franchise_id !== franchiseId) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "Selected bakery does not belong to this cart's franchise."
+      )
+    }
+  }
+
+  /**
+   * Canonical store selection:
+   *  1. cart.metadata.store_location_id (loaded server-side by cart id)
+   *  2. shipping-method data.store_location_id — consistency-checked hint only
+   *  3. unanimous line-item metadata (conflicting ids → reject)
    *
-   * Priority:
-   *  1. shipping-method `data.store_location_id` (passed by storefront)
-   *  2. `context.metadata.store_location_id` (only if Medusa included metadata)
-   *  3. line-item metadata (items.* is always in the pricing field set)
-   *  4. cart.metadata loaded by cart id via PG (authoritative fallback)
+   * Client-controlled values are accepted as selection inputs only after
+   * franchise ownership is verified in assertStoreBelongsToCartFranchise.
    */
   private async resolveStoreLocationId(
     context: CalculateShippingOptionPriceDTO["context"],
     data: CalculateShippingOptionPriceDTO["data"]
   ): Promise<string | null> {
-    const fromData =
-      data && typeof (data as Record<string, unknown>).store_location_id === "string"
+    const hintFromData =
+      data &&
+      typeof (data as Record<string, unknown>).store_location_id === "string"
         ? String((data as Record<string, unknown>).store_location_id).trim()
         : ""
-    if (fromData) return fromData
-
-    const meta =
-      (context as { metadata?: Record<string, unknown> | null })?.metadata ?? null
-    if (typeof meta?.store_location_id === "string" && meta.store_location_id.trim()) {
-      return meta.store_location_id.trim()
-    }
-
-    const items =
-      (context as { items?: Array<{ metadata?: Record<string, unknown> | null }> })
-        ?.items ?? []
-    for (const item of items) {
-      const id = item?.metadata?.store_location_id
-      if (typeof id === "string" && id.trim()) return id.trim()
-    }
 
     const cartId =
       typeof (context as { id?: unknown }).id === "string"
         ? (context as { id: string }).id
         : null
-    if (!cartId) return null
 
-    const cartMeta = await this.loadCartMetadata(cartId)
-    if (
-      typeof cartMeta?.store_location_id === "string" &&
-      cartMeta.store_location_id.trim()
-    ) {
-      return cartMeta.store_location_id.trim()
+    let fromCartMeta = ""
+    if (cartId) {
+      const cartMeta = await this.loadCartMetadata(cartId)
+      if (
+        typeof cartMeta?.store_location_id === "string" &&
+        cartMeta.store_location_id.trim()
+      ) {
+        fromCartMeta = cartMeta.store_location_id.trim()
+      }
     }
 
-    return null
+    if (fromCartMeta) {
+      if (hintFromData && hintFromData !== fromCartMeta) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "Shipping method store does not match the bakery selected on the cart."
+        )
+      }
+      return fromCartMeta
+    }
+
+    const lineIds = new Set<string>()
+    const items =
+      (
+        context as {
+          items?: Array<{ metadata?: Record<string, unknown> | null }>
+        }
+      )?.items ?? []
+    for (const item of items) {
+      const id = item?.metadata?.store_location_id
+      if (typeof id === "string" && id.trim()) {
+        lineIds.add(id.trim())
+      }
+    }
+    if (lineIds.size > 1) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "Cart contains items for multiple bakeries. Delivery requires a single store."
+      )
+    }
+    const fromLines = lineIds.size === 1 ? [...lineIds][0] : ""
+
+    if (fromLines) {
+      if (hintFromData && hintFromData !== fromLines) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "Shipping method store does not match the bakery on cart line items."
+        )
+      }
+      return fromLines
+    }
+
+    // Last resort: client shipping-method data (still tenant-checked later).
+    return hintFromData || null
   }
 
   private resolveDeliveryPostcode(
@@ -339,13 +425,6 @@ class CakeFulfillmentProviderService extends AbstractFulfillmentProviderService 
   ): string {
     const fromAddress = context.shipping_address?.postal_code?.trim()
     if (fromAddress) return fromAddress
-
-    const meta =
-      (context as { metadata?: Record<string, unknown> | null })?.metadata ?? null
-    if (typeof meta?.delivery_postcode === "string") {
-      return meta.delivery_postcode.trim()
-    }
-
     return ""
   }
 
