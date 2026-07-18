@@ -62,6 +62,26 @@ export default async function seedFranchiseData({ container }: ExecArgs) {
     salesChannelId = createdSalesChannels[0].id;
   }
 
+  // Franchise → SalesChannel is required before any store location can be
+  // provisioned (createStoreLocationWorkflow step 0 fails closed without it).
+  const { data: franchiseScLinks } = await query.graph({
+    entity: FranchiseSalesChannelLink.entryPoint,
+    fields: ["sales_channel_id"],
+    filters: { franchise_id: franchise.id, sales_channel_id: salesChannelId },
+  });
+
+  if (!franchiseScLinks.length) {
+    await remoteLink.create({
+      franchise: { franchise_id: franchise.id },
+      [Modules.SALES_CHANNEL]: { sales_channel_id: salesChannelId },
+    });
+    logger.info(
+      `Linked sales channel ${salesChannelId} to franchise ${franchise.id}.`
+    );
+  } else {
+    logger.info("Franchise ↔ sales channel link already present.");
+  }
+
   const { data: stores } = await query.graph({
     entity: "store",
     fields: ["id", "name"],
