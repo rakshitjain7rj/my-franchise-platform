@@ -97,6 +97,9 @@ services:
       # First boot only: set RUN_SEED=true once, then back to false.
       RUN_SEED: ${RUN_SEED:-false}
       SEED_SCRIPTS: ${SEED_SCRIPTS:-}
+      # One-shot admin bootstrap. Set for first deploy, then clear both vars.
+      CREATE_ADMIN_EMAIL: ${CREATE_ADMIN_EMAIL:-}
+      CREATE_ADMIN_PASSWORD: ${CREATE_ADMIN_PASSWORD:-}
     expose:
       - "9000"
     depends_on:

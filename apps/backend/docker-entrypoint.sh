@@ -52,5 +52,19 @@ else
   echo "[entrypoint] RUN_SEED not set to 'true'; skipping seed."
 fi
 
+# Optional one-shot admin bootstrap (set via Dokploy env, then clear after first boot).
+#   CREATE_ADMIN_EMAIL=you@example.com
+#   CREATE_ADMIN_PASSWORD=a-strong-password
+# Safe to leave empty. If the user already exists, medusa user exits non-zero —
+# we swallow that so restarts remain healthy.
+if [ -n "${CREATE_ADMIN_EMAIL:-}" ] && [ -n "${CREATE_ADMIN_PASSWORD:-}" ]; then
+  echo "[entrypoint] Creating admin user: ${CREATE_ADMIN_EMAIL}"
+  if npx medusa user -e "${CREATE_ADMIN_EMAIL}" -p "${CREATE_ADMIN_PASSWORD}"; then
+    echo "[entrypoint] Admin user created (or already ready)."
+  else
+    echo "[entrypoint] WARNING: medusa user failed (user may already exist); continuing." >&2
+  fi
+fi
+
 echo "[entrypoint] Starting Medusa server on :9000..."
 exec npx medusa start
