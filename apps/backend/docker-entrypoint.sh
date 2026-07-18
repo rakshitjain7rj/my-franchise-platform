@@ -83,8 +83,8 @@ if [ -n "${MAKE_SUPER_ADMIN_EMAIL:-}" ]; then
   done
   if [ -z "${path}" ]; then
     echo "[entrypoint] WARNING: make-user-super-admin script not found; skipping." >&2
-  # Args after `--` are forwarded to the script (see make-user-super-admin.ts).
-  elif npx medusa exec "${path}" -- "${MAKE_SUPER_ADMIN_EMAIL}"; then
+  # Script reads MAKE_SUPER_ADMIN_EMAIL from the environment (set above).
+  elif npx medusa exec "${path}"; then
     echo "[entrypoint] Super-admin grant OK."
   else
     echo "[entrypoint] WARNING: super-admin grant failed; continuing." >&2

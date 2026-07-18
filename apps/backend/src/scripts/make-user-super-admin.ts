@@ -23,8 +23,14 @@ export default async function makeUserSuperAdmin({ container, args }: ExecArgs) 
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const userService = container.resolve(Modules.USER)
 
-  const email = args[0] || "admin@cakery.com"
-  const isRevoke = args[1] === "revoke"
+  // Prefer env (reliable in Docker entrypoint) over CLI args, which medusa exec
+  // does not always forward the same way in production images.
+  const email =
+    process.env.MAKE_SUPER_ADMIN_EMAIL?.trim() ||
+    args[0] ||
+    "admin@cakery.com"
+  const isRevoke =
+    process.env.MAKE_SUPER_ADMIN_REVOKE === "true" || args[1] === "revoke"
 
   const action = isRevoke ? "REVOKE" : "GRANT"
   const flag = !isRevoke
