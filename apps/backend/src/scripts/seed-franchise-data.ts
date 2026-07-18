@@ -5,6 +5,7 @@ import {
   createStoresWorkflow,
 } from "@medusajs/medusa/core-flows";
 import FranchiseProductLink from "../links/franchise-product";
+import FranchiseSalesChannelLink from "../links/franchise-sales-channel";
 import FranchiseStoreLink from "../links/franchise-store";
 
 const DEFAULT_FRANCHISE = {
