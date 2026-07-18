@@ -184,6 +184,19 @@ const createShadowStockLocationStep = createStep(
   async (input: StockLocationStepInput, { container }) => {
     const logger = container.resolve("logger")
 
+    // Medusa stock locations expect an Address DTO (or omit address entirely).
+    // Our StoreLocation stores free-text `address`; map that to address_1 so
+    // createStockLocationsWorkflow does not treat the string as an address_id.
+    const addressText =
+      typeof input.address === "string" ? input.address.trim() : ""
+    const stockAddress = addressText
+      ? {
+          address_1: addressText,
+          // UK-focused deployment; required by some address validators.
+          country_code: "gb",
+        }
+      : undefined
+
     const { result: stockLocations } = await createStockLocationsWorkflow(
       container
     ).run({
@@ -191,7 +204,7 @@ const createShadowStockLocationStep = createStep(
         locations: [
           {
             name: input.name,
-            address: input.address ?? undefined,
+            ...(stockAddress ? { address: stockAddress } : {}),
             metadata: { auto_provisioned: true },
           },
         ],
