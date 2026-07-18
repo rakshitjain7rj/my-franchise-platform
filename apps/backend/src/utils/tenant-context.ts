@@ -91,16 +91,52 @@ const extractAdminFranchiseIds = async (
   return ids
 }
 
+/**
+ * List every franchise ID (for super-admin fallback when they have no
+ * franchise-user links). Super-admin identity is the positive
+ * `metadata.is_super_admin` flag — never inferred from an empty link set.
+ */
+const listAllFranchiseIds = async (
+  req: AuthenticatedTenantRequest
+): Promise<string[]> => {
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "franchise",
+    fields: ["id"],
+  })
+  return Array.from(
+    new Set(
+      (data as Array<{ id?: string }>)
+        .map((row) => row.id)
+        .filter((id): id is string => Boolean(id))
+    )
+  )
+}
+
 export const resolveAdminFranchiseIds = async (
   req: AuthenticatedTenantRequest
 ): Promise<string[]> => {
   const franchiseIds = await extractAdminFranchiseIds(req)
 
-  if (!franchiseIds.length) {
+  if (franchiseIds.length) {
+    return franchiseIds
+  }
+
+  // No franchise-user links: only confirmed super-admins may proceed, and they
+  // get every franchise so dashboard / location routes can resolve a context.
+  // Unlinked, unflagged admins stay fail-closed ("Missing franchise context").
+  const isSA = await isSuperAdminUser(req)
+  if (!isSA) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, TENANT_ERROR_MESSAGE)
   }
 
-  return franchiseIds
+  const allIds = await listAllFranchiseIds(req)
+  if (!allIds.length) {
+    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, TENANT_ERROR_MESSAGE)
+  }
+
+  req.allowed_franchise_ids = allIds
+  return allIds
 }
 
 export const resolveAdminFranchiseContext = async (
