@@ -66,5 +66,30 @@ if [ -n "${CREATE_ADMIN_EMAIL:-}" ] && [ -n "${CREATE_ADMIN_PASSWORD:-}" ]; then
   fi
 fi
 
+# Optional one-shot super-admin grant (metadata.is_super_admin = true).
+#   MAKE_SUPER_ADMIN_EMAIL=you@example.com
+# Clear after first successful boot. Idempotent if already super-admin.
+if [ -n "${MAKE_SUPER_ADMIN_EMAIL:-}" ]; then
+  echo "[entrypoint] Granting super-admin to: ${MAKE_SUPER_ADMIN_EMAIL}"
+  path=""
+  for candidate in \
+    "./src/scripts/make-user-super-admin.js" \
+    "./src/scripts/make-user-super-admin.ts"
+  do
+    if [ -f "${candidate}" ]; then
+      path="${candidate}"
+      break
+    fi
+  done
+  if [ -z "${path}" ]; then
+    echo "[entrypoint] WARNING: make-user-super-admin script not found; skipping." >&2
+  # Args after `--` are forwarded to the script (see make-user-super-admin.ts).
+  elif npx medusa exec "${path}" -- "${MAKE_SUPER_ADMIN_EMAIL}"; then
+    echo "[entrypoint] Super-admin grant OK."
+  else
+    echo "[entrypoint] WARNING: super-admin grant failed; continuing." >&2
+  fi
+fi
+
 echo "[entrypoint] Starting Medusa server on :9000..."
 exec npx medusa start

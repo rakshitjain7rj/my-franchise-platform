@@ -100,6 +100,8 @@ services:
       # One-shot admin bootstrap. Set for first deploy, then clear both vars.
       CREATE_ADMIN_EMAIL: ${CREATE_ADMIN_EMAIL:-}
       CREATE_ADMIN_PASSWORD: ${CREATE_ADMIN_PASSWORD:-}
+      # One-shot: set metadata.is_super_admin=true, then clear.
+      MAKE_SUPER_ADMIN_EMAIL: ${MAKE_SUPER_ADMIN_EMAIL:-}
     expose:
       - "9000"
     depends_on:
