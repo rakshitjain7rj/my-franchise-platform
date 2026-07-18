@@ -25,12 +25,16 @@ if [ "${RUN_SEED}" = "true" ]; then
   for script in $(echo "$SEED_SCRIPTS" | tr ',' ' '); do
     # Production image (medusa build) ships compiled .js under src/scripts/,
     # not TypeScript. Local dev uses .ts. Resolve whichever exists.
+    # Supports nested paths e.g. one-off/backfill-inventory-items.ts
     base="${script%.*}"
     path=""
     for candidate in \
       "./src/scripts/${script}" \
       "./src/scripts/${base}.js" \
-      "./src/scripts/${base}.ts"
+      "./src/scripts/${base}.ts" \
+      "./src/scripts/one-off/${script}" \
+      "./src/scripts/one-off/${base}.js" \
+      "./src/scripts/one-off/${base}.ts"
     do
       if [ -f "${candidate}" ]; then
         path="${candidate}"
@@ -42,9 +46,15 @@ if [ "${RUN_SEED}" = "true" ]; then
       continue
     fi
     echo "[entrypoint] Seeding: ${path}"
+    # Catalogue bootstrap is long-running; do not abort the whole container on
+    # a soft failure unless MEDUSA_SEED_STRICT=true.
     if npx medusa exec "${path}"; then
       echo "[entrypoint] OK: ${path}"
     else
+      if [ "${MEDUSA_SEED_STRICT}" = "true" ]; then
+        echo "[entrypoint] ERROR: seed script '${path}' failed (MEDUSA_SEED_STRICT=true)." >&2
+        exit 1
+      fi
       echo "[entrypoint] WARNING: seed script '${path}' failed; continuing." >&2
     fi
   done
