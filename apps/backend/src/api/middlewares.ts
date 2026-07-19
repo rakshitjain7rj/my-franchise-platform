@@ -44,6 +44,7 @@ import {
   customerRegisterRateLimiter,
 } from "./middlewares/rate-limit-auth"
 import FranchiseSalesChannelLink from "../links/franchise-sales-channel"
+import { bindCakeFulfillmentQuery } from "../modules/cake-fulfillment/query-bridge"
 
 // ── Request augmentation ────────────────────────────────────────────────────
 
