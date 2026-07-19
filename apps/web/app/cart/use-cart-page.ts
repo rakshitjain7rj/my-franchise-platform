@@ -11,6 +11,11 @@ import { getCustomerAddresses } from "@/lib/auth/account-actions"
 import { getMedusaHeadersSync } from "@/lib/medusa/headers"
 import { fetchDeliveryFee } from "@/lib/data/logistics"
 import { useSelectedStore } from "@/lib/store-selection"
+import {
+  cartItemsHaveCollectionSlots,
+  collectionSlotToCartMetadata,
+  getMostRecentLineCollectionSlot,
+} from "@/types/cake-metadata"
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ?? "http://localhost:9000"
@@ -206,30 +211,16 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
 
     // Prefer the most recent line item's product-page collection window so
     // checkout can still read cart.metadata.requested_pickup_* if needed.
-    let lineDate: string | undefined
-    let lineTime: string | undefined
-    if (cart.items?.length) {
-      for (let i = cart.items.length - 1; i >= 0; i--) {
-        const attrs = cart.items[i]?.metadata?.custom_attributes as
-          | Record<string, string>
-          | undefined
-        if (attrs?.date || attrs?.time) {
-          lineDate = typeof attrs.date === "string" ? attrs.date : undefined
-          lineTime = typeof attrs.time === "string" ? attrs.time : undefined
-          break
-        }
-      }
-    }
-
+    const lineSlot = getMostRecentLineCollectionSlot(cart.items)
     const pickupDate =
       (typeof meta?.requested_pickup_date === "string" &&
         meta.requested_pickup_date) ||
-      lineDate ||
+      lineSlot?.date ||
       undefined
     const pickupTime =
       (typeof meta?.requested_pickup_time === "string" &&
         meta.requested_pickup_time) ||
-      lineTime ||
+      lineSlot?.time ||
       undefined
     const pickupLabel =
       (typeof meta?.requested_pickup_label === "string" &&
@@ -263,15 +254,13 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
       Boolean(pickupDate && pickupTime) &&
       (!meta?.requested_pickup_date || !meta?.requested_pickup_time)
     if (needsSlotPromote && pickupDate && pickupTime) {
-      const isHHmm = /^\d{2}:\d{2}$/.test(pickupTime)
-      void persistCartMetadata({
-        requested_pickup_date: pickupDate,
-        requested_pickup_time: pickupTime,
-        requested_pickup_label: pickupLabel || pickupTime,
-        requested_pickup_iso: isHHmm
-          ? `${pickupDate}T${pickupTime}:00`
-          : undefined,
-      })
+      void persistCartMetadata(
+        collectionSlotToCartMetadata({
+          date: pickupDate,
+          time: pickupTime,
+          label: pickupLabel || pickupTime,
+        })
+      )
     }
 
     const cartStore = meta?.store_location_id as string | undefined
@@ -430,16 +419,7 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
   const deliveryOk =
     fulfillment === "pickup" || (deliveryFee > 0 && !deliveryFeeError)
   // Collection window is set per cake on the product page (line custom_attributes).
-  const itemsHaveCollectionSlot =
-    (cart?.items?.length ?? 0) > 0 &&
-    (cart?.items ?? []).every((item) => {
-      const attrs = item.metadata?.custom_attributes as
-        | Record<string, string>
-        | undefined
-      const date = attrs?.date?.trim()
-      const time = attrs?.time?.trim()
-      return Boolean(date && time)
-    })
+  const itemsHaveCollectionSlot = cartItemsHaveCollectionSlots(cart?.items)
   const canCheckout =
     itemsHaveCollectionSlot &&
     (cart?.items?.length ?? 0) > 0 &&

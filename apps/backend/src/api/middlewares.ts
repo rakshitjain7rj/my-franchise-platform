@@ -44,7 +44,10 @@ import {
   customerRegisterRateLimiter,
 } from "./middlewares/rate-limit-auth"
 import FranchiseSalesChannelLink from "../links/franchise-sales-channel"
-import { bindCakeFulfillmentQuery } from "../modules/cake-fulfillment/query-bridge"
+import {
+  bindCakeFulfillmentQuery,
+  type GraphQuery,
+} from "../modules/cake-fulfillment/query-bridge"
 
 // ── Request augmentation ────────────────────────────────────────────────────
 
@@ -147,6 +150,9 @@ export const franchiseTenantMiddleware = async (
   if (franchiseId && isStorePath(getRequestPath(req)) && req.scope) {
     try {
       const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+      // Keep fulfillment provider calculatePrice in sync — its cradle often
+      // lacks Query, which caused "query service missing" on shipping-methods.
+      bindCakeFulfillmentQuery(query as GraphQuery)
 
       // ── Single-source resolution: franchise → sales channel ────────────────
       const { data: scLinks } = await query.graph({

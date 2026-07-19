@@ -447,3 +447,94 @@ export function labelForAttrKey(key: string): string {
 export function isHiddenAttrKey(key: string): boolean {
   return toCanonicalAttrKey(key) === CAKE_ATTR.photo_url
 }
+
+// ---------------------------------------------------------------------------
+// Collection date/time (product-page slots → line attrs → cart metadata)
+// ---------------------------------------------------------------------------
+
+/** Product-page / line-item collection window. */
+export type CollectionSlot = {
+  date: string
+  time: string
+  label?: string
+}
+
+/** Cart-level metadata fields derived from a collection slot. */
+export type CollectionSlotCartMetadata = {
+  requested_pickup_date: string
+  requested_pickup_time: string
+  requested_pickup_label: string
+  requested_pickup_iso?: string
+}
+
+type LineItemLike = {
+  metadata?: {
+    custom_attributes?: LineItemCakeAttributes | Record<string, string> | null
+  } | null
+}
+
+/**
+ * Read trimmed date + time from line-item `metadata.custom_attributes`.
+ * Returns null unless both are non-empty.
+ */
+export function getLineCollectionSlot(
+  item: LineItemLike | null | undefined
+): CollectionSlot | null {
+  const attrs = item?.metadata?.custom_attributes
+  if (!attrs || typeof attrs !== "object") return null
+  const date =
+    typeof attrs.date === "string" ? attrs.date.trim() : ""
+  const time =
+    typeof attrs.time === "string" ? attrs.time.trim() : ""
+  if (!date || !time) return null
+  return { date, time }
+}
+
+/**
+ * True when every line has a non-empty collection date and time
+ * (cart checkout gate).
+ */
+export function cartItemsHaveCollectionSlots(
+  items: LineItemLike[] | null | undefined
+): boolean {
+  if (!items?.length) return false
+  return items.every((item) => getLineCollectionSlot(item) != null)
+}
+
+/**
+ * Most recent line (end of list) that has a collection slot — last-item-wins
+ * for cart-level `requested_pickup_*` promotion.
+ */
+export function getMostRecentLineCollectionSlot(
+  items: LineItemLike[] | null | undefined
+): CollectionSlot | null {
+  if (!items?.length) return null
+  for (let i = items.length - 1; i >= 0; i--) {
+    const slot = getLineCollectionSlot(items[i])
+    if (slot) return slot
+  }
+  return null
+}
+
+const HHMM_RE = /^\d{2}:\d{2}$/
+
+/**
+ * Cart metadata patch for a collection slot.
+ * ISO is only set when `time` is `HH:mm` (avoids invalid values for free-text labels).
+ */
+export function collectionSlotToCartMetadata(
+  slot: CollectionSlot
+): CollectionSlotCartMetadata {
+  const date = slot.date.trim()
+  const time = slot.time.trim()
+  const label = slot.label?.trim() || time
+  const meta: CollectionSlotCartMetadata = {
+    requested_pickup_date: date,
+    requested_pickup_time: time,
+    requested_pickup_label: label,
+  }
+  if (HHMM_RE.test(time)) {
+    meta.requested_pickup_iso = `${date}T${time}:00`
+  }
+  return meta
+}

@@ -3,10 +3,12 @@
  * service. ModuleProvider cradles often omit `query` even though API routes
  * resolve it fine (see calculatePrice → "query service missing" in production).
  *
- * Bound once from `src/loaders/cake-fulfillment-query.ts` at boot.
+ * Binding sites (last successful bind wins; idempotent):
+ *  1. Boot: `src/loaders/cake-fulfillment-query.ts`
+ *  2. Request: `franchiseTenantMiddleware` on store paths after Query resolve
  */
 
-type GraphQuery = {
+export type GraphQuery = {
   graph: (args: {
     entity: string
     fields: string[]
@@ -20,6 +22,11 @@ export function bindCakeFulfillmentQuery(query: GraphQuery | null | undefined) {
   if (query && typeof query.graph === "function") {
     boundQuery = query
   }
+}
+
+/** Test helper — clears the process-global bind. */
+export function clearBoundCakeFulfillmentQuery() {
+  boundQuery = null
 }
 
 export function getBoundCakeFulfillmentQuery(): GraphQuery | null {

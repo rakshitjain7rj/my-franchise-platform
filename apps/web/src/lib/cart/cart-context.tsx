@@ -48,6 +48,7 @@ import type {
   MedusaCart,
   MedusaCartItem,
 } from "./cart-actions"
+import { collectionSlotToCartMetadata } from "@/types/cake-metadata"
 
 // Re-export types consumers need
 export type { MedusaCart, MedusaCartItem, CartLineItemMetadata, InventoryCheckResult }
@@ -328,14 +329,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         // the shopper to re-pick it on the cart page.
         const slot = params.collectionSlot
         if (slot?.date && slot?.time) {
-          const label = slot.label?.trim() || slot.time
           updated = await updateCartMetadata(id, {
             ...(updated.metadata ?? {}),
             ...(storeLocationId ? { store_location_id: storeLocationId } : {}),
-            requested_pickup_date: slot.date,
-            requested_pickup_time: slot.time,
-            requested_pickup_label: label,
-            requested_pickup_iso: `${slot.date}T${slot.time}:00`,
+            ...collectionSlotToCartMetadata(slot),
           })
         }
 

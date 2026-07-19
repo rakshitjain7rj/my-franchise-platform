@@ -2,6 +2,10 @@ import { franchiseTenantMiddleware } from "../middlewares"
 import { filterStoreProductsByFranchise } from "../middlewares/filter-products-by-franchise"
 import FranchiseStoreLink from "../../links/franchise-store"
 import FranchiseProductLink from "../../links/franchise-product"
+import {
+  clearBoundCakeFulfillmentQuery,
+  getBoundCakeFulfillmentQuery,
+} from "../../modules/cake-fulfillment/query-bridge"
 
 const createResponse = () => {
   const res = {
@@ -20,6 +24,14 @@ const createNext = () => jest.fn().mockImplementation((err) => {
 
 
 describe("franchise tenant middleware", () => {
+  beforeEach(() => {
+    clearBoundCakeFulfillmentQuery()
+  })
+
+  afterEach(() => {
+    clearBoundCakeFulfillmentQuery()
+  })
+
   it("rejects store requests without a franchise header", async () => {
     const req = {
       headers: {},
@@ -62,6 +74,7 @@ describe("franchise tenant middleware", () => {
       }
       return Promise.resolve({ data: [] })
     })
+    const queryService = { graph: graphMock }
 
     const req = {
       headers: {
@@ -71,7 +84,7 @@ describe("franchise tenant middleware", () => {
       url: "/store/products",
       method: "GET",
       scope: {
-        resolve: jest.fn().mockReturnValue({ graph: graphMock }),
+        resolve: jest.fn().mockReturnValue(queryService),
       },
       query: { limit: "6" },
       validatedQuery: { limit: 6 },
@@ -89,6 +102,8 @@ describe("franchise tenant middleware", () => {
     expect(req.query?.limit).toBe("6")
     expect(req.validatedQuery?.limit).toBe(6)
     expect(next).toHaveBeenCalledTimes(1)
+    // Store tenant path rebinds Query for cake fulfillment calculatePrice.
+    expect(getBoundCakeFulfillmentQuery()).toBe(queryService)
   })
 
   it("injects sales_channel_id into body/validatedBody for POST store routes", async () => {

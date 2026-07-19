@@ -5,7 +5,10 @@
 
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { bindCakeFulfillmentQuery } from "../modules/cake-fulfillment/query-bridge"
+import {
+  bindCakeFulfillmentQuery,
+  type GraphQuery,
+} from "../modules/cake-fulfillment/query-bridge"
 
 export default async function cakeFulfillmentQueryLoader({
   container,
@@ -13,10 +16,10 @@ export default async function cakeFulfillmentQueryLoader({
   container: MedusaContainer
 }) {
   try {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY) as {
-      graph: (...args: unknown[]) => Promise<unknown>
-    }
-    bindCakeFulfillmentQuery(query as never)
+    const query = container.resolve(
+      ContainerRegistrationKeys.QUERY
+    ) as GraphQuery
+    bindCakeFulfillmentQuery(query)
     const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as {
       info: (m: string) => void
     }
