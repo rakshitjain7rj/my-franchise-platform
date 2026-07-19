@@ -16,6 +16,10 @@ jest.mock("../../../utils/logistics", () => {
 
 import { MedusaError } from "@medusajs/framework/utils"
 import CakeFulfillmentProviderService from "../service"
+import {
+  bindCakeFulfillmentQuery,
+  getBoundCakeFulfillmentQuery,
+} from "../query-bridge"
 
 const FRANCHISE_SALES_CHANNEL_ENTRY = "franchise_sales_channel"
 
@@ -334,7 +338,7 @@ describe("CakeFulfillmentProviderService.calculatePrice", () => {
     })
   })
 
-  it("returns controlled UNEXPECTED_STATE when query is missing", async () => {
+  it("returns controlled UNEXPECTED_STATE when query and fallbacks are missing", async () => {
     const provider = new CakeFulfillmentProviderService({}, {})
     await expect(
       provider.calculatePrice(
@@ -344,8 +348,47 @@ describe("CakeFulfillmentProviderService.calculatePrice", () => {
       )
     ).rejects.toMatchObject({
       type: MedusaError.Types.UNEXPECTED_STATE,
-      message: expect.stringMatching(/query service missing/i),
+      message: expect.stringMatching(
+        /query service missing|store lookup failed/i
+      ),
     })
+  })
+
+  it("loads store via franchise module when query is missing", async () => {
+    mockQuoteLocalDelivery.mockResolvedValue(happyQuote)
+    const listStoreLocations = jest.fn(async () => [STORE])
+    const provider = new CakeFulfillmentProviderService(
+      {
+        franchise: { listStoreLocations },
+        // cart meta via client hint path — no cart service needed when hint matches
+      },
+      {}
+    )
+    // Without cart service, resolveStoreLocationId uses shipping-method data
+    // hint after cart meta fails; then franchise ownership still needs SC link.
+    // Provide raw pg for franchise-sc link only.
+    const pg = {
+      raw: jest.fn(async (sql: string) => {
+        if (String(sql).includes("franchise_franchise_sales_channel")) {
+          return { rows: [{ franchise_id: "fran_1" }] }
+        }
+        return { rows: [] }
+      }),
+    }
+    const provider2 = new CakeFulfillmentProviderService(
+      {
+        franchise: { listStoreLocations },
+        __pg_connection__: pg,
+      },
+      {}
+    )
+    const price = await provider2.calculatePrice(
+      deliveryOption,
+      { store_location_id: "stloc_1" },
+      baseContext
+    )
+    expect(price.calculated_amount).toBe(5.97)
+    expect(listStoreLocations).toHaveBeenCalled()
   })
 
   it("returns controlled UNEXPECTED_STATE when store lookup throws", async () => {

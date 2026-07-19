@@ -9,12 +9,13 @@
  * Registered as provider id `cake_cake` (module id "cake" + service identifier).
  *
  * DI note: Medusa registers fulfillment providers with an Awilix *cradle*
- * (PROXY injection). Property access (this.container_.query) works;
- * this.container_.resolve("…") does not — Awilix looks up a registration
- * literally named "resolve" and throws AwilixResolutionError.
+ * (PROXY injection). Property access (this.container_.query) works when the
+ * key is present; this.container_.resolve("…") does not — Awilix looks up a
+ * registration literally named "resolve" and throws AwilixResolutionError.
  *
- * Prefer lazy property access for `query` (do not capture in the constructor):
- * QUERY is initially registered as undefined and re-bound after modules load.
+ * Production observation: the fulfillment cradle often lacks `query` even
+ * though API routes have it (delivery-fee works; shipping-methods recalculate
+ * fails). Fall back to franchise/cart module services and raw SQL.
  */
 
 import {
@@ -27,6 +28,7 @@ import type {
   CreateShippingOptionDTO,
 } from "@medusajs/framework/types"
 import { quoteLocalDelivery } from "../../utils/logistics"
+import { getBoundCakeFulfillmentQuery } from "./query-bridge"
 
 /**
  * Query entry point for `apps/backend/src/links/franchise-sales-channel.ts`.
@@ -35,6 +37,10 @@ import { quoteLocalDelivery } from "../../utils/logistics"
  * Keep in sync with FranchiseSalesChannelLink.entryPoint.
  */
 const FRANCHISE_SALES_CHANNEL_ENTRY = "franchise_sales_channel"
+
+/** Physical Medusa Link table for franchise ↔ sales channel. */
+const FRANCHISE_SC_LINK_TABLE =
+  "franchise_franchise_sales_channel_sales_channel"
 
 type GraphQuery = {
   graph: (args: {
@@ -185,65 +191,168 @@ class CakeFulfillmentProviderService extends AbstractFulfillmentProviderService 
   }
 
   /**
-   * Lazy cradle property access — never call container.resolve().
+   * Resolve Medusa Query for store/cart/link lookups.
+   * Order: app-level bridge (loader) → cradle.query → cradle.remoteQuery.
+   * Returns null when none available so callers can use SQL/module fallbacks.
    */
-  private getQuery(): GraphQuery {
+  private tryGetQuery(): GraphQuery | null {
+    const bound = getBoundCakeFulfillmentQuery()
+    if (bound && typeof bound.graph === "function") {
+      return bound
+    }
+
     const c = this.container_
-    let query: GraphQuery | undefined
+    const candidates: unknown[] = []
     try {
-      query = c?.query as GraphQuery | undefined
+      candidates.push(c?.query)
     } catch {
-      query = undefined
+      /* cradle missing key */
     }
-    if (!query || typeof query.graph !== "function") {
-      throw new MedusaError(
-        MedusaError.Types.UNEXPECTED_STATE,
-        "Delivery pricing is temporarily unavailable (query service missing)."
-      )
+    try {
+      candidates.push(c?.remoteQuery)
+    } catch {
+      /* cradle missing key */
     }
-    return query
+    for (const q of candidates) {
+      if (q && typeof (q as GraphQuery).graph === "function") {
+        return q as GraphQuery
+      }
+    }
+    return null
+  }
+
+  private tryFranchiseService(): {
+    listStoreLocations?: (
+      filters: Record<string, unknown>,
+      config?: Record<string, unknown>
+    ) => Promise<StoreLocationRow[]>
+  } | null {
+    try {
+      const svc = this.container_?.franchise
+      return svc && typeof svc === "object" ? svc : null
+    } catch {
+      return null
+    }
+  }
+
+  private tryCartService(): {
+    retrieveCart?: (
+      id: string,
+      config?: Record<string, unknown>
+    ) => Promise<{ metadata?: unknown } | null>
+  } | null {
+    try {
+      const svc = this.container_?.cart
+      return svc && typeof svc === "object" ? svc : null
+    } catch {
+      return null
+    }
+  }
+
+  private tryPg(): {
+    raw: (
+      sql: string,
+      bindings?: unknown[]
+    ) => Promise<{ rows?: unknown[] } | unknown[]>
+  } | null {
+    const c = this.container_
+    for (const key of ["__pg_connection__", "pgConnection", "manager"]) {
+      try {
+        const pg = c?.[key]
+        if (pg && typeof pg.raw === "function") return pg
+      } catch {
+        /* continue */
+      }
+    }
+    return null
+  }
+
+  /** Normalize knex/pg raw result shapes to a rows array. */
+  private rowsFromRaw(result: unknown): unknown[] {
+    if (!result) return []
+    if (Array.isArray(result)) {
+      // knex sometimes returns [rows, fields]
+      if (result.length && Array.isArray(result[0])) return result[0]
+      return result
+    }
+    if (typeof result === "object" && result !== null && "rows" in result) {
+      const rows = (result as { rows?: unknown[] }).rows
+      return Array.isArray(rows) ? rows : []
+    }
+    return []
+  }
+
+  private normalizeStoreLocation(row: StoreLocationRow): StoreLocationRow {
+    return {
+      id: String(row.id),
+      franchise_id: String(row.franchise_id ?? ""),
+      latitude:
+        row.latitude == null || (row.latitude as unknown) === ""
+          ? null
+          : Number(row.latitude),
+      longitude:
+        row.longitude == null || (row.longitude as unknown) === ""
+          ? null
+          : Number(row.longitude),
+      name: String(row.name ?? ""),
+      is_active: row.is_active,
+      is_accepting_orders: row.is_accepting_orders,
+      metadata:
+        row.metadata && typeof row.metadata === "object"
+          ? (row.metadata as Record<string, unknown>)
+          : null,
+    }
   }
 
   private async loadStoreLocation(
     storeId: string
   ): Promise<StoreLocationRow | null> {
     try {
-      const query = this.getQuery()
-      const { data } = await query.graph({
-        entity: "store_location",
-        fields: [
-          "id",
-          "franchise_id",
-          "latitude",
-          "longitude",
-          "name",
-          "is_active",
-          "is_accepting_orders",
-          "metadata",
-        ],
-        filters: { id: storeId },
-      })
-      const row = (data?.[0] ?? null) as StoreLocationRow | null
-      if (!row) return null
-      return {
-        id: String(row.id),
-        franchise_id: String(row.franchise_id ?? ""),
-        latitude:
-          row.latitude == null || (row.latitude as unknown) === ""
-            ? null
-            : Number(row.latitude),
-        longitude:
-          row.longitude == null || (row.longitude as unknown) === ""
-            ? null
-            : Number(row.longitude),
-        name: String(row.name ?? ""),
-        is_active: row.is_active,
-        is_accepting_orders: row.is_accepting_orders,
-        metadata:
-          row.metadata && typeof row.metadata === "object"
-            ? (row.metadata as Record<string, unknown>)
-            : null,
+      const query = this.tryGetQuery()
+      if (query) {
+        const { data } = await query.graph({
+          entity: "store_location",
+          fields: [
+            "id",
+            "franchise_id",
+            "latitude",
+            "longitude",
+            "name",
+            "is_active",
+            "is_accepting_orders",
+            "metadata",
+          ],
+          filters: { id: storeId },
+        })
+        const row = (data?.[0] ?? null) as StoreLocationRow | null
+        return row ? this.normalizeStoreLocation(row) : null
       }
+
+      const franchise = this.tryFranchiseService()
+      if (franchise?.listStoreLocations) {
+        const rows = await franchise.listStoreLocations({ id: storeId })
+        const row = rows?.[0]
+        return row ? this.normalizeStoreLocation(row) : null
+      }
+
+      const pg = this.tryPg()
+      if (pg) {
+        const result = await pg.raw(
+          `SELECT id, franchise_id, latitude, longitude, name, is_active,
+                  is_accepting_orders, metadata
+           FROM store_location
+           WHERE id = ? AND deleted_at IS NULL
+           LIMIT 1`,
+          [storeId]
+        )
+        const row = (this.rowsFromRaw(result)[0] ?? null) as StoreLocationRow | null
+        return row ? this.normalizeStoreLocation(row) : null
+      }
+
+      throw new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
+        "Delivery pricing is temporarily unavailable (query service missing)."
+      )
     } catch (err) {
       if (err instanceof MedusaError) throw err
       throw new MedusaError(
@@ -257,15 +366,43 @@ class CakeFulfillmentProviderService extends AbstractFulfillmentProviderService 
     cartId: string
   ): Promise<Record<string, unknown> | null> {
     try {
-      const query = this.getQuery()
-      const { data } = await query.graph({
-        entity: "cart",
-        fields: ["id", "metadata"],
-        filters: { id: cartId },
-      })
-      const row = data?.[0] as { metadata?: unknown } | undefined
-      if (row?.metadata && typeof row.metadata === "object") {
-        return row.metadata as Record<string, unknown>
+      const query = this.tryGetQuery()
+      if (query) {
+        const { data } = await query.graph({
+          entity: "cart",
+          fields: ["id", "metadata"],
+          filters: { id: cartId },
+        })
+        const row = data?.[0] as { metadata?: unknown } | undefined
+        if (row?.metadata && typeof row.metadata === "object") {
+          return row.metadata as Record<string, unknown>
+        }
+        return null
+      }
+
+      const cartService = this.tryCartService()
+      if (cartService?.retrieveCart) {
+        const cart = await cartService.retrieveCart(cartId, {
+          select: ["id", "metadata"],
+        })
+        if (cart?.metadata && typeof cart.metadata === "object") {
+          return cart.metadata as Record<string, unknown>
+        }
+        return null
+      }
+
+      const pg = this.tryPg()
+      if (pg) {
+        const result = await pg.raw(
+          `SELECT metadata FROM cart WHERE id = ? AND deleted_at IS NULL LIMIT 1`,
+          [cartId]
+        )
+        const meta = (
+          this.rowsFromRaw(result)[0] as { metadata?: unknown } | undefined
+        )?.metadata
+        if (meta && typeof meta === "object") {
+          return meta as Record<string, unknown>
+        }
       }
     } catch (err) {
       if (err instanceof MedusaError) throw err
@@ -276,23 +413,47 @@ class CakeFulfillmentProviderService extends AbstractFulfillmentProviderService 
 
   /**
    * Resolve franchise_id for the cart's sales_channel_id via the
-   * franchise-sales-channel link (Tier-1 source of truth).
+   * franchise-sales-channel link (tier-1 source of truth).
    */
   private async resolveFranchiseIdForSalesChannel(
     salesChannelId: string
   ): Promise<string | null> {
     try {
-      const query = this.getQuery()
-      const { data } = await query.graph({
-        entity: FRANCHISE_SALES_CHANNEL_ENTRY,
-        fields: ["franchise_id", "sales_channel_id"],
-        filters: { sales_channel_id: salesChannelId },
-      })
-      const row = data?.[0] as { franchise_id?: string } | undefined
-      const franchiseId = row?.franchise_id
-      return typeof franchiseId === "string" && franchiseId.trim()
-        ? franchiseId.trim()
-        : null
+      const query = this.tryGetQuery()
+      if (query) {
+        const { data } = await query.graph({
+          entity: FRANCHISE_SALES_CHANNEL_ENTRY,
+          fields: ["franchise_id", "sales_channel_id"],
+          filters: { sales_channel_id: salesChannelId },
+        })
+        const row = data?.[0] as { franchise_id?: string } | undefined
+        const franchiseId = row?.franchise_id
+        return typeof franchiseId === "string" && franchiseId.trim()
+          ? franchiseId.trim()
+          : null
+      }
+
+      const pg = this.tryPg()
+      if (pg) {
+        const result = await pg.raw(
+          `SELECT franchise_id
+           FROM ${FRANCHISE_SC_LINK_TABLE}
+           WHERE sales_channel_id = ? AND deleted_at IS NULL
+           LIMIT 1`,
+          [salesChannelId]
+        )
+        const franchiseId = (
+          this.rowsFromRaw(result)[0] as { franchise_id?: string } | undefined
+        )?.franchise_id
+        return typeof franchiseId === "string" && franchiseId.trim()
+          ? franchiseId.trim()
+          : null
+      }
+
+      throw new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
+        "Delivery pricing is temporarily unavailable (query service missing)."
+      )
     } catch (err) {
       if (err instanceof MedusaError) throw err
       throw new MedusaError(
