@@ -79,14 +79,8 @@ export default function CartPageClient({
                 model.setFulfillment(method)
                 void model.persistFulfillment(method)
               }}
-              locationId={model.locationId}
               locationName={model.locationName}
               locationAddress={model.locationAddress}
-              selectedDate={model.selectedDate}
-              selectedTime={model.selectedTime}
-              selectedTimeLabel={model.selectedTimeLabel}
-              onDateChange={(d) => void model.handleDateChange(d)}
-              onSlotChange={(s) => void model.handleSlotChange(s)}
               deliveryPostcode={model.deliveryPostcode}
               onDeliveryPostcodeChange={model.setDeliveryPostcode}
               deliveryFee={model.deliveryFee}

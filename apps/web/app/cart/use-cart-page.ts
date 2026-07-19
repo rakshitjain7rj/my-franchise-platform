@@ -9,11 +9,7 @@ import {
 } from "@/lib/cart/cart-actions"
 import { getCustomerAddresses } from "@/lib/auth/account-actions"
 import { getMedusaHeadersSync } from "@/lib/medusa/headers"
-import {
-  defaultMinCollectionDate,
-  fetchDeliveryFee,
-} from "@/lib/data/logistics"
-import type { SlotSelection } from "@/components/time-slot-picker"
+import { fetchDeliveryFee } from "@/lib/data/logistics"
 import { useSelectedStore } from "@/lib/store-selection"
 
 const BACKEND_URL =
@@ -47,9 +43,6 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
   const [fulfillment, setFulfillment] = useState<"pickup" | "delivery">(
     "pickup"
   )
-  const [selectedDate, setSelectedDate] = useState(defaultMinCollectionDate())
-  const [selectedTime, setSelectedTime] = useState("")
-  const [selectedTimeLabel, setSelectedTimeLabel] = useState("")
 
   const [deliveryPostcode, setDeliveryPostcode] = useState("")
   const [deliveryFee, setDeliveryFee] = useState(0)
@@ -86,12 +79,8 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
     // Only warn when the cookie actually changed after mount (external select).
     if (prevCookieLoc.current && prevCookieLoc.current !== cookieLocationId) {
       setLocationWarning("Bakery location changed. Please review your cart.")
-      setSelectedTime("")
-      setSelectedTimeLabel("")
       void persistCartMetadataRef.current?.({
         store_location_id: cookieLocationId,
-        requested_pickup_time: "",
-        requested_pickup_label: "",
       })
     }
     setLocationId(cookieLocationId)
@@ -167,11 +156,17 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
           updates.store_location_id !== undefined
             ? updates.store_location_id
             : locationId,
-        requested_pickup_date: updates.requested_pickup_date ?? selectedDate,
-        requested_pickup_time: updates.requested_pickup_time ?? selectedTime,
         franchise_id: currentMeta?.franchise_id ?? franchiseId,
       }
 
+      // Date/time come from product-page line attributes (promoted once).
+      // Do not invent cart-level defaults here.
+      if (updates.requested_pickup_date !== undefined) {
+        mergedMetadata.requested_pickup_date = updates.requested_pickup_date
+      }
+      if (updates.requested_pickup_time !== undefined) {
+        mergedMetadata.requested_pickup_time = updates.requested_pickup_time
+      }
       if (updates.requested_pickup_label !== undefined) {
         mergedMetadata.requested_pickup_label = updates.requested_pickup_label
       }
@@ -193,7 +188,7 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
 
       await updateCartMetadata(cartId, mergedMetadata).catch(() => {})
     },
-    [cartId, cart, fulfillment, locationId, selectedDate, selectedTime, franchiseId]
+    [cartId, cart, fulfillment, locationId, franchiseId]
   )
 
   const persistCartMetadataRef = useRef(persistCartMetadata)
@@ -209,6 +204,8 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
 
     const meta = cart.metadata as Record<string, unknown> | null
 
+    // Prefer the most recent line item's product-page collection window so
+    // checkout can still read cart.metadata.requested_pickup_* if needed.
     let lineDate: string | undefined
     let lineTime: string | undefined
     if (cart.items?.length) {
@@ -243,9 +240,6 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
     if (meta?.fulfillment_method) {
       setFulfillment(meta.fulfillment_method as "pickup" | "delivery")
     }
-    if (pickupDate) setSelectedDate(pickupDate)
-    if (pickupTime) setSelectedTime(pickupTime)
-    if (pickupLabel) setSelectedTimeLabel(pickupLabel)
     if (typeof meta?.delivery_fee === "number") {
       setDeliveryFee(meta.delivery_fee)
     }
@@ -264,6 +258,7 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
         .catch(() => {})
     }
 
+    // Promote product-page slot → cart metadata once (no cart UI to re-edit).
     const needsSlotPromote =
       Boolean(pickupDate && pickupTime) &&
       (!meta?.requested_pickup_date || !meta?.requested_pickup_time)
@@ -291,9 +286,13 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
         store_location_id: locationId,
         fulfillment_method:
           (meta?.fulfillment_method as "pickup" | "delivery") ?? "pickup",
-        requested_pickup_date: pickupDate,
-        requested_pickup_time: pickupTime,
-        requested_pickup_label: pickupLabel || undefined,
+        ...(pickupDate ? { requested_pickup_date: pickupDate } : {}),
+        ...(pickupTime
+          ? {
+              requested_pickup_time: pickupTime,
+              requested_pickup_label: pickupLabel || pickupTime,
+            }
+          : {}),
       })
     }
 
@@ -326,39 +325,6 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
   const persistFulfillment = useCallback(
     async (method: "pickup" | "delivery") => {
       await persistCartMetadata({ fulfillment_method: method })
-    },
-    [persistCartMetadata]
-  )
-
-  const handleSlotChange = useCallback(
-    async (slot: SlotSelection | null) => {
-      if (!slot) {
-        setSelectedTime("")
-        setSelectedTimeLabel("")
-        return
-      }
-      setSelectedTime(slot.time)
-      setSelectedTimeLabel(slot.label)
-      await persistCartMetadata({
-        requested_pickup_date: slot.date,
-        requested_pickup_time: slot.time,
-        requested_pickup_label: slot.label,
-        requested_pickup_iso: `${slot.date}T${slot.time}:00`,
-      })
-    },
-    [persistCartMetadata]
-  )
-
-  const handleDateChange = useCallback(
-    async (next: string) => {
-      setSelectedDate(next)
-      setSelectedTime("")
-      setSelectedTimeLabel("")
-      await persistCartMetadata({
-        requested_pickup_date: next,
-        requested_pickup_time: "",
-        requested_pickup_label: "",
-      })
     },
     [persistCartMetadata]
   )
@@ -463,8 +429,19 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
     : true
   const deliveryOk =
     fulfillment === "pickup" || (deliveryFee > 0 && !deliveryFeeError)
+  // Collection window is set per cake on the product page (line custom_attributes).
+  const itemsHaveCollectionSlot =
+    (cart?.items?.length ?? 0) > 0 &&
+    (cart?.items ?? []).every((item) => {
+      const attrs = item.metadata?.custom_attributes as
+        | Record<string, string>
+        | undefined
+      const date = attrs?.date?.trim()
+      const time = attrs?.time?.trim()
+      return Boolean(date && time)
+    })
   const canCheckout =
-    selectedTime !== "" &&
+    itemsHaveCollectionSlot &&
     (cart?.items?.length ?? 0) > 0 &&
     isInventorySufficient &&
     deliveryOk
@@ -492,11 +469,6 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
     fulfillment,
     setFulfillment,
     persistFulfillment,
-    selectedDate,
-    selectedTime,
-    selectedTimeLabel,
-    handleSlotChange,
-    handleDateChange,
     deliveryPostcode,
     setDeliveryPostcode,
     deliveryFee,
