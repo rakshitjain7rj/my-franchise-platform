@@ -181,6 +181,74 @@ const resolveOrderTotal = (order: {
   )
 }
 
+/**
+ * `payment_status` / `fulfillment_status` are computed on Medusa's admin REST
+ * retrieve, but Query.graph often returns them as null. Derive from relations
+ * so Cake Orders always shows the baker the truth.
+ */
+const derivePaymentStatus = (order: {
+  payment_status?: unknown
+  payment_collections?: Array<{ status?: string | null }> | null
+}): string | null => {
+  if (typeof order.payment_status === "string" && order.payment_status) {
+    return order.payment_status
+  }
+  const pcs = order.payment_collections ?? []
+  if (!pcs.length) return "not_paid"
+  const statuses = pcs.map((p) => String(p.status ?? "").toLowerCase())
+  if (statuses.some((s) => s === "completed" || s === "captured")) {
+    return "captured"
+  }
+  if (statuses.some((s) => s === "authorized")) return "authorized"
+  if (statuses.some((s) => s === "awaiting" || s === "pending")) {
+    return "awaiting"
+  }
+  if (statuses.some((s) => s === "canceled" || s === "cancelled")) {
+    return "canceled"
+  }
+  return statuses[0] || null
+}
+
+const deriveFulfillmentStatus = (order: {
+  fulfillment_status?: unknown
+  fulfillments?: Array<{ id?: string; canceled_at?: string | null }> | null
+  items?: Array<{
+    quantity?: number
+    detail?: {
+      quantity?: number
+      fulfilled_quantity?: number
+      shipped_quantity?: number
+    } | null
+  }> | null
+}): string | null => {
+  if (
+    typeof order.fulfillment_status === "string" &&
+    order.fulfillment_status
+  ) {
+    return order.fulfillment_status
+  }
+
+  let totalQty = 0
+  let fulfilledQty = 0
+  for (const item of order.items ?? []) {
+    const q = Number(item.detail?.quantity ?? item.quantity ?? 0)
+    const f = Number(item.detail?.fulfilled_quantity ?? 0)
+    if (Number.isFinite(q)) totalQty += q
+    if (Number.isFinite(f)) fulfilledQty += f
+  }
+
+  const activeFulfillments = (order.fulfillments ?? []).filter(
+    (f) => !f.canceled_at
+  )
+
+  if (totalQty > 0 && fulfilledQty >= totalQty) return "fulfilled"
+  if (fulfilledQty > 0 && fulfilledQty < totalQty) return "partially_fulfilled"
+  // Sparse Query graphs sometimes omit item.detail.fulfilled_quantity even
+  // after a fulfillment row exists — treat active fulfillments as fulfilled.
+  if (activeFulfillments.length > 0) return "fulfilled"
+  return "not_fulfilled"
+}
+
 /** Product options that collide with cart-level fulfillment_method. */
 const isFulfillmentOptionKey = (key: string) =>
   /^(delivery\s*method|fulfillment|shipping\s*method)$/i.test(key.trim())
@@ -333,6 +401,7 @@ export const GET = async (
       "id",
       "display_id",
       "status",
+      // Often null via Query.graph — also load relations and derive below.
       "payment_status",
       "fulfillment_status",
       "created_at",
@@ -345,6 +414,10 @@ export const GET = async (
       "customer.email",
       "customer.first_name",
       "customer.last_name",
+      "payment_collections.id",
+      "payment_collections.status",
+      "fulfillments.id",
+      "fulfillments.canceled_at",
       "items.id",
       "items.title",
       "items.product_title",
@@ -352,6 +425,9 @@ export const GET = async (
       "items.quantity",
       "items.thumbnail",
       "items.metadata",
+      "items.detail.quantity",
+      "items.detail.fulfilled_quantity",
+      "items.detail.shipped_quantity",
       "shipping_address.first_name",
       "shipping_address.last_name",
       "shipping_address.phone",
@@ -477,12 +553,8 @@ export const GET = async (
       id: order.id,
       display_id: order.display_id ?? null,
       status: order.status ?? "pending",
-      payment_status:
-        typeof order.payment_status === "string" ? order.payment_status : null,
-      fulfillment_status:
-        typeof order.fulfillment_status === "string"
-          ? order.fulfillment_status
-          : null,
+      payment_status: derivePaymentStatus(order),
+      fulfillment_status: deriveFulfillmentStatus(order),
       created_at: order.created_at,
       email,
       currency_code: order.currency_code ?? null,
