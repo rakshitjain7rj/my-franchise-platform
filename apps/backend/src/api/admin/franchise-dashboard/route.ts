@@ -2,10 +2,9 @@ import type {
   AuthenticatedMedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { IProductModuleService } from "@medusajs/framework/types"
 import FranchiseProductLink from "../../../links/franchise-product"
-import FranchiseStoreLink from "../../../links/franchise-store"
 import StoreLocationStockLocationLink from "../../../links/store-location-stock-location"
 import {
   resolveAdminFranchiseContext,
@@ -139,10 +138,16 @@ export const GET = async (
   // ── Live inventory metrics ──────────────────────────────────────────────────────────
   //
   // Query chain:
-  //   1. Resolve physical storage locations belonging to this franchise's store locations.
-  //   2. Query `inventory_level` filtered by those location IDs.
-  //   3. Further filter by inventory items whose variants belong to
-  //      franchise-owned products, preventing cross-tenant data leakage.
+  //   1. Resolve Medusa StockLocations linked to this franchise's StoreLocations.
+  //   2. List inventory_level rows at those stock locations via the Inventory
+  //      module (source of truth). Do NOT join through product_variant.inventory_items.id
+  //      — that graph path returns product_variant_inventory_item *link* ids
+  //      (pvitem_…) which never match inventory_level.inventory_item_id (iitem_…),
+  //      so the previous tenant filter zeroed out real stock.
+  //
+  // Tenant boundary: stock locations are already franchise-scoped via the
+  // store_location ↔ stock_location link. Levels at those locations are this
+  // franchise's branch inventory.
   //
   let inventoryMetrics: DashboardResponse["inventory"] = {
     total_stocked_quantity: 0,
@@ -152,8 +157,6 @@ export const GET = async (
   }
 
   if (storeLocationIds.length) {
-    let locationIds: string[] = []
-
     const { data: slStockLinks } = await query.graph({
       entity: StoreLocationStockLocationLink.entryPoint,
       fields: ["stock_location_id"],
@@ -161,7 +164,7 @@ export const GET = async (
     })
 
     type SLStockLink = { stock_location_id?: string }
-    locationIds = Array.from(
+    const locationIds = Array.from(
       new Set(
         (slStockLinks as unknown as SLStockLink[])
           .map((link) => link.stock_location_id)
@@ -170,59 +173,64 @@ export const GET = async (
     )
 
     if (locationIds.length) {
-      // Step 4 — Fetch inventory levels for these locations.
-      const { data: allLevels } = await query.graph({
-        entity: "inventory_level",
-        fields: [
-          "id",
-          "inventory_item_id",
-          "location_id",
-          "stocked_quantity",
-          "reserved_quantity",
-          "incoming_quantity",
-        ],
-        filters: {
-          location_id: locationIds,
-        },
-      })
-
-      // Step 5 — Tenant-scope: only include levels whose inventory item is
-      // linked to a franchise-owned product variant.
-      let franchiseInventoryItemIds: Set<string> = new Set()
-
-      if (productIds.length) {
-        const { data: variantLinks } = await query.graph({
-          entity: "product_variant",
-          fields: ["id", "inventory_items.id"],
-          filters: { product_id: productIds },
-        })
-
-        for (const variant of variantLinks as Array<{
-          inventory_items?: Array<{ id?: string }>
-        }>) {
-          for (const item of variant.inventory_items ?? []) {
-            if (item.id) franchiseInventoryItemIds.add(item.id)
-          }
-        }
+      const inventoryService = req.scope.resolve(Modules.INVENTORY) as {
+        listInventoryLevels: (
+          filters: Record<string, unknown>,
+          config?: Record<string, unknown>
+        ) => Promise<
+          Array<{
+            inventory_item_id?: string
+            location_id?: string
+            stocked_quantity?: number | string | { value?: string }
+            reserved_quantity?: number | string | { value?: string }
+            incoming_quantity?: number | string | { value?: string }
+          }>
+        >
       }
 
-      // Apply the tenant filter: keep only levels whose inventory_item_id is
-      // in the franchise's set. Prevents cross-tenant data leakage.
-      const tenantLevels = (allLevels as InventoryLevelRecord[]).filter(
-        (level) => franchiseInventoryItemIds.has(level.inventory_item_id)
+      const toQty = (value: unknown): number => {
+        if (value == null) return 0
+        if (typeof value === "number") return Number.isFinite(value) ? value : 0
+        if (typeof value === "string") {
+          const n = Number(value)
+          return Number.isFinite(n) ? n : 0
+        }
+        if (typeof value === "object" && value !== null) {
+          const raw =
+            (value as { value?: unknown; numeric?: unknown }).value ??
+            (value as { numeric?: unknown }).numeric
+          return toQty(raw)
+        }
+        return 0
+      }
+
+      // Large catalogues (900+ SKUs × N branches) need a high take ceiling.
+      const allLevels = await inventoryService.listInventoryLevels(
+        { location_id: locationIds },
+        { take: 200_000 }
       )
 
-      // Step 6 — Aggregate the per-location quantities.
+      const tenantLevels: InventoryLevelRecord[] = allLevels
+        .filter(
+          (level) =>
+            Boolean(level.inventory_item_id) && Boolean(level.location_id)
+        )
+        .map((level) => ({
+          inventory_item_id: level.inventory_item_id as string,
+          location_id: level.location_id as string,
+          stocked_quantity: toQty(level.stocked_quantity),
+          reserved_quantity: toQty(level.reserved_quantity),
+          incoming_quantity: toQty(level.incoming_quantity),
+        }))
+
       const totals = tenantLevels.reduce(
         (acc, level) => ({
           total_stocked_quantity:
-            acc.total_stocked_quantity + (Number(level.stocked_quantity) || 0),
+            acc.total_stocked_quantity + level.stocked_quantity,
           total_reserved_quantity:
-            acc.total_reserved_quantity +
-            (Number(level.reserved_quantity) || 0),
+            acc.total_reserved_quantity + level.reserved_quantity,
           total_incoming_quantity:
-            acc.total_incoming_quantity +
-            (Number(level.incoming_quantity) || 0),
+            acc.total_incoming_quantity + level.incoming_quantity,
         }),
         {
           total_stocked_quantity: 0,
@@ -231,14 +239,16 @@ export const GET = async (
         }
       )
 
+      // Cap the detail payload — dashboard UI only needs a sample + totals.
+      const SAMPLE_LIMIT = 100
       inventoryMetrics = {
         ...totals,
-        items: tenantLevels.map((level) => ({
+        items: tenantLevels.slice(0, SAMPLE_LIMIT).map((level) => ({
           inventory_item_id: level.inventory_item_id,
           location_id: level.location_id,
-          stocked_quantity: Number(level.stocked_quantity) || 0,
-          reserved_quantity: Number(level.reserved_quantity) || 0,
-          incoming_quantity: Number(level.incoming_quantity) || 0,
+          stocked_quantity: level.stocked_quantity,
+          reserved_quantity: level.reserved_quantity,
+          incoming_quantity: level.incoming_quantity,
         })),
       }
     }

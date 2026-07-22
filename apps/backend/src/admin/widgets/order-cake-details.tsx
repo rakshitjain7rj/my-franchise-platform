@@ -17,6 +17,9 @@ import { useQuery } from "@tanstack/react-query"
 import {
   fetchCakeOrders,
   formatCollectionDate,
+  formatFulfillmentMethod,
+  fulfillmentBadgeColor,
+  paymentBadgeColor,
   type CakeOrderItem,
 } from "../lib/cake-orders"
 
@@ -133,6 +136,10 @@ const OrderCakeDetailsWidget = ({ data }: { data: { id: string } }) => {
     return null
   }
 
+  const needsFulfill =
+    (order.fulfillment_status ?? "not_fulfilled") === "not_fulfilled" ||
+    (order.fulfillment_status ?? "").startsWith("partially")
+
   return (
     <Container className="divide-y p-0">
       <div className="flex flex-wrap items-center gap-3 px-6 py-4">
@@ -140,13 +147,27 @@ const OrderCakeDetailsWidget = ({ data }: { data: { id: string } }) => {
         {order.collection_date && (
           <Badge size="2xsmall" color="green">
             Ready by {formatCollectionDate(order.collection_date)}
+            {order.requested_pickup_time
+              ? ` · ${order.requested_pickup_time}`
+              : ""}
+          </Badge>
+        )}
+        {order.payment_status && (
+          <Badge size="2xsmall" color={paymentBadgeColor(order.payment_status)}>
+            💳 {order.payment_status}
+          </Badge>
+        )}
+        {order.fulfillment_status && (
+          <Badge
+            size="2xsmall"
+            color={fulfillmentBadgeColor(order.fulfillment_status)}
+          >
+            📦 {order.fulfillment_status.replace(/_/g, " ")}
           </Badge>
         )}
         {order.fulfillment_method && (
           <Badge size="2xsmall" color="blue">
-            {order.fulfillment_method === "pickup"
-              ? "Store pickup"
-              : order.fulfillment_method}
+            {formatFulfillmentMethod(order.fulfillment_method)}
           </Badge>
         )}
         {order.store_location && (
@@ -164,6 +185,18 @@ const OrderCakeDetailsWidget = ({ data }: { data: { id: string } }) => {
           <div className="rounded-md border border-dashed border-ui-border-strong px-3 py-2">
             <Text size="xsmall" className="text-ui-fg-subtle">
               Note for the bakers: “{order.notes_for_baker}”
+            </Text>
+          </div>
+        )}
+        {needsFulfill && (
+          <div className="rounded-md bg-ui-tag-blue-bg px-3 py-2">
+            <Text size="xsmall" className="text-ui-tag-blue-text">
+              Baker next step: use Allocate / Fulfill on this order when the
+              cake is ready for{" "}
+              {order.fulfillment_method === "delivery"
+                ? "delivery"
+                : "collection"}
+              . Payment is shown above — only fulfill captured orders.
             </Text>
           </div>
         )}

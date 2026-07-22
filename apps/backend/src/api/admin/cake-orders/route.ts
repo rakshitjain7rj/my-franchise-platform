@@ -68,13 +68,22 @@ type CakeOrder = {
   id: string
   display_id: number | null
   status: string
+  /** Medusa payment_status (e.g. captured, not_paid, awaiting). */
+  payment_status: string | null
+  /** Medusa fulfillment_status (e.g. not_fulfilled, fulfilled, partially_fulfilled). */
+  fulfillment_status: string | null
   created_at: string
   email: string | null
   currency_code: string | null
   total: number | null
   customer_name: string | null
   phone: string | null
+  /** Cart-level truth: "pickup" | "delivery" (never product-option labels). */
   fulfillment_method: string | null
+  /**
+   * Baker-facing time window. Prefer line-item slot label, then cart label,
+   * then raw cart HH:mm — never a stale clock that disagrees with the cake.
+   */
   requested_pickup_time: string | null
   notes_for_baker: string | null
   /** Earliest collection date across items — the "bake by" date. */
@@ -172,8 +181,13 @@ const resolveOrderTotal = (order: {
   )
 }
 
+/** Product options that collide with cart-level fulfillment_method. */
+const isFulfillmentOptionKey = (key: string) =>
+  /^(delivery\s*method|fulfillment|shipping\s*method)$/i.test(key.trim())
+
 const parseCakeCustomization = (
-  metadata: Record<string, unknown> | null | undefined
+  metadata: Record<string, unknown> | null | undefined,
+  opts?: { hideFulfillmentOptions?: boolean }
 ): CakeCustomization => {
   const cake: CakeCustomization = {
     flavor: null,
@@ -193,6 +207,9 @@ const parseCakeCustomization = (
   if (attrs && typeof attrs === "object" && !Array.isArray(attrs)) {
     for (const [key, value] of Object.entries(attrs as Record<string, unknown>)) {
       if (value == null || value === "") continue
+      // Suppress misleading "Delivery Method: Collection" when the order is
+      // delivery (or any order that has a cart-level fulfillment_method).
+      if (opts?.hideFulfillmentOptions && isFulfillmentOptionKey(key)) continue
       const normalized = KNOWN_ATTRIBUTE_KEYS[key.toLowerCase().trim()]
       if (normalized) {
         cake[normalized] = String(value) as never
@@ -316,6 +333,8 @@ export const GET = async (
       "id",
       "display_id",
       "status",
+      "payment_status",
+      "fulfillment_status",
       "created_at",
       "email",
       "currency_code",
@@ -323,6 +342,9 @@ export const GET = async (
       // resolveOrderTotal(). `summary.*` is the authoritative money source.
       "summary.*",
       "metadata",
+      "customer.email",
+      "customer.first_name",
+      "customer.last_name",
       "items.id",
       "items.title",
       "items.product_title",
@@ -395,6 +417,14 @@ export const GET = async (
     const shippingAddress = order.shipping_address as
       | { first_name?: string; last_name?: string; phone?: string }
       | null
+    const customer = order.customer as
+      | { email?: string; first_name?: string; last_name?: string }
+      | null
+
+    const fulfillmentMethod =
+      typeof metadata.fulfillment_method === "string"
+        ? metadata.fulfillment_method
+        : null
 
     const items: CakeOrderItem[] = ((order.items ?? []) as any[]).map(
       (item) => ({
@@ -404,7 +434,9 @@ export const GET = async (
         variant_title: item.variant_title ?? null,
         quantity: item.quantity,
         thumbnail: item.thumbnail ?? null,
-        cake: parseCakeCustomization(item.metadata),
+        cake: parseCakeCustomization(item.metadata, {
+          hideFulfillmentOptions: Boolean(fulfillmentMethod),
+        }),
       })
     )
 
@@ -413,34 +445,61 @@ export const GET = async (
       .filter((d): d is string => Boolean(d))
       .sort()
 
+    // Baker time window: line slot is what the shopper picked on the product
+    // page. Prefer the first non-empty line collection_time (often the full
+    // "09:00 – 09:30" label), then cart label, then raw cart HH:mm.
+    const lineTime =
+      items.map((i) => i.cake.collection_time).find((t) => Boolean(t)) ?? null
+    const metaLabel =
+      typeof metadata.requested_pickup_label === "string"
+        ? metadata.requested_pickup_label
+        : null
+    const metaTime =
+      typeof metadata.requested_pickup_time === "string"
+        ? metadata.requested_pickup_time
+        : null
+    const requestedPickupTime = lineTime || metaLabel || metaTime
+
     const customerName =
       [shippingAddress?.first_name, shippingAddress?.last_name]
         .filter(Boolean)
-        .join(" ") || null
+        .join(" ") ||
+      [customer?.first_name, customer?.last_name].filter(Boolean).join(" ") ||
+      null
+
+    // Core order.email is often null for guest checkouts; customer.email is set.
+    const email =
+      (typeof order.email === "string" && order.email) ||
+      (typeof customer?.email === "string" && customer.email) ||
+      null
 
     return {
       id: order.id,
       display_id: order.display_id ?? null,
-      status: order.status,
+      status: order.status ?? "pending",
+      payment_status:
+        typeof order.payment_status === "string" ? order.payment_status : null,
+      fulfillment_status:
+        typeof order.fulfillment_status === "string"
+          ? order.fulfillment_status
+          : null,
       created_at: order.created_at,
-      email: order.email ?? null,
+      email,
       currency_code: order.currency_code ?? null,
       total: resolveOrderTotal(order),
       customer_name: customerName,
       phone: shippingAddress?.phone ?? null,
-      fulfillment_method:
-        typeof metadata.fulfillment_method === "string"
-          ? metadata.fulfillment_method
-          : null,
-      requested_pickup_time:
-        typeof metadata.requested_pickup_time === "string"
-          ? metadata.requested_pickup_time
-          : null,
+      fulfillment_method: fulfillmentMethod,
+      requested_pickup_time: requestedPickupTime,
       notes_for_baker:
         typeof metadata.notes_for_baker === "string"
           ? metadata.notes_for_baker
           : null,
-      collection_date: collectionDates[0] ?? null,
+      collection_date:
+        collectionDates[0] ??
+        (typeof metadata.requested_pickup_date === "string"
+          ? metadata.requested_pickup_date
+          : null),
       store_location: storeLocationByOrderId.get(order.id) ?? null,
       items,
     }

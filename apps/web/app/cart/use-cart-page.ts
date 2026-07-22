@@ -250,17 +250,30 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
     }
 
     // Promote product-page slot → cart metadata once (no cart UI to re-edit).
-    const needsSlotPromote =
-      Boolean(pickupDate && pickupTime) &&
-      (!meta?.requested_pickup_date || !meta?.requested_pickup_time)
-    if (needsSlotPromote && pickupDate && pickupTime) {
-      void persistCartMetadata(
-        collectionSlotToCartMetadata({
-          date: pickupDate,
-          time: pickupTime,
-          label: pickupLabel || pickupTime,
-        })
-      )
+    // Always overwrite when the line slot disagrees with cart metadata so a
+    // stale default (e.g. 17:00) cannot shadow the real collection window.
+    if (lineSlot?.date && lineSlot?.time) {
+      const promoted = collectionSlotToCartMetadata(lineSlot)
+      const cartTime =
+        typeof meta?.requested_pickup_time === "string"
+          ? meta.requested_pickup_time
+          : ""
+      const cartLabel =
+        typeof meta?.requested_pickup_label === "string"
+          ? meta.requested_pickup_label
+          : ""
+      const cartDate =
+        typeof meta?.requested_pickup_date === "string"
+          ? meta.requested_pickup_date
+          : ""
+      const outOfSync =
+        cartDate !== promoted.requested_pickup_date ||
+        cartTime !== promoted.requested_pickup_time ||
+        (promoted.requested_pickup_label &&
+          cartLabel !== promoted.requested_pickup_label)
+      if (outOfSync) {
+        void persistCartMetadata(promoted)
+      }
     }
 
     const cartStore = meta?.store_location_id as string | undefined

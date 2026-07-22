@@ -137,7 +137,10 @@ function readCookie(name: string): string | null {
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cart, setCart] = useState<MedusaCart | null>(null)
   const [cartId, setCartIdState] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  // Start true so consumers wait for the mount hydrate pass. Starting false
+  // caused a one-frame "ready" race (e.g. PayPal return erroring before local
+  // cart id was restored).
+  const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const initialised = useRef(false)
 

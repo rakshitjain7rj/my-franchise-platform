@@ -187,9 +187,13 @@ export interface UseSelectedStoreOptions {
  * Re-renders when any part of the app calls `selectStore`.
  */
 export function useSelectedStore(options?: UseSelectedStoreOptions) {
-  const [selection, setSelection] = useState<SelectedStore>(() =>
-    readSelectedStore()
-  );
+  // Always start empty so SSR HTML matches the first client paint.
+  // Cookies are browser-only; reading them in useState causes React #418.
+  const [selection, setSelection] = useState<SelectedStore>({
+    storeLocationId: null,
+    storeName: null,
+    franchiseId: null,
+  });
 
   const ignoreSource = options?.ignoreSource;
   const onExternalChangeRef = useRef(options?.onExternalChange);

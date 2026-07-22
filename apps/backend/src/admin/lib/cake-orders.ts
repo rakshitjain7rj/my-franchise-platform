@@ -32,6 +32,8 @@ export type CakeOrder = {
   id: string
   display_id: number | null
   status: string
+  payment_status: string | null
+  fulfillment_status: string | null
   created_at: string
   email: string | null
   currency_code: string | null
@@ -44,6 +46,54 @@ export type CakeOrder = {
   collection_date: string | null
   store_location: { id: string; name: string | null; code: string | null } | null
   items: CakeOrderItem[]
+}
+
+export const formatFulfillmentMethod = (
+  method: string | null | undefined
+): string => {
+  if (!method) return ""
+  if (method === "pickup") return "Store pickup"
+  if (method === "delivery") return "Local delivery"
+  return method
+}
+
+export const paymentBadgeColor = (
+  status: string | null | undefined
+): "green" | "orange" | "red" | "grey" | "blue" => {
+  switch ((status ?? "").toLowerCase()) {
+    case "captured":
+    case "paid":
+      return "green"
+    case "awaiting":
+    case "not_paid":
+    case "authorized":
+      return "orange"
+    case "canceled":
+    case "refunded":
+    case "requires_action":
+      return "red"
+    default:
+      return "grey"
+  }
+}
+
+export const fulfillmentBadgeColor = (
+  status: string | null | undefined
+): "green" | "orange" | "red" | "grey" | "blue" => {
+  switch ((status ?? "").toLowerCase()) {
+    case "fulfilled":
+    case "shipped":
+    case "delivered":
+      return "green"
+    case "partially_fulfilled":
+    case "partially_shipped":
+      return "blue"
+    case "not_fulfilled":
+    case "canceled":
+      return "orange"
+    default:
+      return "grey"
+  }
 }
 
 export type CakeOrdersResponse = {

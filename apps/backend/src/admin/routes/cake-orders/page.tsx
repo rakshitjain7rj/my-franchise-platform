@@ -22,8 +22,11 @@ import { Link } from "react-router-dom"
 import {
   fetchCakeOrders,
   formatCollectionDate,
+  formatFulfillmentMethod,
   formatMoney,
+  fulfillmentBadgeColor,
   isoDateWithOffset,
+  paymentBadgeColor,
   type CakeOrder,
   type CakeOrderItem,
 } from "../../lib/cake-orders"
@@ -121,7 +124,14 @@ const CakeItemCard = ({ item }: { item: CakeOrderItem }) => {
   )
 }
 
-const OrderCard = ({ order }: { order: CakeOrder }) => (
+const OrderCard = ({ order }: { order: CakeOrder }) => {
+  const needsFulfill =
+    (order.fulfillment_status ?? "not_fulfilled") === "not_fulfilled" ||
+    (order.fulfillment_status ?? "").startsWith("partially")
+  const isPaid =
+    order.payment_status === "captured" || order.payment_status === "paid"
+
+  return (
   <div className="rounded-xl border border-ui-border-base bg-ui-bg-base shadow-elevation-card-rest overflow-hidden">
     {/* Header */}
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-ui-border-base px-5 py-3 bg-ui-bg-subtle">
@@ -136,14 +146,40 @@ const OrderCard = ({ order }: { order: CakeOrder }) => (
       <Badge size="2xsmall" color={STATUS_COLORS[order.status] ?? "grey"}>
         {order.status}
       </Badge>
+      {order.payment_status && (
+        <Badge size="2xsmall" color={paymentBadgeColor(order.payment_status)}>
+          💳 {order.payment_status}
+        </Badge>
+      )}
+      {order.fulfillment_status && (
+        <Badge
+          size="2xsmall"
+          color={fulfillmentBadgeColor(order.fulfillment_status)}
+        >
+          📦 {order.fulfillment_status.replace(/_/g, " ")}
+        </Badge>
+      )}
       {order.fulfillment_method && (
         <Badge size="2xsmall" color="blue">
-          {order.fulfillment_method === "pickup" ? "Store pickup" : order.fulfillment_method}
+          {formatFulfillmentMethod(order.fulfillment_method)}
         </Badge>
       )}
       {order.store_location && (
         <Badge size="2xsmall" color="purple">
           🏬 {order.store_location.name ?? order.store_location.code ?? "Store"}
+        </Badge>
+      )}
+      {(order.collection_date || order.requested_pickup_time) && (
+        <Badge size="2xsmall" color="green">
+          🕐{" "}
+          {[
+            order.collection_date
+              ? formatCollectionDate(order.collection_date)
+              : null,
+            order.requested_pickup_time,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         </Badge>
       )}
       <div className="ml-auto text-right">
@@ -186,8 +222,25 @@ const OrderCard = ({ order }: { order: CakeOrder }) => (
         </div>
       )}
     </div>
+
+    {/* Baker action strip — native Medusa fulfill lives on order detail */}
+    <div className="flex flex-wrap items-center gap-3 border-t border-ui-border-base px-5 py-3 bg-ui-bg-subtle">
+      <Text size="xsmall" className="text-ui-fg-subtle flex-1 min-w-[12rem]">
+        {needsFulfill
+          ? isPaid
+            ? "Paid — open the order to create a fulfillment when the cake is ready for collection/delivery."
+            : "Open the order to review payment, then fulfill when ready."
+          : "Already fulfilled. Open the order for shipping / history."}
+      </Text>
+      <Link to={`/orders/${order.id}`}>
+        <Button size="small" variant={needsFulfill ? "primary" : "secondary"}>
+          {needsFulfill ? "Fulfill order →" : "View order →"}
+        </Button>
+      </Link>
+    </div>
   </div>
-)
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Page

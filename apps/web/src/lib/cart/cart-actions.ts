@@ -22,6 +22,8 @@ import {
   STORE_ID_COOKIE,
 } from "@/lib/store-cookies"
 import {
+  collectionSlotToCartMetadata,
+  getMostRecentLineCollectionSlot,
   mergeCustomAttributes,
   normalizeCustomAttributes,
   type LineItemCakeMetadata,
@@ -487,6 +489,12 @@ export async function prepareCartForCheckout(
   const fulfillmentMethod: "pickup" | "delivery" =
     rawMethod === "delivery" ? "delivery" : "pickup"
 
+  // Line-item collection slots are the shopper-facing truth (product page).
+  // Re-promote onto cart metadata at checkout so stale cart times (e.g. an
+  // old default 17:00) cannot win over the line's 12:30–13:00 window.
+  const lineSlot = getMostRecentLineCollectionSlot(current.items)
+  const slotMeta = lineSlot ? collectionSlotToCartMetadata(lineSlot) : {}
+
   // Re-validate delivery on the server-side fee API (not client-only metadata).
   let deliveryMeta: Record<string, unknown> = {}
   if (fulfillmentMethod === "delivery") {
@@ -532,6 +540,7 @@ export async function prepareCartForCheckout(
         ...(current.metadata ?? {}),
         fulfillment_method: fulfillmentMethod,
         ...(storeLocationId ? { store_location_id: storeLocationId } : {}),
+        ...slotMeta,
         ...deliveryMeta,
         ...(details.notes?.trim()
           ? { notes_for_baker: details.notes.trim() }

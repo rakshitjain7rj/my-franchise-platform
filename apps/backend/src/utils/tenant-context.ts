@@ -314,17 +314,25 @@ export const getInventoryItemIdsForFranchises = async (
 
   if (!productIds.length) return []
 
-  // Step 2 — product → variant → inventory item IDs
+  // Step 2 — product → variant → inventory item IDs.
+  // Prefer inventory_items.inventory_item_id. The bare inventory_items.id field
+  // is the product_variant_inventory_item *link* id (pvitem_…), which does not
+  // match inventory_level.inventory_item_id / admin inventory filters (iitem_…).
   const { data: variantLinks } = await query.graph({
     entity: "product_variant",
-    fields: ["id", "inventory_items.id"],
+    fields: ["id", "inventory_items.id", "inventory_items.inventory_item_id"],
     filters: { product_id: productIds },
   })
 
   const inventoryItemIds = new Set<string>()
-  for (const variant of variantLinks as Array<{ inventory_items?: Array<{ id?: string }> }>) {
+  for (const variant of variantLinks as Array<{
+    inventory_items?: Array<{ id?: string; inventory_item_id?: string }>
+  }>) {
     for (const item of variant.inventory_items ?? []) {
-      if (item.id) inventoryItemIds.add(item.id)
+      const invId =
+        item.inventory_item_id ||
+        (item.id?.startsWith("iitem_") ? item.id : undefined)
+      if (invId) inventoryItemIds.add(invId)
     }
   }
 

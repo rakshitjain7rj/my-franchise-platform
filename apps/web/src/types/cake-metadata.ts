@@ -249,6 +249,17 @@ export function isSizeOptionTitle(title: string): boolean {
   return /^(size|weight)$/i.test(title.trim())
 }
 
+/**
+ * Product option titles that collide with cart-level fulfillment
+ * (`pickup` | `delivery`). These must never be written into line-item
+ * `custom_attributes` — bakers should trust `order.metadata.fulfillment_method`.
+ */
+export function isFulfillmentOptionTitle(title: string): boolean {
+  return /^(delivery\s*method|fulfillment|shipping\s*method)$/i.test(
+    title.trim()
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Builders / parsers
 // ---------------------------------------------------------------------------
@@ -286,6 +297,10 @@ export function buildCustomAttributes(input: {
   if (input.extraOptions) {
     for (const [k, v] of Object.entries(input.extraOptions)) {
       if (isFlavourOptionTitle(k)) continue
+      // Cart-level pickup/delivery is the source of truth — do not stamp a
+      // product-option "Delivery Method: Collection" onto the line (Order #1
+      // style bakers saw Collection while the order was delivery).
+      if (isFulfillmentOptionTitle(k)) continue
       const trimmed = v?.trim()
       if (trimmed) out[k] = trimmed
     }
@@ -473,9 +488,18 @@ type LineItemLike = {
   } | null
 }
 
+/** Extract leading `HH:mm` from values like `09:00` or `09:00 – 09:30`. */
+export function extractSlotStartTime(raw: string): string | null {
+  const m = raw.trim().match(/^(\d{2}:\d{2})/)
+  return m ? m[1] : null
+}
+
 /**
  * Read trimmed date + time from line-item `metadata.custom_attributes`.
  * Returns null unless both are non-empty.
+ *
+ * `time` may be a free-text range label (`09:00 – 09:30`); we keep it as the
+ * display label and still return a slot so cart promotion works.
  */
 export function getLineCollectionSlot(
   item: LineItemLike | null | undefined
@@ -487,7 +511,13 @@ export function getLineCollectionSlot(
   const time =
     typeof attrs.time === "string" ? attrs.time.trim() : ""
   if (!date || !time) return null
-  return { date, time }
+  const start = extractSlotStartTime(time)
+  return {
+    date,
+    // Prefer HH:mm for machine fields; keep full string as label when range.
+    time: start ?? time,
+    label: time,
+  }
 }
 
 /**
@@ -520,21 +550,36 @@ const HHMM_RE = /^\d{2}:\d{2}$/
 
 /**
  * Cart metadata patch for a collection slot.
- * ISO is only set when `time` is `HH:mm` (avoids invalid values for free-text labels).
+ *
+ * Contract (single source of truth for bakers + checkout):
+ *  - `requested_pickup_time`  → always start `HH:mm` when parseable
+ *  - `requested_pickup_label` → human window (`09:00 – 09:30`) when available
+ *  - `requested_pickup_iso`   → `${date}T${HH:mm}:00` when start is HH:mm
+ *
+ * Never leave a stale clock time (e.g. `17:00`) when the line label says
+ * `12:30 – 13:00` — callers should re-run this from line slots at checkout.
  */
 export function collectionSlotToCartMetadata(
   slot: CollectionSlot
 ): CollectionSlotCartMetadata {
   const date = slot.date.trim()
-  const time = slot.time.trim()
-  const label = slot.label?.trim() || time
+  const rawTime = slot.time.trim()
+  const rawLabel = slot.label?.trim() || rawTime
+  const start =
+    extractSlotStartTime(rawTime) ||
+    extractSlotStartTime(rawLabel) ||
+    rawTime
+  const label =
+    rawLabel.includes("–") || rawLabel.includes("-") || rawLabel !== start
+      ? rawLabel
+      : start
   const meta: CollectionSlotCartMetadata = {
     requested_pickup_date: date,
-    requested_pickup_time: time,
+    requested_pickup_time: start,
     requested_pickup_label: label,
   }
-  if (HHMM_RE.test(time)) {
-    meta.requested_pickup_iso = `${date}T${time}:00`
+  if (HHMM_RE.test(start)) {
+    meta.requested_pickup_iso = `${date}T${start}:00`
   }
   return meta
 }
