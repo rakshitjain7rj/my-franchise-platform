@@ -1,4 +1,4 @@
-import React, { useEffect } from "react"
+import { useEffect } from "react"
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
 import { useQuery } from "@tanstack/react-query"
 import { sdk } from "../lib/sdk"

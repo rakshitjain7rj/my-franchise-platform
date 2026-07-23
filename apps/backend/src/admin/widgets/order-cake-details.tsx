@@ -11,7 +11,13 @@
  */
 
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
-import { Badge, Container, Heading, Text } from "@medusajs/ui"
+import {
+  BuildingStorefront,
+  Clock,
+  CreditCard,
+  TruckFast,
+} from "@medusajs/icons"
+import { Badge, Container, Heading, Skeleton, Text } from "@medusajs/ui"
 import { useQuery } from "@tanstack/react-query"
 
 import {
@@ -88,14 +94,14 @@ const ItemSpecs = ({ item }: { item: CakeOrderItem }) => {
           {cake.inscription && (
             <div className="rounded-md bg-ui-tag-purple-bg px-3 py-2">
               <Text size="xsmall" className="text-ui-tag-purple-text">
-                ✍️ Write on cake: “{cake.inscription}”
+                Write on cake: “{cake.inscription}”
               </Text>
             </div>
           )}
           {cake.special_message && (
             <div className="rounded-md bg-ui-tag-orange-bg px-3 py-2">
               <Text size="xsmall" className="text-ui-tag-orange-text">
-                📝 Special instructions: “{cake.special_message}”
+                Special instructions: “{cake.special_message}”
               </Text>
             </div>
           )}
@@ -132,7 +138,36 @@ const OrderCakeDetailsWidget = ({ data }: { data: { id: string } }) => {
 
   const order = response?.orders?.[0]
 
-  if (isLoading || !order) {
+  if (isLoading) {
+    return (
+      <Container
+        className="divide-y p-0"
+        aria-busy="true"
+        aria-label="Loading cake details"
+      >
+        <div className="flex flex-wrap items-center gap-2 px-6 py-4">
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-5 w-28 rounded-full" />
+          <Skeleton className="h-5 w-20 rounded-full" />
+        </div>
+        <div className="space-y-3 px-6 py-4">
+          <div className="rounded-lg border border-ui-border-base p-4 space-y-3">
+            <Skeleton className="h-4 w-1/3" />
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          </div>
+        </div>
+      </Container>
+    )
+  }
+
+  // No cake-specific payload for this order — stay silent so the native
+  // order view is not cluttered with an empty panel.
+  if (!order) {
     return null
   }
 
@@ -142,10 +177,11 @@ const OrderCakeDetailsWidget = ({ data }: { data: { id: string } }) => {
 
   return (
     <Container className="divide-y p-0">
-      <div className="flex flex-wrap items-center gap-3 px-6 py-4">
-        <Heading level="h2">🎂 Cake Details</Heading>
+      <div className="flex flex-wrap items-center gap-2 px-6 py-4">
+        <Heading level="h2">Cake Details</Heading>
         {order.collection_date && (
           <Badge size="2xsmall" color="green">
+            <Clock />
             Ready by {formatCollectionDate(order.collection_date)}
             {order.requested_pickup_time
               ? ` · ${order.requested_pickup_time}`
@@ -154,7 +190,8 @@ const OrderCakeDetailsWidget = ({ data }: { data: { id: string } }) => {
         )}
         {order.payment_status && (
           <Badge size="2xsmall" color={paymentBadgeColor(order.payment_status)}>
-            💳 {order.payment_status}
+            <CreditCard />
+            {order.payment_status}
           </Badge>
         )}
         {order.fulfillment_status && (
@@ -162,7 +199,8 @@ const OrderCakeDetailsWidget = ({ data }: { data: { id: string } }) => {
             size="2xsmall"
             color={fulfillmentBadgeColor(order.fulfillment_status)}
           >
-            📦 {order.fulfillment_status.replace(/_/g, " ")}
+            <TruckFast />
+            {order.fulfillment_status.replace(/_/g, " ")}
           </Badge>
         )}
         {order.fulfillment_method && (
@@ -172,7 +210,8 @@ const OrderCakeDetailsWidget = ({ data }: { data: { id: string } }) => {
         )}
         {order.store_location && (
           <Badge size="2xsmall" color="purple">
-            🏬 {order.store_location.name ?? order.store_location.code ?? "Store"}
+            <BuildingStorefront />
+            {order.store_location.name ?? order.store_location.code ?? "Store"}
           </Badge>
         )}
       </div>

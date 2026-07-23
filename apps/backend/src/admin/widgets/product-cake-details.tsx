@@ -17,7 +17,7 @@ import {
   Container,
   Heading,
   Input,
-  Label,
+  Skeleton,
   Text,
   Textarea,
   toast,
@@ -25,6 +25,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useState } from "react"
 import { sdk } from "../lib/sdk"
+import { FormField } from "../components/ui"
 
 type ProductPayload = {
   id: string
@@ -166,13 +167,28 @@ const ProductCakeDetailsWidget = ({ data }: { data: { id: string } }) => {
 
       <div className="px-6 py-4 flex flex-col gap-4">
         {isLoading ? (
-          <Text size="small" className="text-ui-fg-muted">
-            Loading…
-          </Text>
+          <div className="flex flex-col gap-4" aria-busy="true" aria-label="Loading cake details">
+            <div className="flex flex-col gap-2">
+              <Skeleton className="h-3.5 w-24" />
+              <Skeleton className="h-20 w-full rounded-md" />
+              <Skeleton className="h-3 w-48" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Skeleton className="h-3.5 w-20" />
+              <Skeleton className="h-9 w-full rounded-md" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Skeleton className="h-3.5 w-28" />
+              <Skeleton className="h-20 w-full rounded-md" />
+            </div>
+          </div>
         ) : (
           <>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="cake-ingredients">Ingredients</Label>
+            <FormField
+              id="cake-ingredients"
+              label="Ingredients"
+              helper="Comma-separated list. Displayed as bullet points on the product page."
+            >
               <Textarea
                 id="cake-ingredients"
                 rows={3}
@@ -182,14 +198,13 @@ const ProductCakeDetailsWidget = ({ data }: { data: { id: string } }) => {
                 }
                 placeholder="e.g. Flour, Sugar, Butter, Milk, Cocoa, Raising agents"
               />
-              <Text size="xsmall" className="text-ui-fg-muted">
-                Comma-separated list. Displayed as bullet points on the product
-                page.
-              </Text>
-            </div>
+            </FormField>
 
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="cake-allergens">Allergens</Label>
+            <FormField
+              id="cake-allergens"
+              label="Allergens"
+              helper="Comma-separated. Shown next to dietary tags (Eggless, Vegan…)."
+            >
               <Input
                 id="cake-allergens"
                 value={form.allergens}
@@ -198,13 +213,9 @@ const ProductCakeDetailsWidget = ({ data }: { data: { id: string } }) => {
                 }
                 placeholder="e.g. Gluten, Dairy, Nuts"
               />
-              <Text size="xsmall" className="text-ui-fg-muted">
-                Comma-separated. Shown next to dietary tags (Eggless, Vegan…).
-              </Text>
-            </div>
+            </FormField>
 
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="cake-storage">Storage & serving</Label>
+            <FormField id="cake-storage" label="Storage & serving">
               <Textarea
                 id="cake-storage"
                 rows={3}
@@ -214,13 +225,13 @@ const ProductCakeDetailsWidget = ({ data }: { data: { id: string } }) => {
                 }
                 placeholder="e.g. Keep refrigerated and consume within 2 days."
               />
-            </div>
+            </FormField>
           </>
         )}
       </div>
 
       {isDirty && (
-        <div className="flex justify-end gap-2 px-6 py-3">
+        <div className="flex justify-end gap-2 border-t border-ui-border-base px-6 py-3 bg-ui-bg-subtle">
           <Button
             size="small"
             variant="secondary"

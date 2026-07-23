@@ -116,46 +116,107 @@ export const GET = async (
       .filter((id): id is string => Boolean(id))
   )
 
-  // 4. Resolve which stock locations are associated with a sales channel
-  //    We check via the stock_location → sales_channel link (Medusa core)
+  // 4. Resolve which stock locations are associated with a sales channel.
+  //    Query entity names vary across Medusa versions; try known aliases and
+  //    fall back to the Stock Location module so a link-name mismatch cannot
+  //    500 the whole health panel.
   const uniqueStockLocIds = Array.from(new Set(stockLocByStore.values()))
 
   const stockLocWithSalesChannel = new Set<string>()
 
   if (uniqueStockLocIds.length) {
-    const { data: scStockLinks } = await query.graph({
-      entity: "stock_location_sales_channel",
-      fields: ["stock_location_id", "sales_channel_id"],
-      filters: { stock_location_id: uniqueStockLocIds },
-    })
+    const candidateEntities = [
+      "stock_location_sales_channel",
+      "sales_channel_stock_location",
+      "link_sales_channel_stock_location",
+    ]
+    let resolved = false
+    for (const entity of candidateEntities) {
+      try {
+        const { data: scStockLinks } = await query.graph({
+          entity,
+          fields: ["stock_location_id", "sales_channel_id"],
+          filters: { stock_location_id: uniqueStockLocIds },
+        })
+        for (const link of scStockLinks as Array<{
+          stock_location_id?: string
+          sales_channel_id?: string
+        }>) {
+          if (
+            link.stock_location_id &&
+            link.sales_channel_id &&
+            franchiseSalesChannelIds.has(link.sales_channel_id)
+          ) {
+            stockLocWithSalesChannel.add(link.stock_location_id)
+          }
+        }
+        resolved = true
+        break
+      } catch {
+        // try next entity name
+      }
+    }
 
-    for (const link of scStockLinks as Array<{
-      stock_location_id?: string
-      sales_channel_id?: string
-    }>) {
-      if (
-        link.stock_location_id &&
-        link.sales_channel_id &&
-        franchiseSalesChannelIds.has(link.sales_channel_id)
-      ) {
-        stockLocWithSalesChannel.add(link.stock_location_id)
+    if (!resolved) {
+      try {
+        const stockLocationModule = req.scope.resolve(Modules.STOCK_LOCATION) as {
+          listStockLocations: (
+            filters: Record<string, unknown>,
+            config?: Record<string, unknown>
+          ) => Promise<
+            Array<{
+              id: string
+              sales_channels?: Array<{ id?: string }>
+            }>
+          >
+        }
+        const locs = await stockLocationModule.listStockLocations(
+          { id: uniqueStockLocIds },
+          { relations: ["sales_channels"], take: uniqueStockLocIds.length }
+        )
+        for (const loc of locs) {
+          const linked = (loc.sales_channels ?? []).some(
+            (sc) => sc.id && franchiseSalesChannelIds.has(sc.id)
+          )
+          if (linked) stockLocWithSalesChannel.add(loc.id)
+        }
+      } catch {
+        // Leave set empty — branches will surface "not associated" issues.
       }
     }
   }
 
-  // 5. Count inventory levels per stock location
+  // 5. Count inventory levels per stock location (Inventory module is SoT)
   const inventoryCountByStockLoc = new Map<string, number>()
 
   if (uniqueStockLocIds.length) {
-    const { data: levels } = await query.graph({
-      entity: "inventory_level",
-      fields: ["location_id"],
-      filters: { location_id: uniqueStockLocIds },
-    })
-
-    for (const level of levels as Array<{ location_id: string }>) {
-      const curr = inventoryCountByStockLoc.get(level.location_id) ?? 0
-      inventoryCountByStockLoc.set(level.location_id, curr + 1)
+    try {
+      const inventoryService = req.scope.resolve(Modules.INVENTORY) as {
+        listInventoryLevels: (
+          filters: Record<string, unknown>,
+          config?: Record<string, unknown>
+        ) => Promise<Array<{ location_id?: string }>>
+      }
+      const levels = await inventoryService.listInventoryLevels(
+        { location_id: uniqueStockLocIds },
+        { take: 200_000 }
+      )
+      for (const level of levels) {
+        if (!level.location_id) continue
+        const curr = inventoryCountByStockLoc.get(level.location_id) ?? 0
+        inventoryCountByStockLoc.set(level.location_id, curr + 1)
+      }
+    } catch {
+      // Fall back to Query graph if the module path fails
+      const { data: levels } = await query.graph({
+        entity: "inventory_level",
+        fields: ["location_id"],
+        filters: { location_id: uniqueStockLocIds },
+      })
+      for (const level of levels as Array<{ location_id: string }>) {
+        const curr = inventoryCountByStockLoc.get(level.location_id) ?? 0
+        inventoryCountByStockLoc.set(level.location_id, curr + 1)
+      }
     }
   }
 

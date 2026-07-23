@@ -1,6 +1,7 @@
 import React from "react"
-import { Button, FocusModal, Heading, Input, Label, Switch, Text } from "@medusajs/ui"
+import { Button, FocusModal, Heading, Input, Label, Select, Switch, Text } from "@medusajs/ui"
 import type { Franchise, StoreLocation } from "./types"
+import { FormField } from "../../../components/ui"
 
 // ---------------------------------------------------------------------------
 // Props
@@ -67,40 +68,43 @@ export const LocationModal = ({
   onSubmit,
   isPending,
 }: LocationModalProps) => {
+  const isEdit = !!selectedLocation
+
   return (
     <FocusModal open={open} onOpenChange={onOpenChange}>
       <FocusModal.Content>
         <form onSubmit={onSubmit}>
           <FocusModal.Header>
             <div className="flex items-center gap-2">
-              <Heading level="h2">
-                {selectedLocation ? "Modify Store Location Settings" : "Configure New Store Location"}
-              </Heading>
+              <FocusModal.Title asChild>
+                <Heading level="h2">{isEdit ? "Modify Store Location Settings" : "Configure New Store Location"}</Heading>
+              </FocusModal.Title>
             </div>
           </FocusModal.Header>
           <FocusModal.Body className="flex flex-col gap-6 max-w-lg mx-auto py-8">
 
             {/* Name + Code */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="loc-name">Location Name</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField id="loc-name" label="Location Name" required>
                 <Input
                   id="loc-name"
-                  placeholder="e.g. Cake Break - Koramangala"
+                  placeholder="e.g. Cake Break – Koramangala"
                   value={locName}
                   onChange={(e) => onNameChange(e.target.value)}
+                  autoComplete="off"
                 />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="loc-code">Location Code</Label>
+              </FormField>
+              <FormField id="loc-code" label="Location Code" required>
                 <Input
                   id="loc-code"
                   placeholder="e.g. CB-KOR"
                   value={locCode}
                   onChange={(e) => onCodeChange(e.target.value)}
-                  disabled={!!selectedLocation}
+                  disabled={isEdit}
+                  autoComplete="off"
+                  className="font-mono"
                 />
-              </div>
+              </FormField>
             </div>
 
             {/*
@@ -110,56 +114,48 @@ export const LocationModal = ({
                 because changing it would orphan the store ↔ stock location link
                 engine links, corrupting inventory scoping across tenants.
             */}
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="loc-franchise">Parent Franchise Brand</Label>
-              <select
-                id="loc-franchise"
-                value={locFranId}
-                onChange={(e) => onFranIdChange(e.target.value)}
-                disabled={!!selectedLocation}
-                // required only in create mode — forces an explicit franchise selection
-                required={!selectedLocation}
-                className="w-full bg-ui-bg-field hover:bg-ui-bg-field-hover border border-ui-border-base focus:border-ui-border-interactive rounded-md h-10 px-3 text-sm transition-colors outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+            <FormField
+              id="loc-franchise"
+              label="Parent Franchise Brand"
+              required
+              helper={
+                isEdit
+                  ? "Franchise cannot be changed after creation — doing so would orphan inventory and stock location links for this store."
+                  : "Required. Cannot be changed after saving."
+              }
+            >
+              <Select
+                value={locFranId || undefined}
+                onValueChange={onFranIdChange}
+                disabled={isEdit}
               >
-                {/* Placeholder shown only in create mode to force an explicit choice */}
-                {!selectedLocation && (
-                  <option value="" disabled>
-                    — Select a Franchise Brand —
-                  </option>
-                )}
-                {franchises.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.name} ({f.code})
-                  </option>
-                ))}
-              </select>
-              {selectedLocation ? (
-                <Text size="xsmall" className="text-ui-fg-subtle">
-                  ⚠ Franchise cannot be changed after creation — doing so would orphan
-                  inventory and stock location links for this store.
-                </Text>
-              ) : (
-                <Text size="xsmall" className="text-ui-fg-subtle">
-                  Required. Cannot be changed after saving.
-                </Text>
-              )}
-            </div>
+                <Select.Trigger id="loc-franchise" className="w-full">
+                  <Select.Value placeholder="Select a franchise brand…" />
+                </Select.Trigger>
+                <Select.Content>
+                  {franchises.map((f) => (
+                    <Select.Item key={f.id} value={f.id}>
+                      {f.name} ({f.code})
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select>
+            </FormField>
 
             {/* Address */}
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="loc-address">Physical Street Address</Label>
+            <FormField id="loc-address" label="Physical Street Address">
               <Input
                 id="loc-address"
                 placeholder="e.g. 12th Main Road, Koramangala, Bengaluru"
                 value={locAddress}
                 onChange={(e) => onAddressChange(e.target.value)}
+                autoComplete="off"
               />
-            </div>
+            </FormField>
 
             {/* Lat / Lng */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="loc-lat">Latitude</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField id="loc-lat" label="Latitude">
                 <Input
                   id="loc-lat"
                   type="number"
@@ -168,9 +164,8 @@ export const LocationModal = ({
                   value={locLat}
                   onChange={(e) => onLatChange(e.target.value)}
                 />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="loc-lng">Longitude</Label>
+              </FormField>
+              <FormField id="loc-lng" label="Longitude">
                 <Input
                   id="loc-lng"
                   type="number"
@@ -179,47 +174,60 @@ export const LocationModal = ({
                   value={locLng}
                   onChange={(e) => onLngChange(e.target.value)}
                 />
-              </div>
+              </FormField>
             </div>
 
             {/* Lead Time + Capacity */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="loc-lead">Lead Time (Hours)</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField
+                id="loc-lead"
+                label="Lead Time (Hours)"
+                helper="Minimum notice before collection."
+              >
                 <Input
                   id="loc-lead"
                   type="number"
+                  min={0}
                   value={locLeadTime}
                   onChange={(e) => onLeadTimeChange(e.target.value)}
                 />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="loc-capacity">Orders Capacity / Slot</Label>
+              </FormField>
+              <FormField
+                id="loc-capacity"
+                label="Orders Capacity / Slot"
+                helper="Max orders per time slot."
+              >
                 <Input
                   id="loc-capacity"
                   type="number"
+                  min={0}
                   value={locCapacity}
                   onChange={(e) => onCapacityChange(e.target.value)}
                 />
-              </div>
+              </FormField>
             </div>
 
             {/* Active toggle */}
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-ui-border-base px-4 py-3">
+              <div className="min-w-0">
                 <Label htmlFor="loc-active">Show Location</Label>
-                <Text size="xsmall" className="text-ui-fg-subtle">
+                <Text size="xsmall" className="text-ui-fg-subtle mt-0.5">
                   Visible on the storefront finder and open for routing.
                 </Text>
               </div>
-              <Switch id="loc-active" checked={locActive} onCheckedChange={onActiveChange} />
+              <Switch
+                id="loc-active"
+                checked={locActive}
+                onCheckedChange={onActiveChange}
+                className="shrink-0"
+              />
             </div>
 
             {/* Accepting orders toggle — disabled when location itself is not active */}
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-ui-border-base px-4 py-3">
+              <div className="min-w-0">
                 <Label htmlFor="loc-accepting">Accepting Orders</Label>
-                <Text size="xsmall" className="text-ui-fg-subtle">
+                <Text size="xsmall" className="text-ui-fg-subtle mt-0.5">
                   {locActive
                     ? "Temporarily toggle off during kitchen rush or holidays."
                     : "Enable the location first before accepting orders."}
@@ -231,6 +239,7 @@ export const LocationModal = ({
                 // Accepting orders is meaningless when the location is hidden/inactive
                 disabled={!locActive}
                 onCheckedChange={onAcceptingChange}
+                className="shrink-0"
               />
             </div>
 
@@ -239,8 +248,12 @@ export const LocationModal = ({
             <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" isLoading={isPending}>
-              Save Store Location
+            <Button
+              type="submit"
+              isLoading={isPending}
+              disabled={!locName || !locCode || !locFranId}
+            >
+              {isEdit ? "Save Changes" : "Create Location"}
             </Button>
           </div>
         </form>

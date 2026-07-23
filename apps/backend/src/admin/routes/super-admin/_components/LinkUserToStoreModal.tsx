@@ -1,6 +1,7 @@
 import React from "react"
-import { Button, FocusModal, Heading, Label, Text } from "@medusajs/ui"
+import { Button, FocusModal, Heading, Select, Text } from "@medusajs/ui"
 import type { Franchise, StoreLocation, UserRecord } from "./types"
+import { FormField } from "../../../components/ui"
 
 // ---------------------------------------------------------------------------
 // Props
@@ -32,7 +33,6 @@ export const LinkUserToStoreModal = ({
   onOpenChange,
   users,
   locations,
-  franchises,
   linkUserId,
   linkStoreLocationId,
   onUserChange,
@@ -62,60 +62,66 @@ export const LinkUserToStoreModal = ({
         <form onSubmit={onSubmit}>
           <FocusModal.Header>
             <div className="flex items-center gap-2">
-              <Heading level="h2">Assign User to Store Location</Heading>
+              <FocusModal.Title asChild>
+                <Heading level="h2">Assign User to Store Location</Heading>
+              </FocusModal.Title>
             </div>
           </FocusModal.Header>
           <FocusModal.Body className="flex flex-col gap-6 max-w-lg mx-auto py-8">
-            <Text className="text-ui-fg-subtle text-sm">
+            <Text size="small" className="text-ui-fg-subtle">
               Assign a franchise admin as a branch manager for a specific store.
               Once assigned, they will only see orders from their assigned store(s).
               Users without store assignments see all franchise data.
             </Text>
 
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="link-store-user">Select Admin User</Label>
-              <select
-                id="link-store-user"
-                value={linkUserId}
-                onChange={(e) => onUserChange(e.target.value)}
-                className="w-full bg-ui-bg-field border border-ui-border-base focus:border-ui-border-interactive rounded-md h-10 px-3 text-sm outline-none"
-              >
-                <option value="">— Select a user —</option>
-                {eligibleUsers.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.email} ({u.first_name || ""} {u.last_name || ""}) —{" "}
-                    {u.franchise?.map((f) => f.name).join(", ") || "No franchise"}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="link-store-location">Select Store Location</Label>
-              {!linkUserId ? (
-                <Text className="text-ui-fg-muted text-sm italic">
-                  Select a user first to see available store locations.
-                </Text>
-              ) : eligibleLocations.length === 0 ? (
-                <Text className="text-ui-fg-muted text-sm italic">
-                  No store locations found for this user&apos;s franchise.
-                </Text>
-              ) : (
-                <select
-                  id="link-store-location"
-                  value={linkStoreLocationId}
-                  onChange={(e) => onStoreLocationChange(e.target.value)}
-                  className="w-full bg-ui-bg-field border border-ui-border-base focus:border-ui-border-interactive rounded-md h-10 px-3 text-sm outline-none"
-                >
-                  <option value="">— Select a store —</option>
-                  {eligibleLocations.map((loc) => (
-                    <option key={loc.id} value={loc.id}>
-                      {loc.name} ({loc.code}) — {loc.franchise?.name || "Unknown"}
-                    </option>
+            <FormField id="link-store-user" label="Select Admin User" required>
+              <Select value={linkUserId || undefined} onValueChange={onUserChange}>
+                <Select.Trigger id="link-store-user" className="w-full">
+                  <Select.Value placeholder="Select a user…" />
+                </Select.Trigger>
+                <Select.Content>
+                  {eligibleUsers.map((u) => (
+                    <Select.Item key={u.id} value={u.id}>
+                      {u.email}
+                      {u.first_name || u.last_name
+                        ? ` (${`${u.first_name || ""} ${u.last_name || ""}`.trim()})`
+                        : ""}{" "}
+                      — {u.franchise?.map((f) => f.name).join(", ") || "No franchise"}
+                    </Select.Item>
                   ))}
-                </select>
-              )}
-            </div>
+                </Select.Content>
+              </Select>
+            </FormField>
+
+            <FormField
+              id="link-store-location"
+              label="Select Store Location"
+              required
+              helper={
+                !linkUserId
+                  ? "Select a user first to see available store locations."
+                  : eligibleLocations.length === 0
+                    ? "No store locations found for this user's franchise."
+                    : undefined
+              }
+            >
+              <Select
+                value={linkStoreLocationId || undefined}
+                onValueChange={onStoreLocationChange}
+                disabled={!linkUserId || eligibleLocations.length === 0}
+              >
+                <Select.Trigger id="link-store-location" className="w-full">
+                  <Select.Value placeholder="Select a store…" />
+                </Select.Trigger>
+                <Select.Content>
+                  {eligibleLocations.map((loc) => (
+                    <Select.Item key={loc.id} value={loc.id}>
+                      {loc.name} ({loc.code}) — {loc.franchise?.name || "Unknown"}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select>
+            </FormField>
           </FocusModal.Body>
           <div className="border-t px-6 py-4 flex items-center justify-end gap-3 bg-ui-bg-subtle">
             <Button

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react"
 import { Button, FocusModal, Heading, Input, Label, Switch, Text } from "@medusajs/ui"
+import { FormField } from "../../../components/ui"
 
 interface CreateUserModalProps {
   open: boolean
@@ -31,9 +32,11 @@ export const CreateUserModal = ({
     }
   }, [open])
 
+  const passwordTooShort = password.length > 0 && password.length < 8
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email || !password) return
+    if (!email || !password || passwordTooShort) return
     onSubmit({
       email,
       password,
@@ -49,12 +52,13 @@ export const CreateUserModal = ({
         <form onSubmit={handleSubmit}>
           <FocusModal.Header>
             <div className="flex items-center gap-2">
-              <Heading level="h2">Create New Administrator</Heading>
+              <FocusModal.Title asChild>
+                <Heading level="h2">Create New Administrator</Heading>
+              </FocusModal.Title>
             </div>
           </FocusModal.Header>
           <FocusModal.Body className="flex flex-col gap-6 max-w-lg mx-auto py-8">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="create-email">Email Address</Label>
+            <FormField id="create-email" label="Email Address" required>
               <Input
                 id="create-email"
                 type="email"
@@ -62,46 +66,54 @@ export const CreateUserModal = ({
                 placeholder="e.g. manager@franchise.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                autoComplete="off"
               />
-            </div>
+            </FormField>
 
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="create-password">Initial Password</Label>
+            <FormField
+              id="create-password"
+              label="Initial Password"
+              required
+              helper="Must be at least 8 characters."
+              error={passwordTooShort ? "Password must be at least 8 characters." : null}
+            >
               <Input
                 id="create-password"
                 type="password"
                 required
-                placeholder="Must be at least 8 characters"
+                placeholder="Minimum 8 characters"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="new-password"
+                aria-invalid={passwordTooShort || undefined}
               />
-            </div>
+            </FormField>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="create-first-name">First Name</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormField id="create-first-name" label="First Name">
                 <Input
                   id="create-first-name"
                   placeholder="e.g. John"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
+                  autoComplete="off"
                 />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="create-last-name">Last Name</Label>
+              </FormField>
+              <FormField id="create-last-name" label="Last Name">
                 <Input
                   id="create-last-name"
                   placeholder="e.g. Doe"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
+                  autoComplete="off"
                 />
-              </div>
+              </FormField>
             </div>
 
-            <div className="flex items-center justify-between border-t border-ui-border-base pt-6 mt-2">
-              <div className="flex flex-col gap-0.5">
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-ui-border-base px-4 py-3">
+              <div className="min-w-0">
                 <Label htmlFor="create-is-super-admin">Make Super Admin</Label>
-                <Text size="xsmall" className="text-ui-fg-subtle">
+                <Text size="xsmall" className="text-ui-fg-subtle mt-0.5">
                   Grant global, unrestricted access. Keep disabled for regular franchise owners.
                 </Text>
               </div>
@@ -109,6 +121,7 @@ export const CreateUserModal = ({
                 id="create-is-super-admin"
                 checked={isSuperAdmin}
                 onCheckedChange={setIsSuperAdmin}
+                className="shrink-0"
               />
             </div>
           </FocusModal.Body>
@@ -116,7 +129,11 @@ export const CreateUserModal = ({
             <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" isLoading={isPending} disabled={!email || !password}>
+            <Button
+              type="submit"
+              isLoading={isPending}
+              disabled={!email || !password || passwordTooShort}
+            >
               Create User Account
             </Button>
           </div>

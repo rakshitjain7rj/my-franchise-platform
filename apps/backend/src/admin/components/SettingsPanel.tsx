@@ -21,7 +21,6 @@ import {
   Badge,
   Button,
   Container,
-  Heading,
   Input,
   Label,
   Switch,
@@ -30,6 +29,7 @@ import {
 } from "@medusajs/ui"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useFranchiseFetch } from "../lib/sdk"
+import { FormField, SectionHeading, StatusDot } from "./ui"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -58,13 +58,19 @@ interface SettingsPanelProps {
 
 const StatusBadge: React.FC<{ accepting: boolean }> = ({ accepting }) =>
   accepting ? (
-    <Badge color="green" size="xsmall">
-      Kitchen Open
-    </Badge>
+    <span className="inline-flex items-center gap-2">
+      <StatusDot tone="green" ariaLabel="Kitchen open" />
+      <Badge color="green" size="xsmall">
+        Kitchen Open
+      </Badge>
+    </span>
   ) : (
-    <Badge color="orange" size="xsmall">
-      Extended Lead Time
-    </Badge>
+    <span className="inline-flex items-center gap-2">
+      <StatusDot tone="orange" ariaLabel="Extended lead time" />
+      <Badge color="orange" size="xsmall">
+        Extended Lead Time
+      </Badge>
+    </span>
   )
 
 // ---------------------------------------------------------------------------
@@ -157,23 +163,18 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ franchiseId }) => 
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <Container className="p-0">
-      {/* Panel header */}
-      <div className="flex items-center justify-between border-b border-ui-border-base px-6 py-4">
-        <div>
-          <Heading level="h2">Local Franchise Settings</Heading>
-          <Text size="small" className="text-ui-fg-subtle mt-0.5">
-            Configure kitchen availability and order lead time for this branch.
-          </Text>
-        </div>
+    <Container className="p-0 divide-y">
+      <div className="flex flex-wrap items-start justify-between gap-3 px-6 py-4">
+        <SectionHeading
+          title="Local Franchise Settings"
+          description="Configure kitchen availability and order lead time for this branch."
+        />
         <StatusBadge accepting={acceptingOrders} />
       </div>
 
-      {/* Form body */}
       <form onSubmit={handleSubmit} className="divide-y divide-ui-border-base">
-        {/* ── Toggle: Accepting Immediate Orders ── */}
         <div className="flex items-start justify-between gap-6 px-6 py-5">
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <Label
               htmlFor="accepting-orders-toggle"
               size="base"
@@ -182,69 +183,53 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ franchiseId }) => 
               Accepting Immediate Orders
             </Label>
             <Text size="small" className="text-ui-fg-subtle mt-1 max-w-prose">
-              When enabled, the kitchen signals that it can fulfil orders
-              immediately using the standard platform lead time.  Disable this
-              to activate "Kitchen Busy" mode, which extends all customer-facing
-              lead times by the value set below.
+              When enabled, the kitchen can fulfil orders using the standard
+              platform lead time. Disable this for Kitchen Busy mode, which
+              extends customer-facing lead times by the value set below.
             </Text>
           </div>
 
-          <div className="flex flex-col items-end gap-1.5">
+          <div className="flex flex-col items-end gap-1.5 shrink-0">
             <Switch
               id="accepting-orders-toggle"
               checked={acceptingOrders}
               onCheckedChange={handleToggle}
               disabled={isLoadingSettings}
             />
-            <Text
-              size="xsmall"
-              className={
-                acceptingOrders ? "text-ui-fg-interactive" : "text-ui-fg-subtle"
-              }
-            >
-              {acceptingOrders ? "Open" : "Busy"}
-            </Text>
+            <StatusDot
+              tone={acceptingOrders ? "green" : "orange"}
+              label={acceptingOrders ? "Open" : "Busy"}
+            />
           </div>
         </div>
 
-        {/* ── Lead Time Input ── */}
         <div className="px-6 py-5">
           <div className="max-w-sm">
-            <Label
-              htmlFor="lead-time-input"
-              size="base"
-              className="font-medium mb-1.5 block"
-            >
-              Custom Order Lead Time{" "}
-              <span className="text-ui-fg-muted font-normal">(hours)</span>
-            </Label>
-            <Text size="small" className="text-ui-fg-subtle mb-3">
-              Enter{" "}
-              <span className="font-medium text-ui-fg-base">0</span> to use the
-              platform default.  A positive value is added to every order's
-              estimated delivery time when Kitchen Busy mode is active.
-            </Text>
-            <Input
+            <FormField
               id="lead-time-input"
-              type="number"
-              min="0"
-              step="0.5"
-              value={leadTimeHours}
-              onChange={handleLeadTimeChange}
-              disabled={isLoadingSettings || acceptingOrders}
-              placeholder="e.g. 2"
-              className={!acceptingOrders ? "border-ui-border-interactive" : ""}
-            />
-            {!acceptingOrders && (
-              <Text size="xsmall" className="text-ui-fg-muted mt-1.5">
-                Lead time is active because Kitchen Busy mode is on.
-              </Text>
-            )}
+              label="Custom Order Lead Time (hours)"
+              helper={
+                acceptingOrders
+                  ? "Enter 0 to use the platform default. A positive value is applied when Kitchen Busy mode is active."
+                  : "Lead time is active because Kitchen Busy mode is on."
+              }
+            >
+              <Input
+                id="lead-time-input"
+                type="number"
+                min="0"
+                step="0.5"
+                value={leadTimeHours}
+                onChange={handleLeadTimeChange}
+                disabled={isLoadingSettings || acceptingOrders}
+                placeholder="e.g. 2"
+                className={!acceptingOrders ? "border-ui-border-interactive" : ""}
+              />
+            </FormField>
           </div>
         </div>
 
-        {/* ── Footer / Actions ── */}
-        <div className="flex items-center justify-between px-6 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 bg-ui-bg-subtle">
           <div>
             {settings?.updated_at && (
               <Text size="xsmall" className="text-ui-fg-muted">
@@ -256,8 +241,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ franchiseId }) => 
               </Text>
             )}
           </div>
-          <div className="flex items-center gap-3">
-            {/* Discard changes */}
+          <div className="flex items-center gap-2">
             <Button
               type="button"
               variant="secondary"
@@ -272,8 +256,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ franchiseId }) => 
             >
               Discard
             </Button>
-
-            {/* Save */}
             <Button
               type="submit"
               variant="primary"

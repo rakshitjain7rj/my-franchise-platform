@@ -22,12 +22,17 @@
  */
 
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { ChartBar } from "@medusajs/icons"
+import {
+  BuildingStorefront,
+  ChartBar,
+  CircleWarningSolid,
+  CubeSolid,
+  Tag,
+} from "@medusajs/icons"
 import {
   Badge,
   Container,
   DataTable,
-  Heading,
   Text,
   createDataTableColumnHelper,
   useDataTable,
@@ -36,12 +41,20 @@ import { useQuery } from "@tanstack/react-query"
 import { useEffect, useMemo, useState, useRef } from "react"
 import type { DataTablePaginationState } from "@medusajs/ui"
 import { useTranslation } from "react-i18next"
+import { Link } from "react-router-dom"
 
 import { FranchiseProvider, useFranchise } from "../../providers/FranchiseContext"
 import { FranchiseSwitcher } from "../../components/FranchiseSwitcher"
 import { useFranchiseFetch, sdk } from "../../lib/sdk"
 import { SettingsPanel } from "../../components/SettingsPanel"
 import { FranchiseLocationsManager } from "../../components/FranchiseLocationsManager"
+import StoreHealthPanel from "../../components/StoreHealthPanel"
+import {
+  EmptyState,
+  PageHeader,
+  SectionHeading,
+  StatCard,
+} from "../../components/ui"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -105,16 +118,27 @@ type DashboardResponse = {
 const productColumnHelper = createDataTableColumnHelper<DashboardProduct>()
 
 const productColumns = [
-  productColumnHelper.accessor("id", {
-    header: "ID",
-  }),
   productColumnHelper.accessor("title", {
     header: "Name",
-    cell: ({ getValue }) => getValue() || "-",
+    cell: ({ row, getValue }) => (
+      <Link
+        to={`/products/${row.original.id}`}
+        className="text-ui-fg-interactive hover:underline"
+      >
+        {getValue() || "Untitled product"}
+      </Link>
+    ),
   }),
   productColumnHelper.accessor("status", {
     header: "State",
-    cell: ({ getValue }) => getValue() || "draft",
+    cell: ({ getValue }) => {
+      const status = getValue() || "draft"
+      return (
+        <Badge size="2xsmall" color={status === "published" ? "green" : "grey"}>
+          {status}
+        </Badge>
+      )
+    },
   }),
 ]
 
@@ -244,129 +268,119 @@ const FranchiseDashboardInner = () => {
     },
   })
 
+  const lowStockItems = (data?.inventory.items ?? []).filter(
+    (item) => item.stocked_quantity - item.reserved_quantity < 2
+  )
+
   return (
     <Container className="divide-y p-0">
       {/* ── Header ── */}
-      <div className="flex flex-col gap-4 px-6 py-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <Heading level="h1">{t("franchiseDashboard.title")}</Heading>
-          <Text size="small" className="text-ui-fg-subtle mt-1">
-            {t("franchiseDashboard.subtitle")}
-          </Text>
-          <Text size="small" className="text-ui-fg-subtle mt-2">
-            {data?.franchise
-              ? `${data.franchise.name} (${data.franchise.code})`
-              : activeFranchiseId ?? "-"}
-          </Text>
-        </div>
-
-        {/* The switcher renders nothing for single-franchise users. */}
-        <FranchiseSwitcher franchiseLabels={franchiseLabels} />
-      </div>
+      <PageHeader
+        title={t("franchiseDashboard.title")}
+        description={t("franchiseDashboard.subtitle")}
+        actions={
+          <>
+            {data?.franchise && (
+              <Badge color="grey" size="xsmall">
+                <BuildingStorefront />
+                {data.franchise.name} ({data.franchise.code})
+              </Badge>
+            )}
+            {/* The switcher renders nothing for single-franchise users. */}
+            <FranchiseSwitcher franchiseLabels={franchiseLabels} />
+          </>
+        }
+      />
 
       {/* ── KPI cards (overview) ── */}
       <div className="grid grid-cols-1 gap-4 p-6 md:grid-cols-3">
-        <Container className="p-4">
-          <Text size="small" className="text-ui-fg-subtle">
-            {t("franchiseDashboard.metrics.products")}
-          </Text>
-          <Heading level="h2" className="mt-2">
-            {data?.overview.product_count ?? 0}
-          </Heading>
-        </Container>
-
-        <Container className="p-4">
-          <Text size="small" className="text-ui-fg-subtle">
-            {t("franchiseDashboard.metrics.stores")}
-          </Text>
-          <Heading level="h2" className="mt-2">
-            {data?.overview.store_count ?? 0}
-          </Heading>
-        </Container>
-
-        <Container className="p-4">
-          <Text size="small" className="text-ui-fg-subtle">
-            {t("franchiseDashboard.metrics.status")}
-          </Text>
-          <div className="mt-2">
+        <StatCard
+          label={t("franchiseDashboard.metrics.products")}
+          value={data?.overview.product_count}
+          icon={<CubeSolid />}
+          isLoading={isLoading}
+        />
+        <StatCard
+          label={t("franchiseDashboard.metrics.stores")}
+          value={data?.overview.store_count}
+          icon={<BuildingStorefront />}
+          isLoading={isLoading}
+        />
+        <StatCard
+          label={t("franchiseDashboard.metrics.status")}
+          value={
             <Badge color={data?.overview.is_active ? "green" : "red"}>
               {data?.overview.is_active
                 ? t("franchiseDashboard.status.active")
                 : t("franchiseDashboard.status.inactive")}
             </Badge>
-          </div>
-        </Container>
+          }
+          icon={<Tag />}
+          tone={data?.overview.is_active ? "green" : "red"}
+          isLoading={isLoading}
+        />
       </div>
 
       {/* ── Live Inventory KPIs ── */}
-      <div className="px-6 pb-2">
-        <div className="flex items-center justify-between mb-3">
-          <Heading level="h2">Live Inventory</Heading>
-          {lastUpdatedLabel && (
-            <Text size="xsmall" className="text-ui-fg-muted">
-              Last updated: {lastUpdatedLabel} · auto-refreshes every 30 s
-            </Text>
-          )}
-        </div>
+      <div className="px-6 py-5">
+        <SectionHeading
+          title="Live Inventory"
+          aside={
+            lastUpdatedLabel ? (
+              <Text size="xsmall" className="text-ui-fg-muted">
+                Last updated {lastUpdatedLabel} · auto-refreshes every 30 s
+              </Text>
+            ) : undefined
+          }
+          className="mb-4"
+        />
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {/* Stocked */}
-          <Container className="p-4">
-            <Text size="small" className="text-ui-fg-subtle">Total Stocked</Text>
-            <Heading level="h2" className="mt-2">
-              {data?.inventory.total_stocked_quantity ?? 0}
-            </Heading>
-            <Text size="xsmall" className="text-ui-fg-muted mt-1">
-              units across all locations
-            </Text>
-          </Container>
-
-          {/* Reserved */}
-          <Container className="p-4">
-            <Text size="small" className="text-ui-fg-subtle">Reserved</Text>
-            <Heading level="h2" className="mt-2">
-              {data?.inventory.total_reserved_quantity ?? 0}
-            </Heading>
-            <Text size="xsmall" className="text-ui-fg-muted mt-1">
-              pending fulfilment
-            </Text>
-          </Container>
-
-          {/* Incoming */}
-          <Container className="p-4">
-            <Text size="small" className="text-ui-fg-subtle">Incoming</Text>
-            <Heading level="h2" className="mt-2">
-              {data?.inventory.total_incoming_quantity ?? 0}
-            </Heading>
-            <Text size="xsmall" className="text-ui-fg-muted mt-1">
-              expected replenishment
-            </Text>
-          </Container>
+          <StatCard
+            label="Total Stocked"
+            value={data?.inventory.total_stocked_quantity}
+            hint="units across all locations"
+            isLoading={isLoading}
+          />
+          <StatCard
+            label="Reserved"
+            value={data?.inventory.total_reserved_quantity}
+            hint="pending fulfilment"
+            isLoading={isLoading}
+          />
+          <StatCard
+            label="Incoming"
+            value={data?.inventory.total_incoming_quantity}
+            hint="expected replenishment"
+            isLoading={isLoading}
+          />
         </div>
 
         {/* Per-item low-stock warnings (stocked < reserved + 2) */}
-        {(data?.inventory.items ?? []).filter(
-          (item) => item.stocked_quantity - item.reserved_quantity < 2
-        ).length > 0 && (
-          <div className="mt-3 rounded-md border border-ui-border-strong bg-ui-bg-subtle p-3">
-            <Text size="small" weight="plus" className="text-ui-fg-base mb-2">
-              ⚠ Low-Stock Items
-            </Text>
-            <div className="space-y-1">
-              {data!.inventory.items
-                .filter((item) => item.stocked_quantity - item.reserved_quantity < 2)
-                .map((item) => (
-                  <div
-                    key={`${item.inventory_item_id}-${item.location_id}`}
-                    className="flex items-center justify-between"
-                  >
-                    <Text size="xsmall" className="text-ui-fg-subtle font-mono">
-                      {item.inventory_item_id.slice(0, 24)}…
-                    </Text>
-                    <Badge color="orange">
-                      {item.stocked_quantity} stocked / {item.reserved_quantity} reserved
-                    </Badge>
-                  </div>
-                ))}
+        {lowStockItems.length > 0 && (
+          <div
+            className="mt-4 rounded-lg border border-ui-border-strong bg-ui-bg-subtle p-4"
+            role="alert"
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <CircleWarningSolid className="text-ui-tag-orange-icon" />
+              <Text size="small" weight="plus" className="text-ui-fg-base">
+                Low-stock items ({lowStockItems.length})
+              </Text>
+            </div>
+            <div className="flex flex-col gap-2">
+              {lowStockItems.map((item) => (
+                <div
+                  key={`${item.inventory_item_id}-${item.location_id}`}
+                  className="flex flex-wrap items-center justify-between gap-2"
+                >
+                  <Text size="xsmall" className="text-ui-fg-subtle font-mono">
+                    {item.inventory_item_id.slice(0, 24)}…
+                  </Text>
+                  <Badge color="orange" size="2xsmall">
+                    {item.stocked_quantity} stocked / {item.reserved_quantity} reserved
+                  </Badge>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -376,7 +390,7 @@ const FranchiseDashboardInner = () => {
       <div className="p-6">
         <DataTable instance={productTable}>
           <DataTable.Toolbar className="flex flex-col items-start justify-between gap-2 md:flex-row md:items-center">
-            <Heading>{t("franchiseDashboard.products.title")}</Heading>
+            <SectionHeading title={t("franchiseDashboard.products.title")} />
           </DataTable.Toolbar>
           <DataTable.Table />
           <DataTable.Pagination />
@@ -388,23 +402,43 @@ const FranchiseDashboardInner = () => {
         <FranchiseLocationsManager />
 
         <Container className="p-4">
-          <Heading level="h2" className="mb-4">
-            {t("franchiseDashboard.alerts.title")}
-          </Heading>
-          <div className="space-y-3">
-            {data?.alerts?.map((alert, index) => (
-              <div
-                key={`${alert.message}-${index}`}
-                className="border-ui-border-base rounded-md border p-3"
-              >
-                <Badge color={alert.severity === "warning" ? "orange" : "blue"}>
-                  {alert.severity}
-                </Badge>
-                <Text className="mt-2">{alert.message}</Text>
-              </div>
-            ))}
-          </div>
+          <SectionHeading
+            title={t("franchiseDashboard.alerts.title")}
+            className="mb-4"
+          />
+          {data?.alerts?.length ? (
+            <div className="space-y-3">
+              {data.alerts.map((alert, index) => (
+                <div
+                  key={`${alert.message}-${index}`}
+                  className="border-ui-border-base rounded-md border p-3"
+                >
+                  <Badge
+                    size="2xsmall"
+                    color={alert.severity === "warning" ? "orange" : "blue"}
+                  >
+                    {alert.severity}
+                  </Badge>
+                  <Text size="small" className="mt-2">
+                    {alert.message}
+                  </Text>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              framed={false}
+              title="All clear"
+              description="No alerts for this franchise right now. Issues with stores, stock or orders will show up here."
+              className="py-8"
+            />
+          )}
         </Container>
+      </div>
+
+      {/* ── Store health (branch wiring + inventory levels) ── */}
+      <div className="p-6">
+        <StoreHealthPanel />
       </div>
 
       {/* ── Local Franchise Settings ── */}

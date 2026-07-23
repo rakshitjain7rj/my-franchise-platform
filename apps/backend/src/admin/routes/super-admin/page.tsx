@@ -1,10 +1,16 @@
 import React, { useState, useEffect } from "react"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { Wrench } from "@medusajs/icons"
-import { Container, Heading, Tabs, Text, toast } from "@medusajs/ui"
+import { LockClosedSolid, Spinner, Wrench } from "@medusajs/icons"
+import { Container, Tabs, Text, toast } from "@medusajs/ui"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "react-router-dom"
 import { sdk } from "../../lib/sdk"
+import {
+  ConfirmDialog,
+  EmptyState,
+  PageHeader,
+  useConfirm,
+} from "../../components/ui"
 
 // Sub-components
 import { FranchisesTab } from "./_components/FranchisesTab"
@@ -29,6 +35,7 @@ import type { Franchise, StoreLocation, UserRecord } from "./_components/types"
 const SuperAdminDashboard = () => {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const confirm = useConfirm()
   const [activeTab, setActiveTab] = useState("franchises")
 
   // ── Modal visibility ────────────────────────────────────────────────────────
@@ -412,23 +419,24 @@ const SuperAdminDashboard = () => {
 
   if (isLoadingMe) {
     return (
-      <div className="flex h-screen items-center justify-center bg-ui-bg-subtle">
-        <Text className="text-ui-fg-subtle animate-pulse">Loading authorization...</Text>
+      <div className="flex h-screen items-center justify-center gap-3 bg-ui-bg-subtle">
+        <Spinner className="animate-spin text-ui-fg-muted" />
+        <Text className="text-ui-fg-subtle">Loading authorization…</Text>
       </div>
     )
   }
 
   if (isForbidden) {
     return (
-      <Container className="p-6 max-w-md mx-auto mt-20 flex flex-col items-center text-center gap-4">
-        <Heading level="h1" className="text-red-600 flex items-center gap-2">
-          <Wrench className="text-red-600 animate-bounce" />
-          Access Denied
-        </Heading>
-        <Text className="text-ui-fg-subtle">
-          This area is restricted to global administrators. Redirecting you to the Franchise Dashboard...
-        </Text>
-      </Container>
+      <div className="flex min-h-[60vh] items-center justify-center p-6">
+        <div className="w-full max-w-md">
+          <EmptyState
+            icon={<LockClosedSolid />}
+            title="Access denied"
+            description="This area is restricted to global administrators. Redirecting you to the Franchise Dashboard…"
+          />
+        </div>
+      </div>
     )
   }
 
@@ -522,10 +530,15 @@ const SuperAdminDashboard = () => {
     })
   }
 
-  const handleDeleteLocation = (id: string, name: string) => {
-    if (confirm(`Are you sure you want to delete "${name}"? This will sever all linked stock connections.`)) {
-      deleteLocationMutation.mutate(id)
-    }
+  const handleDeleteLocation = (loc: StoreLocation) => {
+    confirm.ask({
+      title: `Delete "${loc.name}"?`,
+      description:
+        "This will permanently remove the store location and sever all linked stock connections. This action cannot be undone.",
+      confirmLabel: "Delete location",
+      variant: "danger",
+      onConfirm: () => deleteLocationMutation.mutate(loc.id),
+    })
   }
 
   const openLinkUser = () => {
@@ -561,10 +574,32 @@ const SuperAdminDashboard = () => {
     linkUserMutation.mutate({ user_id: linkUserId, franchise_id: linkFranId })
   }
 
-  const handleUnlinkUser = (userId: string, franchiseId: string) => {
-    if (confirm("Are you sure you want to revoke this user's access to this franchise?")) {
-      unlinkUserMutation.mutate({ user_id: userId, franchise_id: franchiseId })
-    }
+  const handleDeleteFranchise = (fran: Franchise) => {
+    confirm.ask({
+      title: `Delete franchise "${fran.name}"?`,
+      description:
+        "This will also cascade delete all store locations under this franchise. This action cannot be undone.",
+      confirmLabel: "Delete franchise",
+      variant: "danger",
+      onConfirm: () => deleteFranchiseMutation.mutate(fran.id),
+    })
+  }
+
+  const handleUnlinkUser = (
+    user: UserRecord,
+    franchise: { id: string; name: string }
+  ) => {
+    confirm.ask({
+      title: "Revoke franchise access?",
+      description: `${user.email} will lose access to "${franchise.name}" immediately.`,
+      confirmLabel: "Revoke access",
+      variant: "danger",
+      onConfirm: () =>
+        unlinkUserMutation.mutate({
+          user_id: user.id,
+          franchise_id: franchise.id,
+        }),
+    })
   }
 
   const openAssignUserToStore = () => {
@@ -585,10 +620,21 @@ const SuperAdminDashboard = () => {
     })
   }
 
-  const handleUnlinkUserFromStore = (userId: string, storeLocationId: string) => {
-    if (confirm("Are you sure you want to remove this user's store assignment?")) {
-      unlinkUserFromStoreMutation.mutate({ user_id: userId, store_location_id: storeLocationId })
-    }
+  const handleUnlinkUserFromStore = (
+    user: UserRecord,
+    store: { id: string; name: string; code: string }
+  ) => {
+    confirm.ask({
+      title: "Remove store assignment?",
+      description: `${user.email} will no longer be a branch manager for "${store.name}".`,
+      confirmLabel: "Remove assignment",
+      variant: "danger",
+      onConfirm: () =>
+        unlinkUserFromStoreMutation.mutate({
+          user_id: user.id,
+          store_location_id: store.id,
+        }),
+    })
   }
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -596,18 +642,15 @@ const SuperAdminDashboard = () => {
   return (
     <Container className="divide-y p-0">
       {/* Page Header */}
-      <div className="flex flex-col gap-4 px-6 py-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <Heading level="h1" className="flex items-center gap-2">
+      <PageHeader
+        title={
+          <span className="inline-flex items-center gap-2">
             <Wrench className="text-ui-fg-subtle" />
             Super Admin Portal
-          </Heading>
-          <Text size="small" className="text-ui-fg-subtle mt-1">
-            Global management portal for configuring system franchises, baking locations,
-            and administrative access links.
-          </Text>
-        </div>
-      </div>
+          </span>
+        }
+        description="Global management portal for configuring system franchises, baking locations, and administrative access links."
+      />
 
       {/* Main Content Tabs */}
       <div className="p-6">
@@ -627,9 +670,7 @@ const SuperAdminDashboard = () => {
               onToggleFranchiseActive={(id, value) =>
                 toggleFranchiseActiveMutation.mutate({ id, is_active: value })
               }
-              onDeleteFranchise={(id) =>
-                deleteFranchiseMutation.mutate(id)
-              }
+              onDeleteFranchise={handleDeleteFranchise}
             />
           </Tabs.Content>
 
@@ -752,6 +793,9 @@ const SuperAdminDashboard = () => {
         onSubmit={handleLinkUserToStore}
         isPending={linkUserToStoreMutation.isPending}
       />
+
+      {/* Shared confirmation dialog for all destructive actions */}
+      <ConfirmDialog state={confirm.state} onClose={confirm.close} />
     </Container>
   )
 }

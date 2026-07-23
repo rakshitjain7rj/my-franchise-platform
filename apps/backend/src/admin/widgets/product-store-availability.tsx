@@ -14,12 +14,14 @@
  */
 
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
+import { CircleWarningSolid } from "@medusajs/icons"
 import {
   Badge,
   Button,
   Container,
   Heading,
   Input,
+  Skeleton,
   Switch,
   Text,
   Tooltip,
@@ -28,6 +30,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useState, useEffect, useCallback } from "react"
 import { sdk } from "../lib/sdk"
+import { EmptyState } from "../components/ui"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -134,6 +137,22 @@ const ProductStoreAvailabilityWidget = ({ data }: { data: { id: string } }) => {
     setIsDirty(true)
   }
 
+  /** Discard local edits and re-seed from the last server response. */
+  const handleDiscard = () => {
+    if (!storeStock) return
+    const map = new Map<string, LocalBranch>()
+    for (const branch of storeStock.branches) {
+      map.set(branch.store_location_id, {
+        ...branch,
+        local_on_menu: branch.on_menu,
+        local_quantity: branch.quantity != null ? String(branch.quantity) : "0",
+        dirty: false,
+      })
+    }
+    setLocalBranches(map)
+    setIsDirty(false)
+  }
+
   // ── Save ─────────────────────────────────────────────────────────────────
 
   const saveMutation = useMutation({
@@ -168,10 +187,20 @@ const ProductStoreAvailabilityWidget = ({ data }: { data: { id: string } }) => {
 
   if (isLoading) {
     return (
-      <Container className="p-4">
-        <Text className="text-ui-fg-subtle animate-pulse">
-          Loading store availability…
-        </Text>
+      <Container className="p-4" aria-busy="true" aria-label="Loading store availability">
+        <div className="flex items-center justify-between mb-3">
+          <Skeleton className="h-5 w-44" />
+          <Skeleton className="h-5 w-20 rounded-full" />
+        </div>
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center justify-between gap-3">
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="h-6 w-10 rounded-full" />
+              <Skeleton className="h-7 w-24 rounded-md" />
+            </div>
+          ))}
+        </div>
       </Container>
     )
   }
@@ -179,13 +208,15 @@ const ProductStoreAvailabilityWidget = ({ data }: { data: { id: string } }) => {
   if (!branches.length) {
     return (
       <Container className="p-4">
-        <Heading level="h2" className="mb-2">
+        <Heading level="h2" className="mb-3">
           Store Availability & Stock
         </Heading>
-        <Text className="text-ui-fg-muted text-sm">
-          No store locations configured for this franchise. Add locations in the
-          Franchise Dashboard or Super Admin Portal first.
-        </Text>
+        <EmptyState
+          framed={false}
+          title="No store locations"
+          description="Add locations in the Franchise Dashboard or Super Admin Portal first so you can control menu and stock per branch."
+          className="py-6"
+        />
       </Container>
     )
   }
@@ -215,12 +246,15 @@ const ProductStoreAvailabilityWidget = ({ data }: { data: { id: string } }) => {
 
       {/* ── Wiring warning ── */}
       {wiringIssueCount > 0 && (
-        <div className="flex items-start gap-2 p-2 mb-3 rounded-md bg-ui-bg-base border border-ui-border-base">
-          <span className="text-ui-fg-error text-sm">⚠</span>
-          <Text size="xsmall" className="text-ui-fg-error">
+        <div
+          role="alert"
+          className="flex items-start gap-2 p-3 mb-3 rounded-md bg-ui-bg-subtle border border-ui-border-base"
+        >
+          <CircleWarningSolid className="text-ui-tag-orange-icon shrink-0 mt-0.5" />
+          <Text size="xsmall" className="text-ui-fg-subtle">
             {wiringIssueCount} branch
             {wiringIssueCount !== 1 ? "es are" : " is"} missing a stock
-            location. Use the Store Health panel below to fix wiring.
+            location. Use the Store Health panel to fix wiring.
           </Text>
         </div>
       )}
@@ -237,12 +271,9 @@ const ProductStoreAvailabilityWidget = ({ data }: { data: { id: string } }) => {
 
       {!isShared && (
         <div className="flex justify-end mb-2">
-          <button
-            className="text-xs text-ui-fg-subtle underline hover:text-ui-fg-base"
-            onClick={handleClearAll}
-          >
+          <Button size="small" variant="transparent" onClick={handleClearAll}>
             Clear all restrictions
-          </button>
+          </Button>
         </div>
       )}
 
@@ -279,7 +310,7 @@ const ProductStoreAvailabilityWidget = ({ data }: { data: { id: string } }) => {
                 )}
                 {branch.needs_wiring && (
                   <Tooltip content="No stock location linked to this branch">
-                    <Badge color="red" size="xsmall">⚠ No Stock Loc</Badge>
+                    <Badge color="red" size="xsmall">No stock location</Badge>
                   </Tooltip>
                 )}
               </div>
@@ -321,7 +352,15 @@ const ProductStoreAvailabilityWidget = ({ data }: { data: { id: string } }) => {
 
       {/* ── Save ── */}
       {isDirty && (
-        <div className="flex justify-end pt-3 mt-2 border-t border-ui-border-base">
+        <div className="flex justify-end gap-2 pt-3 mt-3 border-t border-ui-border-base">
+          <Button
+            size="small"
+            variant="secondary"
+            onClick={handleDiscard}
+            disabled={saveMutation.isPending}
+          >
+            Discard
+          </Button>
           <Button
             size="small"
             onClick={() => saveMutation.mutate()}

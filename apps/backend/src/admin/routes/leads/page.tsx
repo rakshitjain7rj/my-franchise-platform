@@ -5,19 +5,25 @@
  */
 
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { Envelope, ArrowPath } from "@medusajs/icons"
+import { ArrowPath, Envelope } from "@medusajs/icons"
 import {
   Badge,
   Button,
   Container,
-  Heading,
   Text,
-  Toaster,
   toast,
 } from "@medusajs/ui"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { sdk } from "../../lib/sdk"
+import {
+  CardListSkeleton,
+  EmptyState,
+  FilterBar,
+  FilterPills,
+  PageHeader,
+  SearchInput,
+} from "../../components/ui"
 
 type LeadStatus = "new" | "contacted" | "closed"
 type LeadType = "contact" | "franchise"
@@ -42,17 +48,20 @@ type LeadsResponse = {
   offset: number
 }
 
-const STATUS_TABS: Array<{ key: LeadStatus | "all"; label: string }> = [
-  { key: "new", label: "New" },
-  { key: "contacted", label: "Contacted" },
-  { key: "closed", label: "Closed" },
-  { key: "all", label: "All" },
+type StatusFilter = LeadStatus | "all"
+type TypeFilter = LeadType | "all"
+
+const STATUS_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
+  { value: "new", label: "New" },
+  { value: "contacted", label: "Contacted" },
+  { value: "closed", label: "Closed" },
+  { value: "all", label: "All" },
 ]
 
-const TYPE_TABS: Array<{ key: LeadType | "all"; label: string }> = [
-  { key: "all", label: "All types" },
-  { key: "contact", label: "Contact Us" },
-  { key: "franchise", label: "Franchise" },
+const TYPE_OPTIONS: Array<{ value: TypeFilter; label: string }> = [
+  { value: "all", label: "All types" },
+  { value: "contact", label: "Contact Us" },
+  { value: "franchise", label: "Franchise" },
 ]
 
 const statusColor = (
@@ -86,11 +95,12 @@ const formatDate = (iso: string) =>
   })
 
 const LeadsPage = () => {
-  const [status, setStatus] = useState<LeadStatus | "all">("new")
-  const [type, setType] = useState<LeadType | "all">("all")
+  const [status, setStatus] = useState<StatusFilter>("new")
+  const [type, setType] = useState<TypeFilter>("all")
+  const [search, setSearch] = useState("")
   const queryClient = useQueryClient()
 
-  const { data, isLoading, isFetching, refetch } = useQuery({
+  const { data, isLoading, isError, isFetching, refetch } = useQuery({
     queryKey: ["admin-leads", status, type],
     queryFn: () =>
       sdk.client.fetch<LeadsResponse>("/admin/leads", {
@@ -124,72 +134,105 @@ const LeadsPage = () => {
     },
   })
 
-  const leads = data?.leads ?? []
+  const leads = useMemo(() => {
+    const all = data?.leads ?? []
+    const q = search.trim().toLowerCase()
+    if (!q) return all
+    return all.filter((lead) =>
+      [lead.name, lead.email, lead.phone ?? "", lead.message ?? ""]
+        .join(" ")
+        .toLowerCase()
+        .includes(q)
+    )
+  }, [data?.leads, search])
+
+  const isSearching = search.trim().length > 0
 
   return (
     <div className="flex flex-col gap-y-4">
-      <Toaster />
       <Container className="divide-y p-0">
-        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
-          <div className="flex items-center gap-3">
-            <Heading level="h1">Inbound Leads</Heading>
-            <Badge size="2xsmall" color="orange">
-              {data?.count ?? 0}
-              {status !== "all" ? ` ${status}` : ""}
-            </Badge>
-          </div>
-          <Button
-            variant="secondary"
-            size="small"
-            onClick={() => refetch()}
-            isLoading={isFetching}
-          >
-            <ArrowPath />
-            Refresh
-          </Button>
-        </div>
+        <PageHeader
+          title="Inbound Leads"
+          description="Contact Us and Apply Franchise submissions from the storefront."
+          actions={
+            <>
+              <Badge size="2xsmall" color="orange">
+                {data?.count ?? 0}
+                {status !== "all" ? ` ${status}` : ""}
+              </Badge>
+              <Button
+                variant="secondary"
+                size="small"
+                onClick={() => refetch()}
+                isLoading={isFetching}
+              >
+                <ArrowPath />
+                Refresh
+              </Button>
+            </>
+          }
+        />
 
-        <div className="flex flex-wrap gap-2 px-6 py-3">
-          {STATUS_TABS.map((tab) => (
-            <Button
-              key={tab.key}
-              size="small"
-              variant={status === tab.key ? "primary" : "secondary"}
-              onClick={() => setStatus(tab.key)}
-            >
-              {tab.label}
-            </Button>
-          ))}
-        </div>
-
-        <div className="flex flex-wrap gap-2 px-6 py-3">
-          {TYPE_TABS.map((tab) => (
-            <Button
-              key={tab.key}
-              size="small"
-              variant={type === tab.key ? "primary" : "secondary"}
-              onClick={() => setType(tab.key)}
-            >
-              {tab.label}
-            </Button>
-          ))}
-        </div>
+        <FilterBar ariaLabel="Filter leads">
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder="Search name, email, message…"
+            ariaLabel="Search leads"
+            className="w-full sm:w-72"
+          />
+          <FilterPills<StatusFilter>
+            options={STATUS_OPTIONS}
+            value={status}
+            onChange={setStatus}
+            ariaLabel="Filter by lead status"
+          />
+          <FilterPills<TypeFilter>
+            options={TYPE_OPTIONS}
+            value={type}
+            onChange={setType}
+            ariaLabel="Filter by lead type"
+          />
+        </FilterBar>
       </Container>
 
       {isLoading ? (
+        <CardListSkeleton cards={3} />
+      ) : isError ? (
         <Container className="p-6">
-          <Text className="text-ui-fg-muted">Loading leads…</Text>
+          <EmptyState
+            icon={<Envelope />}
+            title="Could not load leads"
+            description="Check that you are logged in and try again."
+            primaryAction={{
+              label: "Retry",
+              onClick: () => {
+                void refetch()
+              },
+              isLoading: isFetching,
+            }}
+          />
         </Container>
       ) : leads.length === 0 ? (
-        <Container className="p-8 text-center">
-          <Text className="text-ui-fg-muted">
-            No{" "}
-            {status !== "all" ? status : ""}
-            {type !== "all" ? ` ${type}` : ""} leads right now.
-          </Text>
-          <Text size="small" className="text-ui-fg-muted mt-2 block">
-            Submissions from Contact Us and Apply Franchise appear here.
-          </Text>
+        <Container className="p-6">
+          <EmptyState
+            icon={<Envelope />}
+            title={
+              isSearching
+                ? "No leads match your search"
+                : `No ${status !== "all" ? status : ""}${type !== "all" ? ` ${type}` : ""} leads right now`
+            }
+            description={
+              isSearching
+                ? `Nothing found for “${search.trim()}”. Try a different name or email.`
+                : "Submissions from Contact Us and Apply Franchise appear here automatically."
+            }
+            secondaryAction={
+              isSearching
+                ? { label: "Clear search", onClick: () => setSearch("") }
+                : undefined
+            }
+          />
         </Container>
       ) : (
         <div className="flex flex-col gap-3">
@@ -216,9 +259,9 @@ const LeadsPage = () => {
                       <Badge size="2xsmall" color={statusColor(lead.status)}>
                         {lead.status}
                       </Badge>
-                      <Badge size="2xsmall" color="grey">
+                      <Text size="xsmall" className="text-ui-fg-muted">
                         {formatDate(lead.created_at)}
-                      </Badge>
+                      </Text>
                     </div>
 
                     <div className="flex flex-wrap gap-x-4 gap-y-1">

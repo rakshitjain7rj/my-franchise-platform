@@ -1,15 +1,24 @@
 import React, { useState } from "react"
-import { Badge, Button, Heading, Switch, Table, Text, Container, toast } from "@medusajs/ui"
+import { Badge, Button, Switch, Table, Container, Tooltip, toast } from "@medusajs/ui"
+import { BuildingStorefront } from "@medusajs/icons"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useFranchise } from "../providers/FranchiseContext"
 import { useFranchiseFetch } from "../lib/sdk"
 import { FranchiseLocationModal } from "./FranchiseLocationModal"
 import type { StoreLocation } from "../routes/super-admin/_components/types"
+import {
+  ConfirmDialog,
+  EmptyState,
+  SectionHeading,
+  TableBodySkeleton,
+  useConfirm,
+} from "./ui"
 
 export const FranchiseLocationsManager = () => {
   const queryClient = useQueryClient()
   const { activeFranchiseId } = useFranchise()
   const franchiseFetch = useFranchiseFetch()
+  const confirm = useConfirm()
 
   // ── Modal visibility ────────────────────────────────────────────────────────
   const [modalOpen, setModalOpen] = useState(false)
@@ -171,9 +180,14 @@ export const FranchiseLocationsManager = () => {
   }
 
   const handleDeleteLocation = (id: string, name: string) => {
-    if (confirm(`Are you sure you want to delete "${name}"? This will sever all linked stock connections.`)) {
-      deleteMutation.mutate(id)
-    }
+    confirm.ask({
+      title: `Delete "${name}"?`,
+      description:
+        "This will permanently remove the store location and sever all linked stock connections. This action cannot be undone.",
+      confirmLabel: "Delete location",
+      variant: "danger",
+      onConfirm: () => deleteMutation.mutate(id),
+    })
   }
 
   const handleToggleLocation = (
@@ -206,15 +220,21 @@ export const FranchiseLocationsManager = () => {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <Container className="p-4">
-      <div className="flex items-center justify-between mb-4">
-        <Heading level="h2">Store Locations</Heading>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <SectionHeading title="Store Locations" />
         <Button size="small" onClick={handleAddLocation}>
           Add Location
         </Button>
       </div>
 
-      {isLoading ? (
-        <Text className="text-ui-fg-subtle">Loading store locations...</Text>
+      {!isLoading && locations.length === 0 ? (
+        <EmptyState
+          icon={<BuildingStorefront />}
+          title="No store locations yet"
+          description="Add your first bakery location so the storefront can route orders and track branch inventory."
+          primaryAction={{ label: "Add Location", onClick: handleAddLocation }}
+          className="py-8"
+        />
       ) : (
         <div className="overflow-x-auto">
           <Table>
@@ -228,83 +248,90 @@ export const FranchiseLocationsManager = () => {
                 <Table.HeaderCell>Visible</Table.HeaderCell>
                 <Table.HeaderCell>Orders</Table.HeaderCell>
                 <Table.HeaderCell>Default</Table.HeaderCell>
-                <Table.HeaderCell>Actions</Table.HeaderCell>
+                <Table.HeaderCell className="text-right">Actions</Table.HeaderCell>
               </Table.Row>
             </Table.Header>
-            <Table.Body>
-              {locations.length === 0 ? (
-                <Table.Row>
-                  <Table.Cell colSpan={9} className="text-center py-4">
-                    <Text className="text-ui-fg-muted">No store locations found.</Text>
-                  </Table.Cell>
-                </Table.Row>
-              ) : (
-                locations.map((loc) => (
+            {isLoading ? (
+              <TableBodySkeleton rows={3} columns={9} />
+            ) : (
+              <Table.Body>
+                {locations.map((loc) => (
                   <Table.Row key={loc.id}>
-                    <Table.Cell className="font-mono text-xs font-semibold">{loc.code}</Table.Cell>
+                    <Table.Cell className="font-mono text-xs font-semibold whitespace-nowrap">
+                      {loc.code}
+                    </Table.Cell>
                     <Table.Cell className="font-medium">
                       <div className="flex items-center gap-2">
-                        <span>{loc.name}</span>
+                        <span className="whitespace-nowrap">{loc.name}</span>
                         {loc.is_default && (
-                          <Badge color="green" size="xsmall">
+                          <Badge color="green" size="2xsmall">
                             Default
                           </Badge>
                         )}
                       </div>
                     </Table.Cell>
-                    <Table.Cell className="text-xs text-ui-fg-subtle max-w-xs truncate">
-                      {loc.address || "-"}
+                    <Table.Cell className="text-xs text-ui-fg-subtle max-w-[12rem] truncate">
+                      {loc.address || "—"}
                     </Table.Cell>
-                    <Table.Cell className="text-xs">{loc.custom_lead_time_hours} hrs</Table.Cell>
-                    <Table.Cell className="text-xs">{loc.daily_order_capacity} / slot</Table.Cell>
+                    <Table.Cell className="text-xs whitespace-nowrap">
+                      {loc.custom_lead_time_hours} hrs
+                    </Table.Cell>
+                    <Table.Cell className="text-xs whitespace-nowrap">
+                      {loc.daily_order_capacity} / slot
+                    </Table.Cell>
                     <Table.Cell>
                       <Switch
                         checked={loc.is_active}
                         onCheckedChange={(value) =>
                           handleToggleLocation(loc.id, "is_active", value)
                         }
+                        aria-label={`Toggle ${loc.name} visibility`}
                       />
                     </Table.Cell>
                     <Table.Cell>
-                      <div
-                        title={
+                      <Tooltip
+                        content={
                           !loc.is_active
                             ? "Cannot accept orders when location is inactive"
-                            : undefined
+                            : "Pause or resume order intake"
                         }
-                        className="inline-flex"
                       >
-                        <Switch
-                          checked={loc.is_accepting_orders}
-                          disabled={!loc.is_active}
-                          onCheckedChange={(value) =>
-                            handleToggleLocation(loc.id, "is_accepting_orders", value)
-                          }
-                        />
-                      </div>
+                        <span className="inline-flex">
+                          <Switch
+                            checked={loc.is_accepting_orders}
+                            disabled={!loc.is_active}
+                            onCheckedChange={(value) =>
+                              handleToggleLocation(loc.id, "is_accepting_orders", value)
+                            }
+                            aria-label={`Toggle ${loc.name} accepting orders`}
+                          />
+                        </span>
+                      </Tooltip>
                     </Table.Cell>
                     <Table.Cell>
-                      <div
-                        title={
+                      <Tooltip
+                        content={
                           !loc.is_active
                             ? "Activate the location before setting it as default"
                             : loc.is_default
                               ? "This is the default store for new visitors"
                               : "Set as default store for new visitors"
                         }
-                        className="inline-flex"
                       >
-                        <Switch
-                          checked={Boolean(loc.is_default)}
-                          disabled={!loc.is_active && !loc.is_default}
-                          onCheckedChange={(value) =>
-                            handleToggleLocation(loc.id, "is_default", value)
-                          }
-                        />
-                      </div>
+                        <span className="inline-flex">
+                          <Switch
+                            checked={Boolean(loc.is_default)}
+                            disabled={!loc.is_active && !loc.is_default}
+                            onCheckedChange={(value) =>
+                              handleToggleLocation(loc.id, "is_default", value)
+                            }
+                            aria-label={`Set ${loc.name} as default store`}
+                          />
+                        </span>
+                      </Tooltip>
                     </Table.Cell>
                     <Table.Cell>
-                      <div className="flex gap-2">
+                      <div className="flex justify-end gap-2">
                         <Button
                           size="small"
                           variant="secondary"
@@ -322,9 +349,9 @@ export const FranchiseLocationsManager = () => {
                       </div>
                     </Table.Cell>
                   </Table.Row>
-                ))
-              )}
-            </Table.Body>
+                ))}
+              </Table.Body>
+            )}
           </Table>
         </div>
       )}
@@ -352,6 +379,8 @@ export const FranchiseLocationsManager = () => {
         onSubmit={handleSubmit}
         isPending={saveMutation.isPending}
       />
+
+      <ConfirmDialog state={confirm.state} onClose={confirm.close} />
     </Container>
   )
 }

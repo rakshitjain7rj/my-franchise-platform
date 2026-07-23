@@ -1,6 +1,7 @@
 import React from "react"
 import { Button, FocusModal, Heading, Input, Label, Switch, Text } from "@medusajs/ui"
 import type { Franchise } from "./types"
+import { FormField } from "../../../components/ui"
 
 // ---------------------------------------------------------------------------
 // Props
@@ -43,52 +44,60 @@ export const FranchiseModal = ({
         <form onSubmit={onSubmit}>
           <FocusModal.Header>
             <div className="flex items-center gap-2">
-              <Heading level="h2">
-                {selectedFranchise ? "Modify Franchise Details" : "Create New Franchise Brand"}
-              </Heading>
+              <FocusModal.Title asChild>
+                <Heading level="h2">{selectedFranchise ? "Modify Franchise Details" : "Create New Franchise Brand"}</Heading>
+              </FocusModal.Title>
             </div>
           </FocusModal.Header>
           <FocusModal.Body className="flex flex-col gap-6 max-w-lg mx-auto py-8">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="fran-name">Brand Name</Label>
+            <FormField id="fran-name" label="Brand Name" required>
               <Input
                 id="fran-name"
-                placeholder="e.g. Cake Break Koramangala"
+                placeholder="e.g. Cake Break"
                 value={franName}
                 onChange={(e) => onNameChange(e.target.value)}
+                autoComplete="off"
               />
-            </div>
+            </FormField>
 
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="fran-code">Tenant Slug / Unique Code</Label>
+            <FormField
+              id="fran-code"
+              label="Tenant Slug / Unique Code"
+              required
+              helper="Lowercase letters, numbers, and dashes only. This is permanent."
+            >
               <Input
                 id="fran-code"
-                placeholder="e.g. cb-koramangala"
+                placeholder="e.g. cakebreak"
                 value={franCode}
                 onChange={(e) => onCodeChange(e.target.value)}
                 disabled={!!selectedFranchise}
+                autoComplete="off"
+                className="font-mono"
               />
-              <Text size="xsmall" className="text-ui-fg-subtle">
-                Must be lowercase letters, numbers, and dashes. This is permanent.
-              </Text>
-            </div>
+            </FormField>
 
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex items-center justify-between gap-4 rounded-lg border border-ui-border-base px-4 py-3">
+              <div className="min-w-0">
                 <Label htmlFor="fran-active">Enable Franchise</Label>
-                <Text size="xsmall" className="text-ui-fg-subtle">
+                <Text size="xsmall" className="text-ui-fg-subtle mt-0.5">
                   When inactive, all underlying baking locations are shut down.
                 </Text>
               </div>
-              <Switch id="fran-active" checked={franActive} onCheckedChange={onActiveChange} />
+              <Switch
+                id="fran-active"
+                checked={franActive}
+                onCheckedChange={onActiveChange}
+                className="shrink-0"
+              />
             </div>
           </FocusModal.Body>
           <div className="border-t px-6 py-4 flex items-center justify-end gap-3 bg-ui-bg-subtle">
             <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" isLoading={isPending}>
-              Save Franchise
+            <Button type="submit" isLoading={isPending} disabled={!franName || !franCode}>
+              {selectedFranchise ? "Save Changes" : "Create Franchise"}
             </Button>
           </div>
         </form>

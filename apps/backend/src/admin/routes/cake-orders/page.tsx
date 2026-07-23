@@ -13,7 +13,18 @@
  */
 
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { ShoppingBag, ArrowPath } from "@medusajs/icons"
+import {
+  ArrowPath,
+  BuildingStorefront,
+  CircleWarningSolid,
+  Clock,
+  CreditCard,
+  Envelope,
+  Phone,
+  ShoppingBag,
+  TruckFast,
+  UserMini,
+} from "@medusajs/icons"
 import { Badge, Button, Container, Heading, Text } from "@medusajs/ui"
 import { useQuery } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
@@ -30,6 +41,14 @@ import {
   type CakeOrder,
   type CakeOrderItem,
 } from "../../lib/cake-orders"
+import {
+  EmptyState,
+  FilterBar,
+  FilterPills,
+  OrderCardSkeleton,
+  PageHeader,
+  SearchInput,
+} from "../../components/ui"
 
 // ---------------------------------------------------------------------------
 // Small presentational pieces
@@ -94,14 +113,14 @@ const CakeItemCard = ({ item }: { item: CakeOrderItem }) => {
         {cake.inscription && (
           <div className="rounded-md bg-ui-tag-purple-bg px-3 py-2 mt-1">
             <Text size="xsmall" className="text-ui-tag-purple-text">
-              ✍️ Write on cake: “{cake.inscription}”
+              Write on cake: “{cake.inscription}”
             </Text>
           </div>
         )}
         {cake.special_message && (
           <div className="rounded-md bg-ui-tag-orange-bg px-3 py-2 mt-1">
             <Text size="xsmall" className="text-ui-tag-orange-text">
-              📝 {cake.special_message}
+              {cake.special_message}
             </Text>
           </div>
         )}
@@ -134,7 +153,7 @@ const OrderCard = ({ order }: { order: CakeOrder }) => {
   return (
   <div className="rounded-xl border border-ui-border-base bg-ui-bg-base shadow-elevation-card-rest overflow-hidden">
     {/* Header */}
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-ui-border-base px-5 py-3 bg-ui-bg-subtle">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-ui-border-base px-5 py-3 bg-ui-bg-subtle">
       <Link
         to={`/orders/${order.id}`}
         className="text-ui-fg-interactive hover:underline"
@@ -148,7 +167,8 @@ const OrderCard = ({ order }: { order: CakeOrder }) => {
       </Badge>
       {order.payment_status && (
         <Badge size="2xsmall" color={paymentBadgeColor(order.payment_status)}>
-          💳 {order.payment_status}
+          <CreditCard />
+          {order.payment_status}
         </Badge>
       )}
       {order.fulfillment_status && (
@@ -156,7 +176,8 @@ const OrderCard = ({ order }: { order: CakeOrder }) => {
           size="2xsmall"
           color={fulfillmentBadgeColor(order.fulfillment_status)}
         >
-          📦 {order.fulfillment_status.replace(/_/g, " ")}
+          <TruckFast />
+          {order.fulfillment_status.replace(/_/g, " ")}
         </Badge>
       )}
       {order.fulfillment_method && (
@@ -166,12 +187,13 @@ const OrderCard = ({ order }: { order: CakeOrder }) => {
       )}
       {order.store_location && (
         <Badge size="2xsmall" color="purple">
-          🏬 {order.store_location.name ?? order.store_location.code ?? "Store"}
+          <BuildingStorefront />
+          {order.store_location.name ?? order.store_location.code ?? "Store"}
         </Badge>
       )}
       {(order.collection_date || order.requested_pickup_time) && (
         <Badge size="2xsmall" color="green">
-          🕐{" "}
+          <Clock />
           {[
             order.collection_date
               ? formatCollectionDate(order.collection_date)
@@ -190,19 +212,28 @@ const OrderCard = ({ order }: { order: CakeOrder }) => {
     </div>
 
     {/* Customer strip */}
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-1 px-5 py-2.5 border-b border-ui-border-base">
-      <Text size="xsmall" className="text-ui-fg-subtle">
-        👤 {order.customer_name ?? "Guest"}
-      </Text>
-      {order.email && (
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-5 py-2.5 border-b border-ui-border-base">
+      <span className="inline-flex items-center gap-1.5">
+        <UserMini className="text-ui-fg-muted" />
         <Text size="xsmall" className="text-ui-fg-subtle">
-          ✉️ {order.email}
+          {order.customer_name ?? "Guest"}
         </Text>
+      </span>
+      {order.email && (
+        <span className="inline-flex items-center gap-1.5">
+          <Envelope className="text-ui-fg-muted" />
+          <Text size="xsmall" className="text-ui-fg-subtle">
+            {order.email}
+          </Text>
+        </span>
       )}
       {order.phone && (
-        <Text size="xsmall" className="text-ui-fg-subtle">
-          📞 {order.phone}
-        </Text>
+        <span className="inline-flex items-center gap-1.5">
+          <Phone className="text-ui-fg-muted" />
+          <Text size="xsmall" className="text-ui-fg-subtle">
+            {order.phone}
+          </Text>
+        </span>
       )}
       <Text size="xsmall" className="text-ui-fg-muted ml-auto">
         Placed {new Date(order.created_at).toLocaleString("en-GB")}
@@ -234,7 +265,7 @@ const OrderCard = ({ order }: { order: CakeOrder }) => {
       </Text>
       <Link to={`/orders/${order.id}`}>
         <Button size="small" variant={needsFulfill ? "primary" : "secondary"}>
-          {needsFulfill ? "Fulfill order →" : "View order →"}
+          {needsFulfill ? "Fulfill order" : "View order"}
         </Button>
       </Link>
     </div>
@@ -248,8 +279,15 @@ const OrderCard = ({ order }: { order: CakeOrder }) => {
 
 type DateFilter = "all" | "today" | "tomorrow"
 
+const DATE_FILTER_OPTIONS: Array<{ value: DateFilter; label: string }> = [
+  { value: "all", label: "All dates" },
+  { value: "today", label: "Today" },
+  { value: "tomorrow", label: "Tomorrow" },
+]
+
 const CakeOrdersPage = () => {
   const [dateFilter, setDateFilter] = useState<DateFilter>("all")
+  const [search, setSearch] = useState("")
 
   const date =
     dateFilter === "today"
@@ -264,10 +302,30 @@ const CakeOrdersPage = () => {
     refetchInterval: 30_000,
   })
 
+  // Client-side quick filter (order #, customer, email) — presentation only,
+  // the server query above remains the source of truth.
+  const visibleOrders = useMemo(() => {
+    const orders = data?.orders ?? []
+    const q = search.trim().toLowerCase()
+    if (!q) return orders
+    return orders.filter((order) => {
+      const haystack = [
+        order.display_id != null ? `#${order.display_id}` : "",
+        order.id,
+        order.customer_name ?? "",
+        order.email ?? "",
+        order.phone ?? "",
+      ]
+        .join(" ")
+        .toLowerCase()
+      return haystack.includes(q)
+    })
+  }, [data?.orders, search])
+
   // Group by collection date, soonest first; undated orders last.
   const groups = useMemo(() => {
     const byDate = new Map<string, CakeOrder[]>()
-    for (const order of data?.orders ?? []) {
+    for (const order of visibleOrders) {
       const key = order.collection_date ?? "unscheduled"
       byDate.set(key, [...(byDate.get(key) ?? []), order])
     }
@@ -276,7 +334,7 @@ const CakeOrdersPage = () => {
       if (b === "unscheduled") return -1
       return a.localeCompare(b)
     })
-  }, [data])
+  }, [visibleOrders])
 
   const today = isoDateWithOffset(0)
   const tomorrow = isoDateWithOffset(1)
@@ -288,64 +346,108 @@ const CakeOrdersPage = () => {
     return formatCollectionDate(key)
   }
 
+  const isSearching = search.trim().length > 0
+
   return (
     <Container className="divide-y p-0">
-      <div className="flex items-center justify-between px-6 py-4">
-        <div>
-          <Heading level="h1">Cake Orders</Heading>
-          <Text size="small" className="text-ui-fg-subtle">
-            Every order with its flavour, inscription and collection slot —
-            grouped by the day it must be ready.
-          </Text>
-        </div>
-        <div className="flex items-center gap-2">
-          {(["all", "today", "tomorrow"] as DateFilter[]).map((filter) => (
-            <Button
-              key={filter}
-              size="small"
-              variant={dateFilter === filter ? "primary" : "secondary"}
-              onClick={() => setDateFilter(filter)}
-            >
-              {filter === "all" ? "All" : filter === "today" ? "Today" : "Tomorrow"}
-            </Button>
-          ))}
+      <PageHeader
+        title="Cake Orders"
+        description="Every order with its flavour, inscription and collection slot — grouped by the day it must be ready."
+        actions={
           <Button
             size="small"
-            variant="transparent"
+            variant="secondary"
             onClick={() => refetch()}
             isLoading={isFetching}
+            aria-label="Refresh cake orders"
           >
             <ArrowPath />
+            Refresh
           </Button>
-        </div>
-      </div>
+        }
+      />
+
+      <FilterBar ariaLabel="Filter cake orders">
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search order, customer…"
+          ariaLabel="Search cake orders"
+          className="w-full sm:w-64"
+        />
+        <FilterPills<DateFilter>
+          options={DATE_FILTER_OPTIONS}
+          value={dateFilter}
+          onChange={setDateFilter}
+          ariaLabel="Filter by collection date"
+        />
+      </FilterBar>
 
       <div className="px-6 py-5 space-y-8">
         {isLoading && (
-          <Text size="small" className="text-ui-fg-muted">
-            Loading cake orders…
-          </Text>
-        )}
-        {isError && (
-          <Text size="small" className="text-ui-fg-error">
-            Could not load cake orders. Check that you are logged in and try again.
-          </Text>
-        )}
-        {!isLoading && !isError && groups.length === 0 && (
-          <div className="rounded-lg border border-dashed border-ui-border-strong p-10 text-center">
-            <Text size="small" className="text-ui-fg-muted">
-              {dateFilter === "all"
-                ? "No cake orders yet. New storefront orders will appear here automatically."
-                : `No cakes to prepare ${dateFilter}.`}
-            </Text>
+          <div className="space-y-4" aria-busy="true" aria-label="Loading cake orders">
+            <OrderCardSkeleton />
+            <OrderCardSkeleton />
+            <OrderCardSkeleton />
           </div>
         )}
 
+        {isError && !isLoading && (
+          <div
+            role="alert"
+            className="flex flex-col items-center gap-3 rounded-lg border border-ui-border-strong p-10 text-center"
+          >
+            <CircleWarningSolid className="text-ui-fg-error" />
+            <div>
+              <Heading level="h3">Could not load cake orders</Heading>
+              <Text size="small" className="text-ui-fg-subtle mt-1">
+                Check that you are logged in and try again.
+              </Text>
+            </div>
+            <Button
+              size="small"
+              variant="secondary"
+              onClick={() => refetch()}
+              isLoading={isFetching}
+            >
+              <ArrowPath />
+              Try again
+            </Button>
+          </div>
+        )}
+
+        {!isLoading && !isError && groups.length === 0 && (
+          <EmptyState
+            icon={<ShoppingBag />}
+            title={
+              isSearching
+                ? "No orders match your search"
+                : dateFilter === "all"
+                  ? "No cake orders yet"
+                  : `No cakes to prepare ${dateFilter}`
+            }
+            description={
+              isSearching
+                ? `Nothing found for “${search.trim()}”. Try a different order number or customer name.`
+                : dateFilter === "all"
+                  ? "New storefront orders will appear here automatically as they come in."
+                  : "Orders scheduled for this date will appear here."
+            }
+            secondaryAction={
+              isSearching
+                ? { label: "Clear search", onClick: () => setSearch("") }
+                : undefined
+            }
+          />
+        )}
+
         {groups.map(([key, orders]) => (
-          <section key={key} className="space-y-3">
+          <section key={key} className="space-y-3" aria-label={groupTitle(key)}>
             <div className="flex items-center gap-3">
               <Heading level="h2">{groupTitle(key)}</Heading>
-              <Badge size="2xsmall">{orders.length} order{orders.length === 1 ? "" : "s"}</Badge>
+              <Badge size="2xsmall">
+                {orders.length} order{orders.length === 1 ? "" : "s"}
+              </Badge>
             </div>
             <div className="space-y-4">
               {orders.map((order) => (
