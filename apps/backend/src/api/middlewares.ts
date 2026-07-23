@@ -400,8 +400,13 @@ export default defineMiddlewares({
     { matcher: "/admin/franchise-locations",       middlewares: [userAuth] },
     { matcher: "/admin/franchise-locations/:id",   middlewares: [userAuth] },
 
-    // ── Cake orders (bakery production feed) ──────────────────────────────────
+    // ── Cake orders (bakery production feed + one-click fulfill) ──────────────
     { matcher: "/admin/cake-orders", methods: ["GET"], middlewares: [userAuth] },
+    {
+      matcher: "/admin/cake-orders/:id/fulfill",
+      methods: ["POST"],
+      middlewares: [userAuth],
+    },
 
     // ── Product reviews (moderation queue) ────────────────────────────────────
     { matcher: "/admin/product-reviews", methods: ["GET"], middlewares: [userAuth] },

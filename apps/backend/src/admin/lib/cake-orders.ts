@@ -111,6 +111,50 @@ export const fetchCakeOrders = (query: {
 }): Promise<CakeOrdersResponse> =>
   sdk.client.fetch<CakeOrdersResponse>("/admin/cake-orders", { query })
 
+export type FulfillCakeOrderResponse = {
+  fulfillment_id: string | null
+  order_id: string
+  store_location_id: string
+  stock_location_id: string
+  shipping_option_id: string
+  items: Array<{ id: string; quantity: number }>
+}
+
+/** Pull a human-readable message from Medusa FetchError / generic Error. */
+export const getApiErrorMessage = (err: unknown, fallback: string): string => {
+  if (!err) return fallback
+  if (typeof err === "string" && err.trim()) return err
+  if (err instanceof Error && err.message) return err.message
+  if (typeof err === "object") {
+    const e = err as {
+      message?: unknown
+      error?: string | { message?: string }
+    }
+    if (typeof e.message === "string" && e.message.trim()) return e.message
+    if (typeof e.error === "string" && e.error.trim()) return e.error
+    if (
+      e.error &&
+      typeof e.error === "object" &&
+      typeof e.error.message === "string"
+    ) {
+      return e.error.message
+    }
+  }
+  return fallback
+}
+
+/**
+ * One-click fulfill: uses the order's linked store → stock location and the
+ * shipping method the customer already chose. No dialog, no re-selection.
+ */
+export const fulfillCakeOrder = (
+  orderId: string
+): Promise<FulfillCakeOrderResponse> =>
+  sdk.client.fetch<FulfillCakeOrderResponse>(
+    `/admin/cake-orders/${orderId}/fulfill`,
+    { method: "POST" }
+  )
+
 export const formatMoney = (
   amount: number | null,
   currencyCode: string | null

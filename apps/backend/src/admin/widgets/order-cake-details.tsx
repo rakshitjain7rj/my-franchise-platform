@@ -17,14 +17,16 @@ import {
   CreditCard,
   TruckFast,
 } from "@medusajs/icons"
-import { Badge, Container, Heading, Skeleton, Text } from "@medusajs/ui"
-import { useQuery } from "@tanstack/react-query"
+import { Badge, Button, Container, Heading, Skeleton, Text, toast } from "@medusajs/ui"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import {
   fetchCakeOrders,
+  fulfillCakeOrder,
   formatCollectionDate,
   formatFulfillmentMethod,
   fulfillmentBadgeColor,
+  getApiErrorMessage,
   paymentBadgeColor,
   type CakeOrderItem,
 } from "../lib/cake-orders"
@@ -131,9 +133,32 @@ const ItemSpecs = ({ item }: { item: CakeOrderItem }) => {
 }
 
 const OrderCakeDetailsWidget = ({ data }: { data: { id: string } }) => {
+  const queryClient = useQueryClient()
   const { data: response, isLoading } = useQuery({
     queryKey: ["cake-order-details", data.id],
     queryFn: () => fetchCakeOrders({ order_id: data.id }),
+  })
+
+  const fulfillMutation = useMutation({
+    mutationFn: () => fulfillCakeOrder(data.id),
+    onSuccess: () => {
+      toast.success("Order fulfilled", {
+        description:
+          "Items fulfilled using the order's store, stock location, and shipping method.",
+      })
+      void queryClient.invalidateQueries({
+        queryKey: ["cake-order-details", data.id],
+      })
+      void queryClient.invalidateQueries({ queryKey: ["cake-orders"] })
+      // Refresh the native Medusa order detail so fulfillment status updates.
+      void queryClient.invalidateQueries({ queryKey: ["order", data.id] })
+      void queryClient.invalidateQueries({ queryKey: ["orders"] })
+    },
+    onError: (err: unknown) => {
+      toast.error("Could not fulfill order", {
+        description: getApiErrorMessage(err, "Something went wrong."),
+      })
+    },
   })
 
   const order = response?.orders?.[0]
@@ -174,6 +199,10 @@ const OrderCakeDetailsWidget = ({ data }: { data: { id: string } }) => {
   const needsFulfill =
     (order.fulfillment_status ?? "not_fulfilled") === "not_fulfilled" ||
     (order.fulfillment_status ?? "").startsWith("partially")
+  const storeLabel =
+    order.store_location?.name ?? order.store_location?.code ?? "selected store"
+  const readyFor =
+    order.fulfillment_method === "delivery" ? "delivery" : "collection"
 
   return (
     <Container className="divide-y p-0">
@@ -214,6 +243,19 @@ const OrderCakeDetailsWidget = ({ data }: { data: { id: string } }) => {
             {order.store_location.name ?? order.store_location.code ?? "Store"}
           </Badge>
         )}
+        {needsFulfill && (
+          <div className="ml-auto">
+            <Button
+              size="small"
+              variant="primary"
+              isLoading={fulfillMutation.isPending}
+              disabled={fulfillMutation.isPending}
+              onClick={() => fulfillMutation.mutate()}
+            >
+              Fulfill items
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="space-y-3 px-6 py-4">
@@ -230,12 +272,10 @@ const OrderCakeDetailsWidget = ({ data }: { data: { id: string } }) => {
         {needsFulfill && (
           <div className="rounded-md bg-ui-tag-blue-bg px-3 py-2">
             <Text size="xsmall" className="text-ui-tag-blue-text">
-              Baker next step: use Allocate / Fulfill on this order when the
-              cake is ready for{" "}
-              {order.fulfillment_method === "delivery"
-                ? "delivery"
-                : "collection"}
-              . Payment is shown above — only fulfill captured orders.
+              Ready for {readyFor}? Click{" "}
+              <strong>Fulfill items</strong> to fulfill immediately from{" "}
+              {storeLabel} using the customer&apos;s shipping method — no
+              location picker required.
             </Text>
           </div>
         )}

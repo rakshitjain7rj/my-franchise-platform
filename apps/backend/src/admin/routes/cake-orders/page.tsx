@@ -25,17 +25,19 @@ import {
   TruckFast,
   UserMini,
 } from "@medusajs/icons"
-import { Badge, Button, Container, Heading, Text } from "@medusajs/ui"
-import { useQuery } from "@tanstack/react-query"
+import { Badge, Button, Container, Heading, Text, toast } from "@medusajs/ui"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 
 import {
   fetchCakeOrders,
+  fulfillCakeOrder,
   formatCollectionDate,
   formatFulfillmentMethod,
   formatMoney,
   fulfillmentBadgeColor,
+  getApiErrorMessage,
   isoDateWithOffset,
   paymentBadgeColor,
   type CakeOrder,
@@ -143,12 +145,25 @@ const CakeItemCard = ({ item }: { item: CakeOrderItem }) => {
   )
 }
 
-const OrderCard = ({ order }: { order: CakeOrder }) => {
+const OrderCard = ({
+  order,
+  onFulfill,
+  isFulfilling,
+}: {
+  order: CakeOrder
+  onFulfill: (orderId: string) => void
+  isFulfilling: boolean
+}) => {
   const needsFulfill =
     (order.fulfillment_status ?? "not_fulfilled") === "not_fulfilled" ||
     (order.fulfillment_status ?? "").startsWith("partially")
   const isPaid =
     order.payment_status === "captured" || order.payment_status === "paid"
+  const storeLabel =
+    order.store_location?.name ??
+    order.store_location?.code ??
+    null
+  const methodLabel = formatFulfillmentMethod(order.fulfillment_method)
 
   return (
   <div className="rounded-xl border border-ui-border-base bg-ui-bg-base shadow-elevation-card-rest overflow-hidden">
@@ -182,13 +197,13 @@ const OrderCard = ({ order }: { order: CakeOrder }) => {
       )}
       {order.fulfillment_method && (
         <Badge size="2xsmall" color="blue">
-          {formatFulfillmentMethod(order.fulfillment_method)}
+          {methodLabel}
         </Badge>
       )}
       {order.store_location && (
         <Badge size="2xsmall" color="purple">
           <BuildingStorefront />
-          {order.store_location.name ?? order.store_location.code ?? "Store"}
+          {storeLabel ?? "Store"}
         </Badge>
       )}
       {(order.collection_date || order.requested_pickup_time) && (
@@ -254,20 +269,35 @@ const OrderCard = ({ order }: { order: CakeOrder }) => {
       )}
     </div>
 
-    {/* Baker action strip — native Medusa fulfill lives on order detail */}
+    {/* Baker action strip — one-click fulfill uses store + shipping from the order */}
     <div className="flex flex-wrap items-center gap-3 border-t border-ui-border-base px-5 py-3 bg-ui-bg-subtle">
       <Text size="xsmall" className="text-ui-fg-subtle flex-1 min-w-[12rem]">
         {needsFulfill
           ? isPaid
-            ? "Paid — open the order to create a fulfillment when the cake is ready for collection/delivery."
-            : "Open the order to review payment, then fulfill when ready."
+            ? `Paid — fulfill immediately from ${storeLabel ?? "the selected store"}${
+                methodLabel ? ` (${methodLabel})` : ""
+              } when the cake is ready.`
+            : "Payment not captured yet — you can still fulfill when ready, or open the order to review payment."
           : "Already fulfilled. Open the order for shipping / history."}
       </Text>
-      <Link to={`/orders/${order.id}`}>
-        <Button size="small" variant={needsFulfill ? "primary" : "secondary"}>
-          {needsFulfill ? "Fulfill order" : "View order"}
-        </Button>
-      </Link>
+      <div className="flex flex-wrap items-center gap-2">
+        <Link to={`/orders/${order.id}`}>
+          <Button size="small" variant="secondary">
+            View order
+          </Button>
+        </Link>
+        {needsFulfill && (
+          <Button
+            size="small"
+            variant="primary"
+            isLoading={isFulfilling}
+            disabled={isFulfilling}
+            onClick={() => onFulfill(order.id)}
+          >
+            Fulfill items
+          </Button>
+        )}
+      </div>
     </div>
   </div>
   )
@@ -288,6 +318,10 @@ const DATE_FILTER_OPTIONS: Array<{ value: DateFilter; label: string }> = [
 const CakeOrdersPage = () => {
   const [dateFilter, setDateFilter] = useState<DateFilter>("all")
   const [search, setSearch] = useState("")
+  const [fulfillingOrderId, setFulfillingOrderId] = useState<string | null>(
+    null
+  )
+  const queryClient = useQueryClient()
 
   const date =
     dateFilter === "today"
@@ -300,6 +334,33 @@ const CakeOrdersPage = () => {
     queryKey: ["cake-orders", dateFilter],
     queryFn: () => fetchCakeOrders({ date, limit: 100 }),
     refetchInterval: 30_000,
+  })
+
+  const fulfillMutation = useMutation({
+    mutationFn: (orderId: string) => fulfillCakeOrder(orderId),
+    onMutate: (orderId) => {
+      setFulfillingOrderId(orderId)
+    },
+    onSuccess: (_data, orderId) => {
+      toast.success("Order fulfilled", {
+        description:
+          "Items fulfilled using the order's store, stock location, and shipping method.",
+      })
+      // Drop any optimistic board cache so badges flip to fulfilled.
+      void queryClient.invalidateQueries({ queryKey: ["cake-orders"] })
+      void queryClient.invalidateQueries({ queryKey: ["cake-order", orderId] })
+    },
+    onError: (err: unknown) => {
+      toast.error("Could not fulfill order", {
+        description: getApiErrorMessage(
+          err,
+          "Something went wrong. Try again or open the order."
+        ),
+      })
+    },
+    onSettled: () => {
+      setFulfillingOrderId(null)
+    },
   })
 
   // Client-side quick filter (order #, customer, email) — presentation only,
@@ -451,7 +512,12 @@ const CakeOrdersPage = () => {
             </div>
             <div className="space-y-4">
               {orders.map((order) => (
-                <OrderCard key={order.id} order={order} />
+                <OrderCard
+                  key={order.id}
+                  order={order}
+                  onFulfill={(orderId) => fulfillMutation.mutate(orderId)}
+                  isFulfilling={fulfillingOrderId === order.id}
+                />
               ))}
             </div>
           </section>
