@@ -7,10 +7,11 @@
  *   1. seed-franchise-data
  *   2. setup-uk-market
  *   3. enable-paypal-on-region (optional)
- *   4. seed-cake-categories
+ *   4. seed-cake-categories          (create category tree)
  *   5. import-all-missing-products
- *   6. backfill-product-cake-details
- *   7. one-off/backfill-inventory-items
+ *   6. seed-cake-categories again    (assign products → categories after import)
+ *   7. backfill-product-cake-details
+ *   8. one-off/backfill-inventory-items
  *
  * Migrations are already applied by docker-entrypoint before this runs.
  *
@@ -77,22 +78,34 @@ export default async function productionCatalogueBootstrap(args: ExecArgs) {
   await runStep(logger, "3. enable-paypal-on-region", enablePaypalOnRegion, args, {
     optional: true,
   })
-  await runStep(logger, "4. seed-cake-categories", seedCakeCategories, args)
+  await runStep(
+    logger,
+    "4. seed-cake-categories (create tree)",
+    seedCakeCategories,
+    args
+  )
   await runStep(
     logger,
     "5. import-all-missing-products (live crawl — may take a long time)",
     importAllMissingProducts,
     args
   )
+  // Import does not attach category_ids. Re-run assignment now that products exist.
   await runStep(
     logger,
-    "6. backfill-product-cake-details",
+    "6. seed-cake-categories (assign products → categories)",
+    seedCakeCategories,
+    args
+  )
+  await runStep(
+    logger,
+    "7. backfill-product-cake-details",
     backfillProductCakeDetails,
     args
   )
   await runStep(
     logger,
-    "7. backfill-inventory-items",
+    "8. backfill-inventory-items",
     backfillInventoryItems,
     args
   )
@@ -100,6 +113,4 @@ export default async function productionCatalogueBootstrap(args: ExecArgs) {
   logger.info("")
   logger.info("╔══════════════════════════════════════════════════════════════╗")
   logger.info("║  Bootstrap COMPLETE                                         ║")
-  logger.info("║  Set RUN_SEED=false in Dokploy and redeploy when ready.     ║")
-  logger.info("╚══════════════════════════════════════════════════════════════╝")
-}
+  logger.info("║  Set RUN_SEED=false in Dokplo
