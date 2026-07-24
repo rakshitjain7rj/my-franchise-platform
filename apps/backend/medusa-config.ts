@@ -62,6 +62,9 @@ const modules: Record<string, any> = {
   inbound_lead: {
     resolve: "./src/modules/inbound_lead",
   },
+  cms: {
+    resolve: "./src/modules/cms",
+  },
 }
 
 // ── Payment providers ────────────────────────────────────────────────────────

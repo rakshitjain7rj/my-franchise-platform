@@ -3,46 +3,94 @@
 import React from "react";
 import Link from "next/link";
 
-type FlavorItem = {
+export type CategoryItem = {
+  id: string;
   name: string;
+  handle: string;
   imageSrc: string;
   href: string;
 };
 
-const flavors: FlavorItem[] = [
+/** Fallback circles when product categories are empty or unavailable. */
+const FALLBACK_CATEGORIES: CategoryItem[] = [
   {
+    id: "fallback-red-velvet",
     name: "Eggless Red Velvet",
+    handle: "red-velvet",
     imageSrc: "/images/flavors/red-velvet.png",
     href: "/cake-catalogue?flavour=red-velvet",
   },
   {
+    id: "fallback-chocolate",
     name: "Eggless Chocolate",
+    handle: "chocolate",
     imageSrc: "/images/flavors/dark-truffle.png",
     href: "/cake-catalogue?flavour=chocolate",
   },
   {
+    id: "fallback-vanilla",
     name: "Eggless Vanilla",
+    handle: "victoria",
     imageSrc: "/images/flavors/madagascar-vanilla.png",
     href: "/cake-catalogue?flavour=victoria",
   },
   {
+    id: "fallback-blueberry",
     name: "Blueberry Silk",
+    handle: "blueberry",
     imageSrc: "/images/flavors/blueberry-silk.png",
     href: "/cake-catalogue?q=blueberry",
   },
   {
+    id: "fallback-summer",
     name: "Summer Harvest",
+    handle: "round-cakes",
     imageSrc: "/images/flavors/summer-harvest.png",
     href: "/cake-catalogue?cats=round-cakes",
   },
   {
+    id: "fallback-butterscotch",
     name: "Gold Butterscotch",
+    handle: "caramel",
     imageSrc: "/images/flavors/gold-butterscotch.png",
     href: "/cake-catalogue?q=caramel",
   },
 ];
 
-export default function CuratedByFlavor() {
+/** Deterministic local placeholders when a category has no metadata image. */
+const PLACEHOLDER_IMAGES = [
+  "/images/flavors/red-velvet.png",
+  "/images/flavors/dark-truffle.png",
+  "/images/flavors/madagascar-vanilla.png",
+  "/images/flavors/blueberry-silk.png",
+  "/images/flavors/summer-harvest.png",
+  "/images/flavors/gold-butterscotch.png",
+];
+
+export function categoryImageFromMetadata(
+  metadata: { image_url?: string | null; thumbnail?: string | null } | null | undefined,
+  index: number
+): string {
+  const fromMeta =
+    (typeof metadata?.image_url === "string" && metadata.image_url.trim()) ||
+    (typeof metadata?.thumbnail === "string" && metadata.thumbnail.trim()) ||
+    "";
+  if (fromMeta) return fromMeta;
+  return PLACEHOLDER_IMAGES[index % PLACEHOLDER_IMAGES.length];
+}
+
+type CuratedByFlavorProps = {
+  categories?: CategoryItem[];
+};
+
+export default function CuratedByFlavor({
+  categories: categoriesProp,
+}: CuratedByFlavorProps) {
+  const categories =
+    categoriesProp && categoriesProp.length > 0
+      ? categoriesProp
+      : FALLBACK_CATEGORIES;
+
   return (
     <section className="space-y-8" aria-label="Curated by Flavor">
       {/* Header */}
@@ -61,12 +109,12 @@ export default function CuratedByFlavor() {
         </Link>
       </div>
 
-      {/* Flavors Grid */}
+      {/* Categories Grid */}
       <div className="grid grid-cols-3 md:grid-cols-6 gap-3 sm:gap-6 md:gap-8 justify-items-center">
-        {flavors.map((flavor, index) => (
+        {categories.map((category) => (
           <Link
-            key={index}
-            href={flavor.href}
+            key={category.id}
+            href={category.href}
             className="group flex flex-col items-center space-y-2 sm:space-y-3 focus:outline-none"
           >
             {/* Circle Image Wrapper */}
@@ -85,9 +133,9 @@ export default function CuratedByFlavor() {
               "
             >
               <img
-                alt={flavor.name}
+                alt={category.name}
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                src={flavor.imageSrc}
+                src={category.imageSrc}
               />
             </div>
 
@@ -101,7 +149,7 @@ export default function CuratedByFlavor() {
                 leading-tight
               "
             >
-              {flavor.name}
+              {category.name}
             </span>
           </Link>
         ))}

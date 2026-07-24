@@ -91,6 +91,8 @@ const FRANCHISE_EXEMPT_STORE_PATHS = [
   "/store/active-cart",
   // Contact / franchise application forms — cold visitors have no cookie yet.
   "/store/leads",
+  // Home hero falls back to global banners when no franchise cookie is set.
+  "/store/hero-banners",
 ]
 
 const rejectMissingStoreFranchise = (
@@ -411,6 +413,14 @@ export default defineMiddlewares({
     // ── Product reviews (moderation queue) ────────────────────────────────────
     { matcher: "/admin/product-reviews", methods: ["GET"], middlewares: [userAuth] },
     { matcher: "/admin/product-reviews/:id", methods: ["POST"], middlewares: [userAuth] },
+
+    // ── Hero banners (CMS carousel slides) ────────────────────────────────────
+    { matcher: "/admin/hero-banners", methods: ["GET", "POST"], middlewares: [userAuth] },
+    {
+      matcher: "/admin/hero-banners/:id",
+      methods: ["GET", "POST", "DELETE"],
+      middlewares: [userAuth],
+    },
 
     // ── Order scoping ─────────────────────────────────────────────────────────
     {

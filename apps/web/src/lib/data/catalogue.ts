@@ -96,6 +96,12 @@ export interface CatalogueCategory {
   id: string;
   name: string;
   handle: string;
+  /** Optional category image from Medusa category metadata. */
+  metadata?: {
+    image_url?: string | null;
+    thumbnail?: string | null;
+    [key: string]: unknown;
+  } | null;
 }
 
 export interface CatalogueVariantOption {
@@ -359,8 +365,9 @@ const getCachedCategories = unstable_cache(
     }
 
     // Only active, non-internal categories (hides Medusa demo leftovers).
+    // metadata is requested for home-page category circle images.
     const response = await fetch(
-      `${MEDUSA_BACKEND_URL}/store/product-categories?limit=100&fields=id,name,handle,rank&include_descendants_tree=false`,
+      `${MEDUSA_BACKEND_URL}/store/product-categories?limit=100&fields=id,name,handle,rank,metadata&include_descendants_tree=false`,
       { headers, cache: "no-store" }
     );
 
@@ -372,7 +379,7 @@ const getCachedCategories = unstable_cache(
     // Prefer stable sort by name so the filter dropdown is predictable
     return [...cats].sort((a, b) => a.name.localeCompare(b.name));
   },
-  ["catalogue-categories-cache-v2"],
+  ["catalogue-categories-cache-v3"],
   {
     revalidate: 60,
     tags: ["catalogue-meta"],
@@ -479,7 +486,7 @@ export async function fetchCatalogueTags(): Promise<CatalogueTag[]> {
 
 /**
  * Fetches all product categories available for this franchise.
- * Used for the category filter panel.
+ * Used for the category filter panel and home-page category circles.
  */
 export async function fetchCatalogueCategories(): Promise<CatalogueCategory[]> {
   try {
@@ -491,6 +498,78 @@ export async function fetchCatalogueCategories(): Promise<CatalogueCategory[]> {
     return [];
   }
 }
+
+// ---------------------------------------------------------------------------
+// Hero banners (CMS)
+// ---------------------------------------------------------------------------
+
+export interface HeroBanner {
+  id: string;
+  tag: string;
+  title: string;
+  title_emphasis: string | null;
+  description: string | null;
+  primary_cta_label: string;
+  primary_cta_href: string;
+  secondary_cta_label: string | null;
+  secondary_cta_href: string | null;
+  image_url: string;
+  image_alt: string | null;
+  display_order: number;
+  franchise_id: string | null;
+}
+
+/**
+ * Fetches active hero carousel slides for the current franchise.
+ * Franchise-specific banners win; otherwise global defaults are returned.
+ * Empty array when the CMS has no active banners (UI falls back to defaults).
+ */
+export async function fetchHeroBanners(): Promise<HeroBanner[]> {
+  try {
+    const headers = await getMedusaHeaders();
+    const franchiseId = headers["x-franchise-id"] ?? "";
+    return await getCachedHeroBanners(franchiseId);
+  } catch (err) {
+    console.error("[catalogue] Failed to fetch hero banners:", err);
+    return [];
+  }
+}
+
+const getCachedHeroBanners = unstable_cache(
+  async (franchiseId: string): Promise<HeroBanner[]> => {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "x-publishable-api-key":
+        process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ??
+        process.env.NEXT_PUBLIC_MEDUSA_API_KEY ??
+        "",
+    };
+    if (franchiseId) {
+      headers["x-franchise-id"] = franchiseId;
+    }
+
+    const response = await fetch(`${MEDUSA_BACKEND_URL}/store/hero-banners`, {
+      headers,
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      console.error(
+        `[catalogue] Medusa /store/hero-banners returned ${response.status}`
+      );
+      return [];
+    }
+
+    const json: { hero_banners?: HeroBanner[] } = await response.json();
+    return json.hero_banners ?? [];
+  },
+  ["hero-banners-cache-v1"],
+  {
+    revalidate: 60,
+    tags: ["hero-banners"],
+  }
+);
 
 // ---------------------------------------------------------------------------
 // Utility — price formatting

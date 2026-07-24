@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
-type SlideContent = {
+export type SlideContent = {
   tag: string;
   title: string;
   titleEmphasis: string;
@@ -14,15 +14,16 @@ type SlideContent = {
   imageAlt: string;
 };
 
-const slides: SlideContent[] = [
+/** Built-in slides used when CMS has no active hero banners yet. */
+export const DEFAULT_HERO_SLIDES: SlideContent[] = [
   {
     tag: "Seasonal Special",
     title: "Summer",
     titleEmphasis: "Harvest",
     description:
       "Wild forest berries meets whipped mascarpone cream in our lightest, most refreshing creation yet.",
-    primaryCta: { label: "Pre-Order Now", href: "#" },
-    secondaryCta: { label: "Seasonal Menu", href: "#" },
+    primaryCta: { label: "Pre-Order Now", href: "/cake-catalogue" },
+    secondaryCta: { label: "Seasonal Menu", href: "/cake-catalogue" },
     imageSrc: "/images/cakes/summer-harvest.png",
     imageAlt: "Summer Harvest Berry Cake",
   },
@@ -32,22 +33,36 @@ const slides: SlideContent[] = [
     titleEmphasis: "Dessert Tables",
     description:
       "Turn moments into memories with our exquisite dessert tables and dessert spreads for any occasion.",
-    primaryCta: { label: "View Portfolio", href: "#" },
+    primaryCta: { label: "View Portfolio", href: "/cake-catalogue" },
     imageSrc: "/images/cakes/dessert-table.png",
     imageAlt: "Curated Dessert Tables",
   },
 ];
 
-export default function HeroCarousel() {
+type HeroCarouselProps = {
+  /** Server-fetched slides; falls back to DEFAULT_HERO_SLIDES when empty. */
+  slides?: SlideContent[];
+};
+
+export default function HeroCarousel({ slides: slidesProp }: HeroCarouselProps) {
+  const slides =
+    slidesProp && slidesProp.length > 0 ? slidesProp : DEFAULT_HERO_SLIDES;
   const [activeIdx, setActiveIdx] = useState(0);
 
   useEffect(() => {
+    if (slides.length <= 1) return;
+
     const timer = setInterval(() => {
       setActiveIdx((prev) => (prev + 1) % slides.length);
-    }, 6000); // cycle every 6s
+    }, 6000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [slides.length]);
+
+  // Clamp active index if slide count shrinks after a fetch
+  useEffect(() => {
+    setActiveIdx((prev) => (prev >= slides.length ? 0 : prev));
+  }, [slides.length]);
 
   return (
     <section
@@ -60,7 +75,7 @@ export default function HeroCarousel() {
 
         return (
           <div
-            key={idx}
+            key={`${slide.imageSrc}-${idx}`}
             className={cn(
               "absolute inset-0 w-full h-full flex flex-col md:flex-row items-end md:items-center transition-all duration-1000 ease-in-out",
               isActive
@@ -79,15 +94,19 @@ export default function HeroCarousel() {
                 {/* Title */}
                 <h1 className="font-headline text-2xl sm:text-3xl md:text-5xl font-extrabold text-deep-plum leading-[1.1]">
                   {slide.title} <br />
-                  <span className="text-vibrant-magenta font-light italic font-serif text-xl sm:text-2xl md:text-4xl block mt-1">
-                    {slide.titleEmphasis}
-                  </span>
+                  {slide.titleEmphasis ? (
+                    <span className="text-vibrant-magenta font-light italic font-serif text-xl sm:text-2xl md:text-4xl block mt-1">
+                      {slide.titleEmphasis}
+                    </span>
+                  ) : null}
                 </h1>
 
                 {/* Description */}
-                <p className="font-body text-on-surface-variant text-xs sm:text-sm md:text-base leading-relaxed hidden sm:block">
-                  {slide.description}
-                </p>
+                {slide.description ? (
+                  <p className="font-body text-on-surface-variant text-xs sm:text-sm md:text-base leading-relaxed hidden sm:block">
+                    {slide.description}
+                  </p>
+                ) : null}
 
                 {/* Actions */}
                 <div className="flex items-center gap-3 sm:gap-4 pt-1 sm:pt-2">
@@ -129,19 +148,23 @@ export default function HeroCarousel() {
       })}
 
       {/* Pagination indicators */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 md:left-12 md:translate-x-0 z-30 flex gap-2">
-        {slides.map((_, idx) => (
-          <button
-            key={idx}
-            onClick={() => setActiveIdx(idx)}
-            aria-label={`Go to slide ${idx + 1}`}
-            className={cn(
-              "h-1.5 rounded-full transition-all duration-300",
-              idx === activeIdx ? "w-8 bg-vibrant-magenta" : "w-2 bg-deep-plum/30"
-            )}
-          />
-        ))}
-      </div>
+      {slides.length > 1 ? (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 md:left-12 md:translate-x-0 z-30 flex gap-2">
+          {slides.map((_, idx) => (
+            <button
+              key={idx}
+              onClick={() => setActiveIdx(idx)}
+              aria-label={`Go to slide ${idx + 1}`}
+              className={cn(
+                "h-1.5 rounded-full transition-all duration-300",
+                idx === activeIdx
+                  ? "w-8 bg-vibrant-magenta"
+                  : "w-2 bg-deep-plum/30"
+              )}
+            />
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }
