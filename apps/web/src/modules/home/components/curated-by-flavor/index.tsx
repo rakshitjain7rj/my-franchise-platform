@@ -2,14 +2,9 @@
 
 import React from "react";
 import Link from "next/link";
+import type { CategoryItem } from "@/modules/home/lib/category-display";
 
-export type CategoryItem = {
-  id: string;
-  name: string;
-  handle: string;
-  imageSrc: string;
-  href: string;
-};
+export type { CategoryItem };
 
 /** Fallback circles when product categories are empty or unavailable. */
 const FALLBACK_CATEGORIES: CategoryItem[] = [
@@ -56,28 +51,6 @@ const FALLBACK_CATEGORIES: CategoryItem[] = [
     href: "/cake-catalogue?q=caramel",
   },
 ];
-
-/** Deterministic local placeholders when a category has no metadata image. */
-const PLACEHOLDER_IMAGES = [
-  "/images/flavors/red-velvet.png",
-  "/images/flavors/dark-truffle.png",
-  "/images/flavors/madagascar-vanilla.png",
-  "/images/flavors/blueberry-silk.png",
-  "/images/flavors/summer-harvest.png",
-  "/images/flavors/gold-butterscotch.png",
-];
-
-export function categoryImageFromMetadata(
-  metadata: { image_url?: string | null; thumbnail?: string | null } | null | undefined,
-  index: number
-): string {
-  const fromMeta =
-    (typeof metadata?.image_url === "string" && metadata.image_url.trim()) ||
-    (typeof metadata?.thumbnail === "string" && metadata.thumbnail.trim()) ||
-    "";
-  if (fromMeta) return fromMeta;
-  return PLACEHOLDER_IMAGES[index % PLACEHOLDER_IMAGES.length];
-}
 
 type CuratedByFlavorProps = {
   categories?: CategoryItem[];

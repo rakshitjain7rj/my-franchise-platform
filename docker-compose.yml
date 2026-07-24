@@ -68,6 +68,9 @@ services:
     ports:
       # Bind all interfaces so phones on the same Wi‑Fi can reach the API/admin.
       - "0.0.0.0:9000:9000"
+    volumes:
+      # Persist local file-provider uploads (hero banners, product images, etc.)
+      - backend-static:/app/static
     depends_on:
       db:
         condition: service_healthy
@@ -116,3 +119,4 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  backend-static:

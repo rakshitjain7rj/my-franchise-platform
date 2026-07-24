@@ -141,6 +141,30 @@ modules[Modules.FULFILLMENT] = {
   },
 }
 
+// Local file provider — public uploads land in ./static and are served at
+// {FILE_BACKEND_URL}/… (default http://localhost:9000/static). Docker must
+// ensure /app/static is writable by the medusa user (see Dockerfile).
+const FILE_BACKEND_URL =
+  process.env.FILE_BACKEND_URL ||
+  process.env.MEDUSA_FILE_URL ||
+  "http://localhost:9000/static"
+
+modules[Modules.FILE] = {
+  resolve: "@medusajs/medusa/file",
+  options: {
+    providers: [
+      {
+        resolve: "@medusajs/medusa/file-local",
+        id: "local",
+        options: {
+          upload_dir: process.env.UPLOAD_DIR || "static",
+          backend_url: FILE_BACKEND_URL,
+        },
+      },
+    ],
+  },
+}
+
 // When REDIS_URL is set (Docker / production) wire the cache, event bus and
 // workflow engine to Redis. Otherwise Medusa falls back to its in-memory
 // defaults so local dev works without a running Redis instance.

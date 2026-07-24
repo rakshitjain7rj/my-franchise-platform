@@ -31,10 +31,11 @@ import Footer from "./components/Footer";
 import HeroCarousel, {
   type SlideContent,
 } from "@/modules/home/components/hero-carousel";
-import CuratedByFlavor, {
+import CuratedByFlavor from "@/modules/home/components/curated-by-flavor";
+import {
   categoryImageFromMetadata,
   type CategoryItem,
-} from "@/modules/home/components/curated-by-flavor";
+} from "@/modules/home/lib/category-display";
 import SeasonalCollection from "@/modules/home/components/seasonal-collection";
 import ConnoisseurClub from "@/modules/home/components/connoisseur-club";
 import FooterPromoCards from "@/modules/home/components/footer-promo-cards";

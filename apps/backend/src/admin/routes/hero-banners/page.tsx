@@ -28,9 +28,12 @@ import {
   toast,
 } from "@medusajs/ui"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { sdk, useFranchiseFetch } from "../../lib/sdk"
-import { useFranchise } from "../../providers/FranchiseContext"
+import {
+  FranchiseProvider,
+  useFranchise,
+} from "../../providers/FranchiseContext"
 import {
   CardListSkeleton,
   EmptyState,
@@ -39,6 +42,7 @@ import {
   FormField,
   PageHeader,
   SearchInput,
+  SectionHeading,
   StatusDot,
 } from "../../components/ui"
 
@@ -84,17 +88,17 @@ type BannerForm = {
   image_alt: string
   display_order: number
   is_active: boolean
-  /** Empty string = global (super admin only when creating). */
   franchise_scope: "franchise" | "global"
 }
 
 type ScopeFilter = "all" | "active" | "inactive"
 
 const EMPTY_FORM: BannerForm = {
-  tag: "",
-  title: "",
-  title_emphasis: "",
-  description: "",
+  tag: "Seasonal Special",
+  title: "Summer",
+  title_emphasis: "Harvest",
+  description:
+    "Wild forest berries meets whipped mascarpone cream in our lightest creation yet.",
   primary_cta_label: "Shop Now",
   primary_cta_href: "/cake-catalogue",
   secondary_cta_label: "",
@@ -134,7 +138,7 @@ const bannerToForm = (b: HeroBanner): BannerForm => ({
 
 const formToPayload = (
   form: BannerForm,
-  opts: { isCreate: boolean; isSuperAdmin: boolean; activeFranchiseId: string | null }
+  opts: { isSuperAdmin: boolean; activeFranchiseId: string | null }
 ) => {
   const payload: Record<string, unknown> = {
     tag: form.tag.trim(),
@@ -162,11 +166,61 @@ const formToPayload = (
   return payload
 }
 
+/** Live mini-preview of the storefront hero card. */
+const BannerPreview = ({ form }: { form: BannerForm }) => (
+  <div className="rounded-xl overflow-hidden border border-ui-border-base bg-ui-bg-subtle shadow-sm">
+    <div className="relative h-44 sm:h-52">
+      {form.image_url ? (
+        <img
+          src={form.image_url}
+          alt={form.image_alt || form.title || "Banner preview"}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      ) : (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-ui-bg-base to-ui-bg-subtle text-ui-fg-muted">
+          <Photo className="text-ui-fg-disabled" />
+          <Text size="xsmall">Image preview</Text>
+        </div>
+      )}
+      <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/25 to-transparent" />
+      <div className="absolute inset-0 flex items-center p-5">
+        <div className="max-w-[70%] space-y-2 text-white">
+          {form.tag ? (
+            <span className="inline-block rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider backdrop-blur-sm">
+              {form.tag}
+            </span>
+          ) : null}
+          <div>
+            <p className="text-lg font-bold leading-tight">
+              {form.title || "Title"}
+            </p>
+            {form.title_emphasis ? (
+              <p className="text-base italic font-light opacity-95">
+                {form.title_emphasis}
+              </p>
+            ) : null}
+          </div>
+          {form.description ? (
+            <p className="text-[11px] leading-snug opacity-90 line-clamp-2">
+              {form.description}
+            </p>
+          ) : null}
+          {form.primary_cta_label ? (
+            <span className="inline-flex rounded-full bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-ui-fg-base">
+              {form.primary_cta_label}
+            </span>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  </div>
+)
+
 // ---------------------------------------------------------------------------
-// Page
+// Page (must run inside FranchiseProvider — see export below)
 // ---------------------------------------------------------------------------
 
-const HeroBannersPage = () => {
+const HeroBannersInner = () => {
   const queryClient = useQueryClient()
   const franchiseFetch = useFranchiseFetch()
   const { activeFranchiseId } = useFranchise()
@@ -177,6 +231,7 @@ const HeroBannersPage = () => {
   const [editing, setEditing] = useState<HeroBanner | null>(null)
   const [form, setForm] = useState<BannerForm>(EMPTY_FORM)
   const [uploading, setUploading] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { data: meData } = useQuery({
@@ -213,6 +268,16 @@ const HeroBannersPage = () => {
     return rows
   }, [data?.hero_banners, scope, search])
 
+  const sortedAll = useMemo(
+    () =>
+      [...(data?.hero_banners ?? [])].sort(
+        (a, b) =>
+          a.display_order - b.display_order ||
+          a.created_at.localeCompare(b.created_at)
+      ),
+    [data?.hero_banners]
+  )
+
   const openCreate = () => {
     setEditing(null)
     setForm({
@@ -236,7 +301,6 @@ const HeroBannersPage = () => {
   const saveMutation = useMutation({
     mutationFn: async () => {
       const payload = formToPayload(form, {
-        isCreate: !editing,
         isSuperAdmin: Boolean(isSuperAdmin),
         activeFranchiseId,
       })
@@ -286,7 +350,13 @@ const HeroBannersPage = () => {
   })
 
   const reorder = useMutation({
-    mutationFn: async ({ id, display_order }: { id: string; display_order: number }) =>
+    mutationFn: async ({
+      id,
+      display_order,
+    }: {
+      id: string
+      display_order: number
+    }) =>
       franchiseFetch(`/admin/hero-banners/${id}`, {
         method: "POST",
         body: { display_order },
@@ -311,14 +381,6 @@ const HeroBannersPage = () => {
     },
   })
 
-  const sortedAll = useMemo(
-    () =>
-      [...(data?.hero_banners ?? [])].sort(
-        (a, b) => a.display_order - b.display_order || a.created_at.localeCompare(b.created_at)
-      ),
-    [data?.hero_banners]
-  )
-
   const moveBanner = (banner: HeroBanner, direction: "up" | "down") => {
     const idx = sortedAll.findIndex((b) => b.id === banner.id)
     if (idx < 0) return
@@ -326,84 +388,106 @@ const HeroBannersPage = () => {
     if (swapIdx < 0 || swapIdx >= sortedAll.length) return
 
     const other = sortedAll[swapIdx]
-    // Swap display_order values (stable when orders collide: nudge by ±1)
     const aOrder = banner.display_order
     const bOrder = other.display_order
-    const nextA = aOrder === bOrder ? aOrder + (direction === "up" ? -1 : 1) : bOrder
-    const nextB = aOrder === bOrder ? bOrder + (direction === "up" ? 1 : -1) : aOrder
-    void reorder.mutateAsync({ id: banner.id, display_order: Math.max(0, nextA) })
-    void reorder.mutateAsync({ id: other.id, display_order: Math.max(0, nextB) })
+    const nextA =
+      aOrder === bOrder ? aOrder + (direction === "up" ? -1 : 1) : bOrder
+    const nextB =
+      aOrder === bOrder ? bOrder + (direction === "up" ? 1 : -1) : aOrder
+    void reorder.mutateAsync({
+      id: banner.id,
+      display_order: Math.max(0, nextA),
+    })
+    void reorder.mutateAsync({
+      id: other.id,
+      display_order: Math.max(0, nextB),
+    })
   }
 
-  const uploadImage = async (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please choose an image file (JPEG, PNG, WebP, or GIF)")
-      return
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image must be 5 MB or smaller")
-      return
-    }
-
-    setUploading(true)
-    try {
-      const formData = new FormData()
-      formData.append("files", file)
-
-      // Use raw fetch so FormData sets the multipart boundary correctly.
-      // Session cookie auth is same-origin for Medusa Admin.
-      const base =
-        (import.meta.env.VITE_BACKEND_URL as string | undefined)?.replace(/\/$/, "") ||
-        ""
-      const res = await fetch(`${base}/admin/uploads`, {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      })
-
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}))
-        throw new Error(
-          (errBody as { message?: string })?.message ||
-            `Upload failed (${res.status})`
-        )
+  const uploadImage = useCallback(
+    async (file: File) => {
+      if (!file.type.startsWith("image/")) {
+        toast.error("Please choose an image file (JPEG, PNG, WebP, or GIF)")
+        return
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Image must be 5 MB or smaller")
+        return
       }
 
-      const json = (await res.json()) as {
-        files?: Array<{ url?: string }>
-      }
-      const url = json.files?.[0]?.url
-      if (!url) throw new Error("Upload succeeded but no URL was returned")
+      setUploading(true)
+      try {
+        const formData = new FormData()
+        formData.append("files", file)
 
-      setField("image_url", url)
-      if (!form.image_alt) {
-        setField("image_alt", file.name.replace(/\.[^.]+$/, "").replace(/[_-]/g, " "))
+        const base =
+          (
+            import.meta.env.VITE_BACKEND_URL as string | undefined
+          )?.replace(/\/$/, "") || ""
+        const res = await fetch(`${base}/admin/uploads`, {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+        })
+
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}))
+          throw new Error(
+            (errBody as { message?: string })?.message ||
+              `Upload failed (${res.status})`
+          )
+        }
+
+        const json = (await res.json()) as {
+          files?: Array<{ url?: string }>
+        }
+        const url = json.files?.[0]?.url
+        if (!url) throw new Error("Upload succeeded but no URL was returned")
+
+        setForm((prev) => ({
+          ...prev,
+          image_url: url,
+          image_alt:
+            prev.image_alt ||
+            file.name.replace(/\.[^.]+$/, "").replace(/[_-]/g, " "),
+        }))
+        toast.success("Image uploaded")
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Upload failed")
+      } finally {
+        setUploading(false)
+        if (fileInputRef.current) fileInputRef.current.value = ""
       }
-      toast.success("Image uploaded")
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Upload failed")
-    } finally {
-      setUploading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ""
-    }
+    },
+    []
+  )
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) void uploadImage(file)
   }
 
-  // Reset form when modal closes to avoid stale state flashes
   useEffect(() => {
-    if (!modalOpen) {
-      setEditing(null)
-    }
+    if (!modalOpen) setEditing(null)
   }, [modalOpen])
 
   const isSearching = search.trim().length > 0
   const canMutateGlobal = Boolean(isSuperAdmin)
+  const formValid =
+    !!form.tag.trim() &&
+    !!form.title.trim() &&
+    !!form.image_url.trim() &&
+    !!form.primary_cta_label.trim() &&
+    !!form.primary_cta_href.trim()
 
   return (
     <div className="flex flex-col gap-y-4">
       <Container className="divide-y p-0">
         <PageHeader
           title="Hero Banners"
-          description="Manage home-page carousel slides. Franchise-specific banners override global defaults on the storefront."
+          description="Home-page carousel slides. Franchise banners override global defaults on the storefront."
           actions={
             <>
               <Badge size="2xsmall" color="grey">
@@ -474,7 +558,7 @@ const HeroBannersPage = () => {
             description={
               isSearching
                 ? `Nothing found for “${search.trim()}”.`
-                : "Create a slide with custom copy, CTAs, and an image. Storefront falls back to built-in defaults until you add at least one active banner."
+                : "Create a slide with copy, CTAs, and an image. The storefront uses built-in defaults until at least one active banner exists."
             }
             primaryAction={
               !isSearching
@@ -495,23 +579,30 @@ const HeroBannersPage = () => {
             const canEdit = !isGlobal || canMutateGlobal
             const fullIdx = sortedAll.findIndex((b) => b.id === banner.id)
             const canMoveUp = fullIdx > 0
-            const canMoveDown = fullIdx >= 0 && fullIdx < sortedAll.length - 1
+            const canMoveDown =
+              fullIdx >= 0 && fullIdx < sortedAll.length - 1
 
             return (
               <Container key={banner.id} className="p-0 overflow-hidden">
-                <div className="flex flex-col sm:flex-row gap-0">
-                  {/* Thumbnail */}
-                  <div className="sm:w-48 h-36 sm:h-auto shrink-0 bg-ui-bg-subtle relative">
+                <div className="flex flex-col sm:flex-row">
+                  <div className="sm:w-56 h-40 sm:h-auto shrink-0 bg-ui-bg-subtle relative">
                     <img
                       src={banner.image_url}
                       alt={banner.image_alt || banner.title}
-                      className="w-full h-full object-cover min-h-[9rem]"
+                      className="w-full h-full object-cover min-h-[10rem]"
                     />
+                    {!banner.is_active && (
+                      <div className="absolute inset-0 bg-ui-bg-base/50 flex items-center justify-center">
+                        <Badge size="2xsmall" color="grey">
+                          Inactive
+                        </Badge>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex-1 p-4 flex flex-col gap-3 min-w-0">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 space-y-1">
+                      <div className="min-w-0 space-y-1.5">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge size="2xsmall" color="purple">
                             {banner.tag}
@@ -525,7 +616,9 @@ const HeroBannersPage = () => {
                           <span className="inline-flex items-center gap-1.5">
                             <StatusDot
                               tone={banner.is_active ? "green" : "grey"}
-                              ariaLabel={banner.is_active ? "Active" : "Inactive"}
+                              ariaLabel={
+                                banner.is_active ? "Active" : "Inactive"
+                              }
                             />
                             <Text size="xsmall" className="text-ui-fg-subtle">
                               {banner.is_active ? "Active" : "Inactive"}
@@ -553,33 +646,31 @@ const HeroBannersPage = () => {
                           </Text>
                         ) : null}
                         <Text size="xsmall" className="text-ui-fg-muted">
-                          CTA: {banner.primary_cta_label} → {banner.primary_cta_href}
+                          {banner.primary_cta_label} → {banner.primary_cta_href}
                         </Text>
                       </div>
 
                       {canEdit && (
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Switch
-                            checked={banner.is_active}
-                            onCheckedChange={(checked) =>
-                              toggleActive.mutate({
-                                id: banner.id,
-                                is_active: checked,
-                              })
-                            }
-                            disabled={toggleActive.isPending}
-                            aria-label={
-                              banner.is_active
-                                ? "Deactivate banner"
-                                : "Activate banner"
-                            }
-                          />
-                        </div>
+                        <Switch
+                          checked={banner.is_active}
+                          onCheckedChange={(checked) =>
+                            toggleActive.mutate({
+                              id: banner.id,
+                              is_active: checked,
+                            })
+                          }
+                          disabled={toggleActive.isPending}
+                          aria-label={
+                            banner.is_active
+                              ? "Deactivate banner"
+                              : "Activate banner"
+                          }
+                        />
                       )}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-ui-border-base">
-                      {canEdit && (
+                      {canEdit ? (
                         <>
                           <Button
                             size="small"
@@ -626,8 +717,7 @@ const HeroBannersPage = () => {
                             Delete
                           </Button>
                         </>
-                      )}
-                      {!canEdit && (
+                      ) : (
                         <Text size="xsmall" className="text-ui-fg-muted">
                           Global banner — super admin only
                         </Text>
@@ -649,207 +739,318 @@ const HeroBannersPage = () => {
               e.preventDefault()
               saveMutation.mutate()
             }}
+            className="flex h-full flex-col overflow-hidden"
           >
             <FocusModal.Header>
-              <FocusModal.Title asChild>
-                <Heading level="h2">
-                  {editing ? "Edit hero banner" : "Create hero banner"}
-                </Heading>
-              </FocusModal.Title>
+              <div className="flex flex-col gap-0.5">
+                <FocusModal.Title asChild>
+                  <Heading level="h2">
+                    {editing ? "Edit hero banner" : "Create hero banner"}
+                  </Heading>
+                </FocusModal.Title>
+                <FocusModal.Description className="text-ui-fg-subtle text-sm">
+                  Copy, CTAs, and image for one carousel slide on the home page.
+                </FocusModal.Description>
+              </div>
             </FocusModal.Header>
 
-            <FocusModal.Body className="flex flex-col gap-5 max-w-xl mx-auto py-8 px-1 max-h-[70vh] overflow-y-auto">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField id="hb-tag" label="Tag / Badge" required>
-                  <Input
-                    id="hb-tag"
-                    value={form.tag}
-                    onChange={(e) => setField("tag", e.target.value)}
-                    placeholder="Seasonal Special"
-                    autoComplete="off"
-                  />
-                </FormField>
-                <FormField id="hb-order" label="Display order" helper="Lower numbers appear first">
-                  <Input
-                    id="hb-order"
-                    type="number"
-                    min={0}
-                    value={form.display_order}
-                    onChange={(e) =>
-                      setField("display_order", parseInt(e.target.value, 10) || 0)
-                    }
-                  />
-                </FormField>
-              </div>
+            <FocusModal.Body className="flex-1 overflow-y-auto px-6 py-6">
+              <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[1fr_320px]">
+                {/* Form column */}
+                <div className="flex flex-col gap-8 min-w-0">
+                  <section className="space-y-4">
+                    <SectionHeading
+                      title="Content"
+                      description="Badge, headline, and supporting copy."
+                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <FormField id="hb-tag" label="Tag / Badge" required>
+                        <Input
+                          id="hb-tag"
+                          value={form.tag}
+                          onChange={(e) => setField("tag", e.target.value)}
+                          placeholder="Seasonal Special"
+                          autoComplete="off"
+                        />
+                      </FormField>
+                      <FormField
+                        id="hb-order"
+                        label="Display order"
+                        helper="Lower numbers appear first"
+                      >
+                        <Input
+                          id="hb-order"
+                          type="number"
+                          min={0}
+                          value={form.display_order}
+                          onChange={(e) =>
+                            setField(
+                              "display_order",
+                              parseInt(e.target.value, 10) || 0
+                            )
+                          }
+                        />
+                      </FormField>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <FormField id="hb-title" label="Title" required>
+                        <Input
+                          id="hb-title"
+                          value={form.title}
+                          onChange={(e) => setField("title", e.target.value)}
+                          placeholder="Summer"
+                          autoComplete="off"
+                        />
+                      </FormField>
+                      <FormField
+                        id="hb-emphasis"
+                        label="Title emphasis"
+                        helper="Optional italic second line"
+                      >
+                        <Input
+                          id="hb-emphasis"
+                          value={form.title_emphasis}
+                          onChange={(e) =>
+                            setField("title_emphasis", e.target.value)
+                          }
+                          placeholder="Harvest"
+                          autoComplete="off"
+                        />
+                      </FormField>
+                    </div>
+                    <FormField id="hb-desc" label="Description">
+                      <Textarea
+                        id="hb-desc"
+                        value={form.description}
+                        onChange={(e) =>
+                          setField("description", e.target.value)
+                        }
+                        placeholder="Short supporting copy for the slide…"
+                        rows={3}
+                      />
+                    </FormField>
+                  </section>
 
-              <FormField id="hb-title" label="Title" required>
-                <Input
-                  id="hb-title"
-                  value={form.title}
-                  onChange={(e) => setField("title", e.target.value)}
-                  placeholder="Summer"
-                  autoComplete="off"
-                />
-              </FormField>
+                  <section className="space-y-4">
+                    <SectionHeading
+                      title="Call to action"
+                      description="Buttons on the slide."
+                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <FormField
+                        id="hb-cta-label"
+                        label="Primary CTA label"
+                        required
+                      >
+                        <Input
+                          id="hb-cta-label"
+                          value={form.primary_cta_label}
+                          onChange={(e) =>
+                            setField("primary_cta_label", e.target.value)
+                          }
+                          placeholder="Pre-Order Now"
+                        />
+                      </FormField>
+                      <FormField
+                        id="hb-cta-href"
+                        label="Primary CTA link"
+                        required
+                      >
+                        <Input
+                          id="hb-cta-href"
+                          value={form.primary_cta_href}
+                          onChange={(e) =>
+                            setField("primary_cta_href", e.target.value)
+                          }
+                          placeholder="/cake-catalogue"
+                        />
+                      </FormField>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <FormField
+                        id="hb-cta2-label"
+                        label="Secondary CTA label"
+                      >
+                        <Input
+                          id="hb-cta2-label"
+                          value={form.secondary_cta_label}
+                          onChange={(e) =>
+                            setField("secondary_cta_label", e.target.value)
+                          }
+                          placeholder="Seasonal Menu"
+                        />
+                      </FormField>
+                      <FormField id="hb-cta2-href" label="Secondary CTA link">
+                        <Input
+                          id="hb-cta2-href"
+                          value={form.secondary_cta_href}
+                          onChange={(e) =>
+                            setField("secondary_cta_href", e.target.value)
+                          }
+                          placeholder="/cake-catalogue"
+                        />
+                      </FormField>
+                    </div>
+                  </section>
 
-              <FormField
-                id="hb-emphasis"
-                label="Title emphasis"
-                helper="Optional italic second line"
-              >
-                <Input
-                  id="hb-emphasis"
-                  value={form.title_emphasis}
-                  onChange={(e) => setField("title_emphasis", e.target.value)}
-                  placeholder="Harvest"
-                  autoComplete="off"
-                />
-              </FormField>
+                  <section className="space-y-4">
+                    <SectionHeading
+                      title="Image"
+                      description="Wide landscape works best (about 16:9)."
+                    />
 
-              <FormField id="hb-desc" label="Description">
-                <Textarea
-                  id="hb-desc"
-                  value={form.description}
-                  onChange={(e) => setField("description", e.target.value)}
-                  placeholder="Short supporting copy for the slide…"
-                  rows={3}
-                />
-              </FormField>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField id="hb-cta-label" label="Primary CTA label" required>
-                  <Input
-                    id="hb-cta-label"
-                    value={form.primary_cta_label}
-                    onChange={(e) => setField("primary_cta_label", e.target.value)}
-                    placeholder="Pre-Order Now"
-                  />
-                </FormField>
-                <FormField id="hb-cta-href" label="Primary CTA link" required>
-                  <Input
-                    id="hb-cta-href"
-                    value={form.primary_cta_href}
-                    onChange={(e) => setField("primary_cta_href", e.target.value)}
-                    placeholder="/cake-catalogue"
-                  />
-                </FormField>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField id="hb-cta2-label" label="Secondary CTA label">
-                  <Input
-                    id="hb-cta2-label"
-                    value={form.secondary_cta_label}
-                    onChange={(e) =>
-                      setField("secondary_cta_label", e.target.value)
-                    }
-                    placeholder="Seasonal Menu"
-                  />
-                </FormField>
-                <FormField id="hb-cta2-href" label="Secondary CTA link">
-                  <Input
-                    id="hb-cta2-href"
-                    value={form.secondary_cta_href}
-                    onChange={(e) =>
-                      setField("secondary_cta_href", e.target.value)
-                    }
-                    placeholder="/cake-catalogue"
-                  />
-                </FormField>
-              </div>
-
-              <FormField
-                id="hb-image"
-                label="Image"
-                required
-                helper="Upload an image or paste a public URL"
-              >
-                <div className="flex flex-col gap-3">
-                  {form.image_url ? (
-                    <div className="rounded-lg overflow-hidden border border-ui-border-base h-36 bg-ui-bg-subtle">
-                      <img
-                        src={form.image_url}
-                        alt={form.image_alt || "Banner preview"}
-                        className="w-full h-full object-cover"
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault()
+                          fileInputRef.current?.click()
+                        }
+                      }}
+                      onClick={() => fileInputRef.current?.click()}
+                      onDragOver={(e) => {
+                        e.preventDefault()
+                        setDragOver(true)
+                      }}
+                      onDragLeave={() => setDragOver(false)}
+                      onDrop={onDrop}
+                      className={[
+                        "flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors cursor-pointer",
+                        dragOver
+                          ? "border-ui-fg-interactive bg-ui-bg-interactive/5"
+                          : "border-ui-border-strong bg-ui-bg-subtle hover:border-ui-fg-muted hover:bg-ui-bg-base",
+                      ].join(" ")}
+                    >
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-ui-bg-base border border-ui-border-base text-ui-fg-subtle">
+                        <Photo />
+                      </div>
+                      <div className="space-y-1">
+                        <Text size="small" weight="plus">
+                          {uploading
+                            ? "Uploading…"
+                            : "Drop an image here, or click to browse"}
+                        </Text>
+                        <Text size="xsmall" className="text-ui-fg-muted">
+                          JPEG, PNG, WebP or GIF · max 5 MB
+                        </Text>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="small"
+                        isLoading={uploading}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          fileInputRef.current?.click()
+                        }}
+                      >
+                        Choose file
+                      </Button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) void uploadImage(file)
+                        }}
                       />
                     </div>
-                  ) : null}
-                  <Input
-                    id="hb-image"
-                    value={form.image_url}
-                    onChange={(e) => setField("image_url", e.target.value)}
-                    placeholder="https://… or upload below"
-                    autoComplete="off"
-                  />
-                  <div className="flex items-center gap-2">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp,image/gif"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0]
-                        if (file) void uploadImage(file)
-                      }}
-                    />
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="small"
-                      isLoading={uploading}
-                      onClick={() => fileInputRef.current?.click()}
+
+                    <FormField
+                      id="hb-image"
+                      label="Image URL"
+                      required
+                      helper="Filled automatically after upload, or paste any public URL"
                     >
-                      Upload image
-                    </Button>
-                  </div>
+                      <Input
+                        id="hb-image"
+                        value={form.image_url}
+                        onChange={(e) => setField("image_url", e.target.value)}
+                        placeholder="https://…"
+                        autoComplete="off"
+                      />
+                    </FormField>
+
+                    <FormField id="hb-alt" label="Image alt text">
+                      <Input
+                        id="hb-alt"
+                        value={form.image_alt}
+                        onChange={(e) => setField("image_alt", e.target.value)}
+                        placeholder="Descriptive alt for accessibility"
+                      />
+                    </FormField>
+                  </section>
+
+                  <section className="space-y-3">
+                    <SectionHeading title="Visibility" />
+                    <div className="flex items-center justify-between gap-4 rounded-lg border border-ui-border-base px-4 py-3">
+                      <div className="min-w-0">
+                        <Label htmlFor="hb-active">Active</Label>
+                        <Text
+                          size="xsmall"
+                          className="text-ui-fg-subtle mt-0.5"
+                        >
+                          Only active banners appear on the storefront.
+                        </Text>
+                      </div>
+                      <Switch
+                        id="hb-active"
+                        checked={form.is_active}
+                        onCheckedChange={(v) => setField("is_active", v)}
+                        className="shrink-0"
+                      />
+                    </div>
+
+                    {isSuperAdmin && (
+                      <div className="flex items-center justify-between gap-4 rounded-lg border border-ui-border-base px-4 py-3">
+                        <div className="min-w-0">
+                          <Label htmlFor="hb-global">Global default</Label>
+                          <Text
+                            size="xsmall"
+                            className="text-ui-fg-subtle mt-0.5"
+                          >
+                            Global banners show when a franchise has no
+                            overrides.
+                            {activeFranchiseId
+                              ? " Uncheck to scope to the active franchise."
+                              : " No franchise selected — will save as global."}
+                          </Text>
+                        </div>
+                        <Switch
+                          id="hb-global"
+                          checked={form.franchise_scope === "global"}
+                          onCheckedChange={(v) =>
+                            setField(
+                              "franchise_scope",
+                              v ? "global" : "franchise"
+                            )
+                          }
+                          className="shrink-0"
+                        />
+                      </div>
+                    )}
+                  </section>
                 </div>
-              </FormField>
 
-              <FormField id="hb-alt" label="Image alt text">
-                <Input
-                  id="hb-alt"
-                  value={form.image_alt}
-                  onChange={(e) => setField("image_alt", e.target.value)}
-                  placeholder="Descriptive alt for accessibility"
-                />
-              </FormField>
-
-              <div className="flex items-center justify-between gap-4 rounded-lg border border-ui-border-base px-4 py-3">
-                <div className="min-w-0">
-                  <Label htmlFor="hb-active">Active</Label>
-                  <Text size="xsmall" className="text-ui-fg-subtle mt-0.5">
-                    Only active banners appear on the storefront.
+                {/* Sticky preview column */}
+                <aside className="lg:sticky lg:top-4 space-y-3 h-fit">
+                  <Text
+                    size="small"
+                    weight="plus"
+                    className="text-ui-fg-subtle"
+                  >
+                    Live preview
                   </Text>
-                </div>
-                <Switch
-                  id="hb-active"
-                  checked={form.is_active}
-                  onCheckedChange={(v) => setField("is_active", v)}
-                  className="shrink-0"
-                />
+                  <BannerPreview form={form} />
+                  <Text size="xsmall" className="text-ui-fg-muted">
+                    Approximate storefront card. Actual layout adapts to screen
+                    size.
+                  </Text>
+                </aside>
               </div>
-
-              {isSuperAdmin && (
-                <div className="flex items-center justify-between gap-4 rounded-lg border border-ui-border-base px-4 py-3">
-                  <div className="min-w-0">
-                    <Label htmlFor="hb-global">Global default</Label>
-                    <Text size="xsmall" className="text-ui-fg-subtle mt-0.5">
-                      Global banners show when a franchise has no overrides.
-                      {activeFranchiseId
-                        ? " Uncheck to scope to the active franchise."
-                        : " No franchise selected — will save as global."}
-                    </Text>
-                  </div>
-                  <Switch
-                    id="hb-global"
-                    checked={form.franchise_scope === "global"}
-                    onCheckedChange={(v) =>
-                      setField("franchise_scope", v ? "global" : "franchise")
-                    }
-                    className="shrink-0"
-                  />
-                </div>
-              )}
             </FocusModal.Body>
 
             <div className="border-t px-6 py-4 flex items-center justify-end gap-3 bg-ui-bg-subtle">
@@ -863,13 +1064,7 @@ const HeroBannersPage = () => {
               <Button
                 type="submit"
                 isLoading={saveMutation.isPending}
-                disabled={
-                  !form.tag.trim() ||
-                  !form.title.trim() ||
-                  !form.image_url.trim() ||
-                  !form.primary_cta_label.trim() ||
-                  !form.primary_cta_href.trim()
-                }
+                disabled={!formValid}
               >
                 {editing ? "Save changes" : "Create banner"}
               </Button>
@@ -880,6 +1075,12 @@ const HeroBannersPage = () => {
     </div>
   )
 }
+
+const HeroBannersPage = () => (
+  <FranchiseProvider>
+    <HeroBannersInner />
+  </FranchiseProvider>
+)
 
 export const config = defineRouteConfig({
   label: "Hero Banners",

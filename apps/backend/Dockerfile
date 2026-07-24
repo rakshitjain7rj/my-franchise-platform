@@ -98,6 +98,12 @@ COPY --from=builder --chown=medusa:medusa /app/apps/backend/.medusa/server ./
 COPY --chown=medusa:medusa apps/backend/docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
+# Local file provider writes to ./static (public uploads / product images /
+# hero banners). /app is created as root by WORKDIR; without an explicit
+# writable dir, LocalFileService fails with EACCES: mkdir '/app/static'.
+RUN mkdir -p /app/static \
+ && chown -R medusa:medusa /app/static
+
 USER medusa
 EXPOSE 9000
 
