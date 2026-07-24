@@ -49,7 +49,7 @@ async function runStep(
 ) {
   logger.info("")
   logger.info(`▶ STEP: ${name}`)
-  logger.info("─".repeat(60))
+  logger.info("-".repeat(60))
   try {
     await fn(args)
     logger.info(`✅ OK: ${name}`)
@@ -67,10 +67,10 @@ async function runStep(
 export default async function productionCatalogueBootstrap(args: ExecArgs) {
   const logger = args.container.resolve(ContainerRegistrationKeys.LOGGER)
 
-  logger.info("╔══════════════════════════════════════════════════════════════╗")
-  logger.info("║  Production catalogue bootstrap                             ║")
-  logger.info("║  purge → franchise → UK → PayPal → categories → import…     ║")
-  logger.info("╚══════════════════════════════════════════════════════════════╝")
+  logger.info("==============================================================")
+  logger.info("  Production catalogue bootstrap")
+  logger.info("  purge -> franchise -> UK -> PayPal -> categories -> import")
+  logger.info("==============================================================")
 
   await runStep(logger, "0. purge-all-products", purgeAllProducts, args)
   await runStep(logger, "1. seed-franchise-data", seedFranchiseData, args)
@@ -111,6 +111,8 @@ export default async function productionCatalogueBootstrap(args: ExecArgs) {
   )
 
   logger.info("")
-  logger.info("╔══════════════════════════════════════════════════════════════╗")
-  logger.info("║  Bootstrap COMPLETE                                         ║")
-  logger.info("║  Set RUN_SEED=false in Dokplo
+  logger.info("==============================================================")
+  logger.info("  Bootstrap COMPLETE")
+  logger.info("  Set RUN_SEED=false in Dokploy and redeploy when ready.")
+  logger.info("==============================================================")
+}
