@@ -163,10 +163,11 @@ export default function MapRoutingShell({
           absolute top-4 left-4 right-4 z-[1002]
           md:hidden
           flex items-center gap-3
-          bg-white/75 backdrop-blur-xl
+          bg-white/40 backdrop-blur-xl
+          supports-[backdrop-filter]:bg-white/30
           border border-white/50
           rounded-2xl px-4 py-3
-          shadow-[0_4px_24px_-8px_rgba(74,21,75,0.25)]
+          shadow-[0_4px_24px_-8px_rgba(74,21,75,0.2)]
         "
       >
         {/* Back button */}
@@ -195,13 +196,13 @@ export default function MapRoutingShell({
           <div className="w-7 h-7 rounded-full bg-deep-plum flex items-center justify-center shrink-0">
             <span className="material-symbols-outlined !text-[14px] text-white">cake</span>
           </div>
-          <span className="font-headline text-[13px] font-bold text-deep-plum truncate">
+          <span className="font-headline text-[13px] font-bold text-deep-plum truncate [text-shadow:0_1px_1px_rgba(255,255,255,0.85)]">
             Cake Break
           </span>
         </div>
 
         {/* "Find a bakery" label */}
-        <span className="text-[11px] font-semibold text-on-surface-variant shrink-0">
+        <span className="text-[11px] font-semibold text-deep-plum/80 shrink-0 [text-shadow:0_1px_1px_rgba(255,255,255,0.8)]">
           Find a bakery
         </span>
       </div>
@@ -294,7 +295,7 @@ export default function MapRoutingShell({
                 bg-transparent border-0 p-0
               "
             >
-              <span className="w-10 h-1 rounded-full bg-deep-plum/30" aria-hidden="true" />
+              <span className="w-10 h-1 rounded-full bg-deep-plum/40 shadow-sm" aria-hidden="true" />
             </button>
 
             <BakerySidebar

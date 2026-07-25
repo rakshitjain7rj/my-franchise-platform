@@ -118,25 +118,40 @@ export default function BakerySidebar({
 
   return (
     <div className="w-full md:w-[420px] h-full min-h-0 flex flex-col">
-      {/* ── Glassmorphism panel ─────────────────────────────────────────── */}
+      {/*
+        Glass panel: mobile keeps the map visible through a frosted sheet;
+        desktop stays more solid for readability over the side column.
+      */}
       <div
         className={`
-          bg-white/90 backdrop-blur-2xl
-          border border-white/60
+          relative overflow-hidden
+          flex flex-col h-full min-h-0
+          border border-white/40 md:border-white/60
           premium-shadow
-          overflow-hidden
-          flex flex-col
-          h-full min-h-0
+          bg-white/35 md:bg-white/90
+          backdrop-blur-xl md:backdrop-blur-2xl
+          supports-[backdrop-filter]:bg-white/30
+          md:supports-[backdrop-filter]:bg-white/85
           ${compactMobile ? "rounded-2xl" : "rounded-t-2xl md:rounded-2xl"}
         `}
       >
+        {/* Soft scrim so map texture doesn't fight headline text on mobile */}
+        <div
+          className="
+            pointer-events-none absolute inset-0 md:hidden
+            bg-gradient-to-b from-white/50 via-white/20 to-white/40
+          "
+          aria-hidden="true"
+        />
+
         {/* Spacer for the parent drag-handle (mobile) */}
-        <div className="shrink-0 h-8 md:hidden" aria-hidden="true" />
+        <div className="relative shrink-0 h-8 md:hidden" aria-hidden="true" />
 
         {/* ── Brand header ─────────────────────────────────────────────── */}
         <div
           className={`
-            shrink-0 border-b border-outline-variant/20
+            relative shrink-0
+            border-b border-white/30 md:border-outline-variant/20
             px-4 md:px-8
             ${compactMobile
               ? "pt-1 pb-3"
@@ -151,12 +166,12 @@ export default function BakerySidebar({
               ${compactMobile ? "hidden md:flex" : "flex"}
             `}
           >
-            <div className="w-8 h-8 rounded-full bg-deep-plum flex items-center justify-center shrink-0">
+            <div className="w-8 h-8 rounded-full bg-deep-plum flex items-center justify-center shrink-0 shadow-sm">
               <span className="material-symbols-outlined !text-[16px] text-white">
                 cake
               </span>
             </div>
-            <span className="font-headline text-[11px] font-bold uppercase tracking-[0.25em] text-deep-plum/60">
+            <span className="font-headline text-[11px] font-bold uppercase tracking-[0.25em] text-deep-plum drop-shadow-sm">
               Cake Break
             </span>
           </div>
@@ -164,6 +179,7 @@ export default function BakerySidebar({
           <h1
             className={`
               font-headline font-extrabold text-deep-plum leading-tight
+              [text-shadow:0_1px_2px_rgba(255,255,255,0.9),0_0_12px_rgba(255,255,255,0.55)]
               ${compactMobile
                 ? "text-xl md:text-3xl mt-0"
                 : "text-2xl md:text-3xl mt-2"
@@ -177,7 +193,8 @@ export default function BakerySidebar({
           </h1>
           <p
             className={`
-              font-body text-on-surface-variant leading-relaxed
+              font-body text-deep-plum/80 md:text-on-surface-variant leading-relaxed
+              [text-shadow:0_1px_1px_rgba(255,255,255,0.85)]
               ${compactMobile
                 ? "hidden md:block text-sm mt-1"
                 : "text-sm mt-1"
@@ -187,9 +204,9 @@ export default function BakerySidebar({
             Pick a location for delivery &amp; pickup — your catalog stays the same.
           </p>
 
-          {/* Search input */}
+          {/* Search input — frosted field so map peeks through edges */}
           <div className={`relative ${compactMobile ? "mt-3" : "mt-5"}`}>
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-outline pointer-events-none">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-deep-plum/55 pointer-events-none">
               <span className="material-symbols-outlined !text-[18px]">search</span>
             </span>
             <input
@@ -203,12 +220,14 @@ export default function BakerySidebar({
               aria-label="Search bakery locations"
               className="
                 w-full h-11 md:h-12 pl-11 pr-5
-                bg-lavender-bg/60
-                border border-outline-variant/40
+                bg-white/55 md:bg-lavender-bg/60
+                backdrop-blur-md
+                border border-white/70 md:border-outline-variant/40
                 rounded-full
-                text-sm text-deep-plum
-                placeholder:text-outline/70
-                focus:border-deep-plum focus:ring-0 outline-none
+                text-sm text-deep-plum font-medium
+                placeholder:text-deep-plum/45
+                focus:border-deep-plum focus:bg-white/75 focus:ring-0 outline-none
+                shadow-sm
                 transition-all
               "
             />
@@ -218,16 +237,16 @@ export default function BakerySidebar({
         {/* ── Location card list ───────────────────────────────────────── */}
         {/* min-h-0 is required: without it flex-1 children refuse to shrink
             and overflow is clipped with no scroll on mobile Safari. */}
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 md:px-4 py-3 space-y-3 [-webkit-overflow-scrolling:touch]">
+        <div className="relative flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 md:px-4 py-3 space-y-3 [-webkit-overflow-scrolling:touch]">
           {filteredLocations.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 md:py-16 text-center px-6">
-              <span className="material-symbols-outlined !text-[48px] text-outline/40 mb-3">
+              <span className="material-symbols-outlined !text-[48px] text-deep-plum/35 mb-3">
                 location_off
               </span>
-              <p className="font-headline text-sm font-semibold text-on-surface-variant">
+              <p className="font-headline text-sm font-semibold text-deep-plum [text-shadow:0_1px_1px_rgba(255,255,255,0.9)]">
                 No locations found
               </p>
-              <p className="text-xs text-outline mt-1">
+              <p className="text-xs text-deep-plum/65 mt-1">
                 Try a different postcode or area name.
               </p>
             </div>
@@ -245,10 +264,11 @@ export default function BakerySidebar({
                   }}
                   className={`
                     group relative rounded-2xl border transition-all duration-300 cursor-pointer
+                    backdrop-blur-md
                     ${
                       isActive
-                        ? "bg-deep-plum border-deep-plum text-white shadow-[0_8px_32px_-8px_rgba(74,21,75,0.35)]"
-                        : "bg-white/60 border-outline-variant/30 hover:border-deep-plum/30 hover:bg-white hover:premium-shadow"
+                        ? "bg-deep-plum/95 border-deep-plum text-white shadow-[0_8px_32px_-8px_rgba(74,21,75,0.45)]"
+                        : "bg-white/70 md:bg-white/60 border-white/80 md:border-outline-variant/30 hover:border-deep-plum/30 hover:bg-white/85 hover:premium-shadow"
                     }
                   `}
                 >
@@ -285,7 +305,9 @@ export default function BakerySidebar({
                         </div>
                         <h2
                           className={`font-headline font-bold text-sm leading-tight ${
-                            isActive ? "text-white" : "text-deep-plum"
+                            isActive
+                              ? "text-white"
+                              : "text-deep-plum [text-shadow:0_1px_1px_rgba(255,255,255,0.75)]"
                           }`}
                         >
                           {location.name}
@@ -296,7 +318,9 @@ export default function BakerySidebar({
                     {/* Meta row: human-readable address */}
                     <div
                       className={`flex flex-wrap gap-x-4 gap-y-1 mt-2 md:mt-3 text-xs ${
-                        isActive ? "text-white/70" : "text-on-surface-variant"
+                        isActive
+                          ? "text-white/80"
+                          : "text-deep-plum/75 md:text-on-surface-variant"
                       }`}
                     >
                       <span className="flex items-start gap-1.5 min-w-0">
@@ -328,7 +352,7 @@ export default function BakerySidebar({
                             ? "opacity-70 cursor-wait"
                             : isActive
                             ? "bg-vibrant-magenta text-white hover:bg-[#e05095] shadow-[0_4px_16px_-4px_rgba(255,105,180,0.5)]"
-                            : "bg-deep-plum text-white hover:bg-black"
+                            : "bg-deep-plum text-white hover:bg-black shadow-sm"
                         }
                       `}
                     >
@@ -358,16 +382,18 @@ export default function BakerySidebar({
         {/* ── Footer note — compact on mobile, full on desktop ─────────── */}
         <div
           className={`
-            shrink-0 border-t border-outline-variant/20 flex items-center gap-2
+            relative shrink-0 flex items-center gap-2
+            border-t border-white/35 md:border-outline-variant/20
+            bg-white/25 md:bg-transparent backdrop-blur-sm md:backdrop-blur-none
             px-4 md:px-6
             ${compactMobile ? "py-2.5" : "py-3 md:py-4"}
             pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] md:pb-4
           `}
         >
-          <span className="material-symbols-outlined !text-[14px] text-outline/50 shrink-0">
+          <span className="material-symbols-outlined !text-[14px] text-deep-plum/45 shrink-0">
             info
           </span>
-          <p className="text-[11px] text-outline/70 leading-relaxed">
+          <p className="text-[11px] text-deep-plum/70 md:text-outline/70 leading-relaxed [text-shadow:0_1px_1px_rgba(255,255,255,0.7)]">
             Your product catalog is shared across all locations under this brand.
           </p>
         </div>
