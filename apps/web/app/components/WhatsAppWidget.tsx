@@ -3,7 +3,10 @@
 /**
  * Floating WhatsApp support button (bottom-right).
  * Number from NEXT_PUBLIC_WHATSAPP_NUMBER, default matches client site.
+ * Hidden on /map-routing so it doesn't cover the bakery bottom sheet.
  */
+
+import { usePathname } from "next/navigation";
 
 const DEFAULT_E164 = "4407305750164";
 
@@ -18,7 +21,12 @@ function resolveWhatsAppHref(): string {
 }
 
 export default function WhatsAppWidget() {
+  const pathname = usePathname();
   const href = resolveWhatsAppHref();
+
+  if (pathname === "/map-routing" || pathname?.startsWith("/map-routing/")) {
+    return null;
+  }
 
   return (
     <a

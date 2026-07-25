@@ -36,6 +36,11 @@ interface BakerySidebarProps {
   selectedId?: string | null;
   /** Whether the app is currently routing/navigating. */
   isNavigating?: boolean;
+  /**
+   * Mobile collapsed sheet: tighter header so location cards remain visible.
+   * Ignored on desktop (md+).
+   */
+  compactMobile?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -50,6 +55,7 @@ export default function BakerySidebar({
   onSelectStore,
   selectedId: propSelectedId,
   isNavigating: propIsNavigating,
+  compactMobile = false,
 }: BakerySidebarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -63,7 +69,11 @@ export default function BakerySidebar({
   // Client-side search filter
   const filteredLocations = locations.filter((loc) => {
     const q = searchQuery.toLowerCase();
-    return q === "" || loc.name.toLowerCase().includes(q);
+    return (
+      q === "" ||
+      loc.name.toLowerCase().includes(q) ||
+      loc.address.toLowerCase().includes(q)
+    );
   });
 
   /**
@@ -107,27 +117,40 @@ export default function BakerySidebar({
   }
 
   return (
-    <div className="w-full md:w-[420px] h-full flex flex-col">
-      {/* ── Glassmorphism header panel ─────────────────────────────────────── */}
+    <div className="w-full md:w-[420px] h-full min-h-0 flex flex-col">
+      {/* ── Glassmorphism panel ─────────────────────────────────────────── */}
       <div
-        className="
-          bg-white/80 backdrop-blur-2xl
+        className={`
+          bg-white/90 backdrop-blur-2xl
           border border-white/60
-          rounded-2xl
           premium-shadow
           overflow-hidden
           flex flex-col
-          h-full
-        "
+          h-full min-h-0
+          ${compactMobile ? "rounded-2xl" : "rounded-t-2xl md:rounded-2xl"}
+        `}
       >
-        {/* ── Drag handle — visible on mobile, hidden on desktop ────────── */}
-        <div className="flex justify-center pt-2.5 pb-0 md:hidden" aria-hidden="true">
-          <div className="w-10 h-1 rounded-full bg-deep-plum/20" />
-        </div>
+        {/* Spacer for the parent drag-handle (mobile) */}
+        <div className="shrink-0 h-8 md:hidden" aria-hidden="true" />
+
         {/* ── Brand header ─────────────────────────────────────────────── */}
-        <div className="px-5 pt-4 pb-5 md:px-8 md:pt-8 md:pb-6 border-b border-outline-variant/20">
-          {/* Logo / brand name */}
-          <div className="flex items-center gap-3 mb-1">
+        <div
+          className={`
+            shrink-0 border-b border-outline-variant/20
+            px-4 md:px-8
+            ${compactMobile
+              ? "pt-1 pb-3"
+              : "pt-2 pb-4 md:pt-8 md:pb-6"
+            }
+          `}
+        >
+          {/* Logo / brand name — hide in compact mobile to free list space */}
+          <div
+            className={`
+              items-center gap-3 mb-1
+              ${compactMobile ? "hidden md:flex" : "flex"}
+            `}
+          >
             <div className="w-8 h-8 rounded-full bg-deep-plum flex items-center justify-center shrink-0">
               <span className="material-symbols-outlined !text-[16px] text-white">
                 cake
@@ -138,30 +161,48 @@ export default function BakerySidebar({
             </span>
           </div>
 
-          <h1 className="font-headline text-2xl md:text-3xl font-extrabold text-deep-plum leading-tight mt-2">
+          <h1
+            className={`
+              font-headline font-extrabold text-deep-plum leading-tight
+              ${compactMobile
+                ? "text-xl md:text-3xl mt-0"
+                : "text-2xl md:text-3xl mt-2"
+              }
+            `}
+          >
             Choose Your{" "}
             <span className="text-vibrant-magenta italic font-light">
               Bakery
             </span>
           </h1>
-          <p className="font-body text-sm text-on-surface-variant mt-1 leading-relaxed">
+          <p
+            className={`
+              font-body text-on-surface-variant leading-relaxed
+              ${compactMobile
+                ? "hidden md:block text-sm mt-1"
+                : "text-sm mt-1"
+              }
+            `}
+          >
             Pick a location for delivery &amp; pickup — your catalog stays the same.
           </p>
 
           {/* Search input */}
-          <div className="relative mt-5">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-outline">
+          <div className={`relative ${compactMobile ? "mt-3" : "mt-5"}`}>
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-outline pointer-events-none">
               <span className="material-symbols-outlined !text-[18px]">search</span>
             </span>
             <input
               id="location-search"
-              type="text"
+              type="search"
+              enterKeyHint="search"
+              autoComplete="off"
               placeholder="Search by area or postcode…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               aria-label="Search bakery locations"
               className="
-                w-full h-12 pl-11 pr-5
+                w-full h-11 md:h-12 pl-11 pr-5
                 bg-lavender-bg/60
                 border border-outline-variant/40
                 rounded-full
@@ -175,9 +216,11 @@ export default function BakerySidebar({
         </div>
 
         {/* ── Location card list ───────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto no-scrollbar px-4 py-4 space-y-3">
+        {/* min-h-0 is required: without it flex-1 children refuse to shrink
+            and overflow is clipped with no scroll on mobile Safari. */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 md:px-4 py-3 space-y-3 [-webkit-overflow-scrolling:touch]">
           {filteredLocations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+            <div className="flex flex-col items-center justify-center py-10 md:py-16 text-center px-6">
               <span className="material-symbols-outlined !text-[48px] text-outline/40 mb-3">
                 location_off
               </span>
@@ -214,7 +257,7 @@ export default function BakerySidebar({
                     <div className="absolute left-0 top-4 bottom-4 w-0.5 bg-vibrant-magenta rounded-r-full" />
                   )}
 
-                  <div className="px-5 py-4">
+                  <div className="px-4 py-3.5 md:px-5 md:py-4">
                     {/* Top row: name + selected badge */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
@@ -252,21 +295,25 @@ export default function BakerySidebar({
 
                     {/* Meta row: human-readable address */}
                     <div
-                      className={`flex flex-wrap gap-x-4 gap-y-1 mt-3 text-xs ${
+                      className={`flex flex-wrap gap-x-4 gap-y-1 mt-2 md:mt-3 text-xs ${
                         isActive ? "text-white/70" : "text-on-surface-variant"
                       }`}
                     >
-                      <span className="flex items-center gap-1.5">
-                        <span className="material-symbols-outlined !text-[14px]">
+                      <span className="flex items-start gap-1.5 min-w-0">
+                        <span className="material-symbols-outlined !text-[14px] shrink-0 mt-0.5">
                           location_on
                         </span>
-                        {location.address || `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`}
+                        <span className="line-clamp-2">
+                          {location.address ||
+                            `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`}
+                        </span>
                       </span>
                     </div>
 
                     {/* CTA */}
                     <button
                       id={`select-location-${location.id}`}
+                      type="button"
                       disabled={isNavigating}
                       aria-label={`Select ${location.name}`}
                       onClick={(e) => {
@@ -274,7 +321,7 @@ export default function BakerySidebar({
                         handleSelectLocation(location);
                       }}
                       className={`
-                        mt-4 w-full py-2.5 rounded-full text-[12px] font-label-bold uppercase tracking-widest
+                        mt-3 md:mt-4 w-full py-2.5 rounded-full text-[12px] font-label-bold uppercase tracking-widest
                         transition-all duration-200 active:scale-95 flex items-center justify-center gap-2
                         ${
                           isNavigating && isSelected
@@ -308,9 +355,16 @@ export default function BakerySidebar({
           )}
         </div>
 
-        {/* ── Footer note ──────────────────────────────────────────────── */}
-        <div className="px-6 py-4 border-t border-outline-variant/20 flex items-center gap-2">
-          <span className="material-symbols-outlined !text-[14px] text-outline/50">
+        {/* ── Footer note — compact on mobile, full on desktop ─────────── */}
+        <div
+          className={`
+            shrink-0 border-t border-outline-variant/20 flex items-center gap-2
+            px-4 md:px-6
+            ${compactMobile ? "py-2.5" : "py-3 md:py-4"}
+            pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] md:pb-4
+          `}
+        >
+          <span className="material-symbols-outlined !text-[14px] text-outline/50 shrink-0">
             info
           </span>
           <p className="text-[11px] text-outline/70 leading-relaxed">

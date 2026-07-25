@@ -75,8 +75,12 @@ export default function MapRoutingShell({
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId);
   const [isNavigating, setIsNavigating] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  /** Controls whether the mobile bottom sheet is expanded (~90vh) or collapsed (~50vh). */
-  const [sheetExpanded, setSheetExpanded] = useState(false);
+  /**
+   * Mobile bottom sheet: collapsed shows map + a usable peek of locations;
+   * expanded almost fills the screen. Start expanded on small screens so
+   * iPhone SE–class heights still show at least one full location card.
+   */
+  const [sheetExpanded, setSheetExpanded] = useState(true);
 
   // If the visitor has no store cookie yet, persist the admin default so the
   // rest of the storefront (cart, inventory, header) agrees with the map.
@@ -238,9 +242,10 @@ export default function MapRoutingShell({
 
       {/* ── Floating sidebar overlay ──────────────────────────────────── */}
       {/*
-          On mobile: anchored to the bottom, draggable sheet.
+          On mobile: anchored to the bottom, expandable sheet.
           On desktop: fixed to the left, full height, 420 px wide.
           z-index must clear Leaflet's z-1000 control layer.
+          Use dvh so mobile browser chrome doesn't crush the sheet.
       */}
       <div
         className="
@@ -251,45 +256,46 @@ export default function MapRoutingShell({
           transition-all duration-300
         "
       >
-        {/* Mobile: draggable sheet wrapper */}
+        {/* Mobile: expandable sheet wrapper */}
         <div
           className={`
             pointer-events-auto w-full md:w-auto md:p-0 md:h-full
-            transition-all duration-300 ease-in-out
+            min-h-0
+            transition-[height] duration-300 ease-in-out
             ${sheetExpanded
-              ? "h-[90vh] px-0 pb-0"
-              : "h-[52vh] px-3 pb-3"
+              ? "h-[min(88dvh,100%)] px-0 pb-0"
+              : "h-[min(58dvh,420px)] px-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
             }
             md:h-full md:px-0 md:pb-0
           `}
         >
           {/*
-           * On mobile: we render our own wrapper so the drag-handle tap target
-           * sits OUTSIDE BakerySidebar (which owns the scrollable list).
-           * On desktop: BakerySidebar fills the column naturally.
+           * On mobile: drag-handle sits above BakerySidebar so the list can
+           * own its own scroll region. min-h-0 is required for flex children
+           * with overflow-y-auto to actually scroll on iOS.
            */}
           <div
             className="
-              relative w-full md:w-auto h-full
+              relative w-full md:w-auto h-full min-h-0
               flex flex-col
             "
           >
             {/* Drag strip — mobile only. Tapping toggles expansion. */}
-            <div
-              role="button"
-              tabIndex={0}
+            <button
+              type="button"
+              aria-expanded={sheetExpanded}
               aria-label={sheetExpanded ? "Collapse bakery list" : "Expand bakery list"}
               onClick={() => setSheetExpanded((v) => !v)}
-              onKeyDown={(e) => e.key === "Enter" && setSheetExpanded((v) => !v)}
               className="
                 md:hidden
-                absolute top-0 inset-x-0 h-8 z-10
-                flex items-start justify-center pt-2
+                absolute top-0 inset-x-0 h-10 z-10
+                flex items-start justify-center pt-2.5
                 cursor-grab active:cursor-grabbing
+                bg-transparent border-0 p-0
               "
             >
-              <div className="w-10 h-1 rounded-full bg-deep-plum/25" />
-            </div>
+              <span className="w-10 h-1 rounded-full bg-deep-plum/30" aria-hidden="true" />
+            </button>
 
             <BakerySidebar
               franchiseId={franchiseId}
@@ -299,6 +305,7 @@ export default function MapRoutingShell({
               onSelectStore={(franchise) => handleSelectStore(franchise.id, franchise.franchiseId, franchise.name)}
               selectedId={selectedId}
               isNavigating={isNavigating}
+              compactMobile={!sheetExpanded}
             />
           </div>
         </div>
