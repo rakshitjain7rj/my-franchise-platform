@@ -520,6 +520,41 @@ export interface HeroBanner {
 }
 
 /**
+ * Rewrite local-file-provider URLs that were saved with a localhost/internal
+ * FILE_BACKEND_URL so the browser can load them from the public Medusa host.
+ *
+ * Prefer NEXT_PUBLIC_MEDUSA_BACKEND_URL only — in Docker the server-side
+ * MEDUSA_BACKEND_URL is the internal service name (http://backend:9000) and
+ * must never be embedded in HTML the visitor's browser will fetch.
+ */
+export function resolvePublicMediaUrl(url: string | null | undefined): string {
+  if (!url?.trim()) return "";
+  try {
+    const parsed = new URL(url, "http://localhost");
+    if (!parsed.pathname.startsWith("/static/")) return url;
+
+    const isInternalHost =
+      parsed.hostname === "localhost" ||
+      parsed.hostname === "127.0.0.1" ||
+      parsed.hostname === "0.0.0.0" ||
+      parsed.hostname === "backend";
+
+    if (!isInternalHost) return url;
+
+    const publicBase = (
+      process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || ""
+    ).replace(/\/$/, "");
+    if (!publicBase || /localhost|127\.0\.0\.1|backend:/.test(publicBase)) {
+      return url;
+    }
+
+    return `${publicBase}${parsed.pathname}${parsed.search}`;
+  } catch {
+    return url;
+  }
+}
+
+/**
  * Fetches active hero carousel slides for the current franchise.
  * Franchise-specific banners win; otherwise global defaults are returned.
  * Empty array when the CMS has no active banners (UI falls back to defaults).
@@ -562,9 +597,12 @@ const getCachedHeroBanners = unstable_cache(
     }
 
     const json: { hero_banners?: HeroBanner[] } = await response.json();
-    return json.hero_banners ?? [];
+    return (json.hero_banners ?? []).map((b) => ({
+      ...b,
+      image_url: resolvePublicMediaUrl(b.image_url),
+    }));
   },
-  ["hero-banners-cache-v1"],
+  ["hero-banners-cache-v2"],
   {
     revalidate: 60,
     tags: ["hero-banners"],

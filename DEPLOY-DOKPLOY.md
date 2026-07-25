@@ -63,6 +63,22 @@ Or run manually: `npx medusa exec ./src/scripts/seed-franchise-data.ts`.
 - **Secrets:** never commit `.env.docker`; it's gitignored. Manage values in Dokploy.
 
 ## Troubleshooting
+- **Uploaded images / hero banners show as broken (localhost URL):** two
+  requirements must both be true:
+  1. Dokploy Environment has
+     `FILE_BACKEND_URL=https://cakebreak-backend.codeation.io/static`
+  2. `docker-compose.prod.yml` passes it into the **backend** service
+     (`FILE_BACKEND_URL: ${FILE_BACKEND_URL:-}`). Dokploy env alone is **not**
+     enough — Compose only injects variables listed under `environment:`.
+
+  The local file provider embeds this base URL into every upload response; if
+  it stays at the default `http://localhost:9000/static`, browsers on the
+  public domain cannot load the file. After fixing, **re-upload** banner images
+  (or re-save with a public URL) so the DB no longer stores localhost paths.
+- **Images work once, then break after redeploy:** the backend must mount a
+  named volume on `/app/static` (`backend_static` in `docker-compose.prod.yml`).
+  Without it, uploads live only in the container filesystem and disappear when
+  the image is rebuilt.
 - **Storefront calls fail / CORS errors:** `STORE_CORS` must equal the storefront
   origin exactly (scheme + host, no trailing slash). `NEXT_PUBLIC_MEDUSA_BACKEND_URL`
   must be the public backend URL and requires a storefront rebuild to change.

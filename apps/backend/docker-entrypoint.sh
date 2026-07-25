@@ -6,10 +6,21 @@ set -e
 #
 # Compose gates startup on `db: service_healthy`, so Postgres is reachable by
 # the time we get here. Order of operations:
+#   0. (as root) Ensure /app/static is writable by medusa, then drop privileges.
 #   1. Migrate the schema (idempotent, every boot).
 #   2. Optionally seed data ONCE on first boot (RUN_SEED=true).
 #   3. Start the server.
 # ---------------------------------------------------------------------------
+
+# Named volumes for /app/static mount as root:root and hide the image's
+# pre-chowned directory. Without this, LocalFileService gets EACCES and
+# hero-banner / product image uploads fail silently or return 500.
+if [ "$(id -u)" = "0" ]; then
+  mkdir -p /app/static
+  chown -R medusa:medusa /app/static
+  # Re-exec the rest of this script as the unprivileged medusa user.
+  exec gosu medusa "$0" "$@"
+fi
 
 echo "[entrypoint] Running database migrations..."
 npx medusa db:migrate

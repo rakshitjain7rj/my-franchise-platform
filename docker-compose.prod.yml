@@ -76,7 +76,9 @@ services:
       dockerfile: apps/backend/Dockerfile
     restart: unless-stopped
     logging: *default-logging
-    # Env is injected by Dokploy. Keep this list in sync with .env.docker.example.
+    # Env is interpolated from Dokploy's Environment tab. Only vars listed
+    # here reach the container — setting them in Dokploy alone is not enough.
+    # Keep this list in sync with .env.docker.example.
     environment:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL}
@@ -88,6 +90,12 @@ services:
       STORE_CORS: ${STORE_CORS}
       ADMIN_CORS: ${ADMIN_CORS}
       AUTH_CORS: ${AUTH_CORS}
+      # Public absolute URL for local file-provider uploads (hero banners, etc.).
+      # MUST be browser-reachable HTTPS, e.g.
+      # https://cakebreak-backend.codeation.io/static
+      # Without this, upload responses embed http://localhost:9000/static and
+      # images break for every visitor.
+      FILE_BACKEND_URL: ${FILE_BACKEND_URL:-}
       PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
       PAYPAL_CLIENT_SECRET: ${PAYPAL_CLIENT_SECRET:-}
       PAYPAL_IS_SANDBOX: ${PAYPAL_IS_SANDBOX:-false}
@@ -97,11 +105,17 @@ services:
       # First boot only: set RUN_SEED=true once, then back to false.
       RUN_SEED: ${RUN_SEED:-false}
       SEED_SCRIPTS: ${SEED_SCRIPTS:-}
+      MEDUSA_SEED_STRICT: ${MEDUSA_SEED_STRICT:-false}
       # One-shot admin bootstrap. Set for first deploy, then clear both vars.
       CREATE_ADMIN_EMAIL: ${CREATE_ADMIN_EMAIL:-}
       CREATE_ADMIN_PASSWORD: ${CREATE_ADMIN_PASSWORD:-}
       # One-shot: set metadata.is_super_admin=true, then clear.
       MAKE_SUPER_ADMIN_EMAIL: ${MAKE_SUPER_ADMIN_EMAIL:-}
+    volumes:
+      # Persist local file-provider uploads across redeploys. Without this,
+      # /app/static is container-local and every rebuild loses banner images
+      # (DB still has the URL → broken images on the storefront).
+      - backend_static:/app/static
     expose:
       - "9000"
     depends_on:
@@ -163,3 +177,4 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  backend_static:

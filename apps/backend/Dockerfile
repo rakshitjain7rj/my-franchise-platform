@@ -78,8 +78,10 @@ RUN --mount=type=cache,target=/root/.npm \
 # Stage 3 — runner: minimal Debian (slim) image that runs the compiled server
 ###############################################################################
 FROM node:20-slim AS runner
+# gosu: entrypoint starts as root to chown the volume-mounted /app/static,
+# then drops to the medusa user for migrations + server.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends openssl ca-certificates \
+ && apt-get install -y --no-install-recommends openssl ca-certificates gosu \
  && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 WORKDIR /app
@@ -94,17 +96,18 @@ ENV HOME=/home/medusa
 # The self-contained build output is everything we need at runtime.
 COPY --from=builder --chown=medusa:medusa /app/apps/backend/.medusa/server ./
 
-# Migrations + start are orchestrated by the entrypoint.
-COPY --chown=medusa:medusa apps/backend/docker-entrypoint.sh /app/docker-entrypoint.sh
+# Migrations + start are orchestrated by the entrypoint (runs as root first).
+COPY apps/backend/docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
 
 # Local file provider writes to ./static (public uploads / product images /
-# hero banners). /app is created as root by WORKDIR; without an explicit
-# writable dir, LocalFileService fails with EACCES: mkdir '/app/static'.
+# hero banners). Image-layer default; a named volume mount replaces this at
+# runtime and the entrypoint re-chowns it for the medusa user.
 RUN mkdir -p /app/static \
  && chown -R medusa:medusa /app/static
 
-USER medusa
+# Stay root so the entrypoint can fix volume ownership, then gosu → medusa.
+USER root
 EXPOSE 9000
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

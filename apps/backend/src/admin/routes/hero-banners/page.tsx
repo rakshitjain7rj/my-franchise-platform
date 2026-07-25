@@ -120,6 +120,32 @@ const SCOPE_OPTIONS: Array<{ value: ScopeFilter; label: string }> = [
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Local file provider builds absolute URLs from FILE_BACKEND_URL (often still
+ * http://localhost:9000/static in Docker/prod). Admin + storefront then fail
+ * to load images when the page is served from a public host.
+ *
+ * Rewrite /static/* paths onto the current browser origin so previews work
+ * and the URL we persist is reachable by visitors.
+ */
+const publicizeStaticUrl = (url: string): string => {
+  if (!url?.trim()) return url
+  try {
+    const parsed = new URL(url, window.location.origin)
+    if (!parsed.pathname.startsWith("/static/")) {
+      // External CDN / absolute non-static URL — leave alone
+      return url
+    }
+    return `${window.location.origin}${parsed.pathname}${parsed.search}`
+  } catch {
+    // Relative path already
+    if (url.startsWith("/static/")) {
+      return `${window.location.origin}${url}`
+    }
+    return url
+  }
+}
+
 const bannerToForm = (b: HeroBanner): BannerForm => ({
   tag: b.tag,
   title: b.title,
@@ -129,7 +155,7 @@ const bannerToForm = (b: HeroBanner): BannerForm => ({
   primary_cta_href: b.primary_cta_href,
   secondary_cta_label: b.secondary_cta_label ?? "",
   secondary_cta_href: b.secondary_cta_href ?? "",
-  image_url: b.image_url,
+  image_url: publicizeStaticUrl(b.image_url),
   image_alt: b.image_alt ?? "",
   display_order: b.display_order,
   is_active: b.is_active,
@@ -149,7 +175,7 @@ const formToPayload = (
     primary_cta_href: form.primary_cta_href.trim(),
     secondary_cta_label: form.secondary_cta_label.trim() || null,
     secondary_cta_href: form.secondary_cta_href.trim() || null,
-    image_url: form.image_url.trim(),
+    image_url: publicizeStaticUrl(form.image_url.trim()),
     image_alt: form.image_alt.trim() || null,
     display_order: form.display_order,
     is_active: form.is_active,
@@ -167,54 +193,57 @@ const formToPayload = (
 }
 
 /** Live mini-preview of the storefront hero card. */
-const BannerPreview = ({ form }: { form: BannerForm }) => (
-  <div className="rounded-xl overflow-hidden border border-ui-border-base bg-ui-bg-subtle shadow-sm">
-    <div className="relative h-44 sm:h-52">
-      {form.image_url ? (
-        <img
-          src={form.image_url}
-          alt={form.image_alt || form.title || "Banner preview"}
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-      ) : (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-ui-bg-base to-ui-bg-subtle text-ui-fg-muted">
-          <Photo className="text-ui-fg-disabled" />
-          <Text size="xsmall">Image preview</Text>
-        </div>
-      )}
-      <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/25 to-transparent" />
-      <div className="absolute inset-0 flex items-center p-5">
-        <div className="max-w-[70%] space-y-2 text-white">
-          {form.tag ? (
-            <span className="inline-block rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider backdrop-blur-sm">
-              {form.tag}
-            </span>
-          ) : null}
-          <div>
-            <p className="text-lg font-bold leading-tight">
-              {form.title || "Title"}
-            </p>
-            {form.title_emphasis ? (
-              <p className="text-base italic font-light opacity-95">
-                {form.title_emphasis}
+const BannerPreview = ({ form }: { form: BannerForm }) => {
+  const imageSrc = form.image_url ? publicizeStaticUrl(form.image_url) : ""
+  return (
+    <div className="rounded-xl overflow-hidden border border-ui-border-base bg-ui-bg-subtle shadow-sm">
+      <div className="relative h-44 sm:h-52">
+        {imageSrc ? (
+          <img
+            src={imageSrc}
+            alt={form.image_alt || form.title || "Banner preview"}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-ui-bg-base to-ui-bg-subtle text-ui-fg-muted">
+            <Photo className="text-ui-fg-disabled" />
+            <Text size="xsmall">Image preview</Text>
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/25 to-transparent" />
+        <div className="absolute inset-0 flex items-center p-5">
+          <div className="max-w-[70%] space-y-2 text-white">
+            {form.tag ? (
+              <span className="inline-block rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider backdrop-blur-sm">
+                {form.tag}
+              </span>
+            ) : null}
+            <div>
+              <p className="text-lg font-bold leading-tight">
+                {form.title || "Title"}
+              </p>
+              {form.title_emphasis ? (
+                <p className="text-base italic font-light opacity-95">
+                  {form.title_emphasis}
+                </p>
+              ) : null}
+            </div>
+            {form.description ? (
+              <p className="text-[11px] leading-snug opacity-90 line-clamp-2">
+                {form.description}
               </p>
             ) : null}
+            {form.primary_cta_label ? (
+              <span className="inline-flex rounded-full bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-ui-fg-base">
+                {form.primary_cta_label}
+              </span>
+            ) : null}
           </div>
-          {form.description ? (
-            <p className="text-[11px] leading-snug opacity-90 line-clamp-2">
-              {form.description}
-            </p>
-          ) : null}
-          {form.primary_cta_label ? (
-            <span className="inline-flex rounded-full bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-ui-fg-base">
-              {form.primary_cta_label}
-            </span>
-          ) : null}
         </div>
       </div>
     </div>
-  </div>
-)
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Page (must run inside FranchiseProvider — see export below)
@@ -441,8 +470,10 @@ const HeroBannersInner = () => {
         const json = (await res.json()) as {
           files?: Array<{ url?: string }>
         }
-        const url = json.files?.[0]?.url
-        if (!url) throw new Error("Upload succeeded but no URL was returned")
+        const rawUrl = json.files?.[0]?.url
+        if (!rawUrl) throw new Error("Upload succeeded but no URL was returned")
+        // FILE_BACKEND_URL often points at localhost; rewrite to this host.
+        const url = publicizeStaticUrl(rawUrl)
 
         setForm((prev) => ({
           ...prev,
@@ -587,7 +618,7 @@ const HeroBannersInner = () => {
                 <div className="flex flex-col sm:flex-row">
                   <div className="sm:w-56 h-40 sm:h-auto shrink-0 bg-ui-bg-subtle relative">
                     <img
-                      src={banner.image_url}
+                      src={publicizeStaticUrl(banner.image_url)}
                       alt={banner.image_alt || banner.title}
                       className="w-full h-full object-cover min-h-[10rem]"
                     />

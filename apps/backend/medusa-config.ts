@@ -142,12 +142,49 @@ modules[Modules.FULFILLMENT] = {
 }
 
 // Local file provider — public uploads land in ./static and are served at
-// {FILE_BACKEND_URL}/… (default http://localhost:9000/static). Docker must
-// ensure /app/static is writable by the medusa user (see Dockerfile).
-const FILE_BACKEND_URL =
-  process.env.FILE_BACKEND_URL ||
-  process.env.MEDUSA_FILE_URL ||
-  "http://localhost:9000/static"
+// {FILE_BACKEND_URL}/… . This MUST be a browser-reachable absolute URL
+// (production: https://cakebreak-backend.codeation.io/static). Using
+// localhost or the internal Docker hostname (http://backend:9000) breaks
+// image previews in Admin and on the storefront.
+// Docker must ensure /app/static is writable by the medusa user (see Dockerfile).
+const resolveFileBackendUrl = (): string => {
+  if (process.env.FILE_BACKEND_URL) {
+    return process.env.FILE_BACKEND_URL.replace(/\/$/, "")
+  }
+  if (process.env.MEDUSA_FILE_URL) {
+    return process.env.MEDUSA_FILE_URL.replace(/\/$/, "")
+  }
+  // Prefer an explicitly public backend URL when set (Dokploy / prod).
+  const publicBackend =
+    process.env.BACKEND_PUBLIC_URL ||
+    process.env.MEDUSA_BACKEND_PUBLIC_URL ||
+    ""
+  if (publicBackend && !/localhost|127\.0\.0\.1|backend:/.test(publicBackend)) {
+    return `${publicBackend.replace(/\/$/, "")}/static`
+  }
+  // MEDUSA_BACKEND_URL is often the internal Docker service URL — only use it
+  // when it already looks public.
+  const medusaBackend = process.env.MEDUSA_BACKEND_URL || ""
+  if (
+    medusaBackend &&
+    !/localhost|127\.0\.0\.1|backend:/.test(medusaBackend)
+  ) {
+    return `${medusaBackend.replace(/\/$/, "")}/static`
+  }
+  return "http://localhost:9000/static"
+}
+
+const FILE_BACKEND_URL = resolveFileBackendUrl()
+if (
+  process.env.NODE_ENV === "production" &&
+  /localhost|127\.0\.0\.1/.test(FILE_BACKEND_URL)
+) {
+  console.warn(
+    "[medusa-config] FILE_BACKEND_URL resolves to localhost in production " +
+      `(${FILE_BACKEND_URL}). Uploaded images will break for browsers. ` +
+      "Set FILE_BACKEND_URL=https://<your-public-backend-host>/static"
+  )
+}
 
 modules[Modules.FILE] = {
   resolve: "@medusajs/medusa/file",
