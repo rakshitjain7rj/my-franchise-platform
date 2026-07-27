@@ -1,13 +1,9 @@
 /**
  * GET  /admin/franchise-dashboard/store-health
- * POST /admin/franchise-dashboard/store-health/fix/:store_location_id
  *
- * Phase 4 — Store Health Check + One-Click Fix
+ * Phase 4 — Store Health Check
  *
- * Replaces the repair scripts (fix-live-franchise-gaps.ts, link-stores-direct.ts, etc.)
- * with a visible, API-driven diagnosis panel.
- *
- * GET → Returns per-branch health status:
+ * Returns per-branch health status:
  *   - has_stock_location    : StoreLocation ↔ StockLocation link exists
  *   - has_sales_channel     : StockLocation is associated with a sales channel
  *   - is_accepting_orders   : branch is taking orders
@@ -15,10 +11,8 @@
  *   - issues                : human-readable list of problems
  *   - healthy               : true only when all checks pass
  *
- * POST /fix/:store_location_id → One-click repair for a single branch:
- *   - Wires the StockLocation → franchise's SalesChannel if missing
- *   - Creates zero-quantity inventory levels for any products that lack them
- *   (Super-admin only for the fix endpoint; health read is franchise-scoped)
+ * One-click repair lives at:
+ *   POST /admin/franchise-dashboard/store-health/fix/:store_location_id
  */
 
 import type {
@@ -28,13 +22,10 @@ import type {
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import {
   resolveAdminFranchiseContext,
-  isSuperAdminUser,
   type AuthenticatedTenantRequest,
 } from "../../../../utils/tenant-context"
 import FranchiseSalesChannelLink from "../../../../links/franchise-sales-channel"
-import FranchiseProductLink from "../../../../links/franchise-product"
 import StoreLocationStockLocationLink from "../../../../links/store-location-stock-location"
-import { linkSalesChannelsToStockLocationWorkflow } from "@medusajs/medusa/core-flows"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -57,6 +48,8 @@ type StoreHealthResponse = {
   healthy_branches: number
   unhealthy_branches: number
   branches: BranchHealth[]
+  /** Present when franchise itself is missing a sales-channel link */
+  franchise_issues?: string[]
 }
 
 // ── GET — health check ─────────────────────────────────────────────────────────
@@ -86,7 +79,7 @@ export const GET = async (
     })
   }
 
-  const storeLocationIds = storeLocations.map((sl: any) => sl.id as string)
+  const storeLocationIds = storeLocations.map((sl: { id: string }) => sl.id)
 
   // 2. Resolve StockLocation links
   const { data: slStockLinks } = await query.graph({
@@ -97,13 +90,13 @@ export const GET = async (
 
   type SlStockLink = { store_location_id: string; stock_location_id: string }
   const stockLocByStore = new Map<string, string>(
-    (slStockLinks as SlStockLink[]).map((l) => [
+    (slStockLinks as Array<SlStockLink>).map((l) => [
       l.store_location_id,
       l.stock_location_id,
     ])
   )
 
-  // 3. Resolve sales channels linked to the franchise
+  // 3. Franchise → sales channels (for diagnostics + preferred SC match)
   const { data: scLinks } = await query.graph({
     entity: FranchiseSalesChannelLink.entryPoint,
     fields: ["sales_channel_id"],
@@ -116,72 +109,86 @@ export const GET = async (
       .filter((id): id is string => Boolean(id))
   )
 
-  // 4. Resolve which stock locations are associated with a sales channel.
-  //    Query entity names vary across Medusa versions; try known aliases and
-  //    fall back to the Stock Location module so a link-name mismatch cannot
-  //    500 the whole health panel.
-  const uniqueStockLocIds = Array.from(new Set(stockLocByStore.values()))
+  const franchiseIssues: string[] = []
+  if (!franchiseSalesChannelIds.size) {
+    franchiseIssues.push(
+      "Franchise is not linked to a sales channel — Fix will attach Default Sales Channel"
+    )
+  }
 
+  // 4. Resolve which stock locations have sales-channel associations.
+  //    Prefer the Stock Location module (relations) — it is the reliable path.
+  //    Query-graph entity names vary across Medusa versions and previously
+  //    short-circuited the fallback, producing false "not associated" alerts
+  //    even when admin stock-location APIs showed channels linked.
+  const uniqueStockLocIds = Array.from(new Set(stockLocByStore.values()))
   const stockLocWithSalesChannel = new Set<string>()
+  const stockLocWithFranchiseSalesChannel = new Set<string>()
 
   if (uniqueStockLocIds.length) {
-    const candidateEntities = [
-      "stock_location_sales_channel",
-      "sales_channel_stock_location",
-      "link_sales_channel_stock_location",
-    ]
-    let resolved = false
-    for (const entity of candidateEntities) {
-      try {
-        const { data: scStockLinks } = await query.graph({
-          entity,
-          fields: ["stock_location_id", "sales_channel_id"],
-          filters: { stock_location_id: uniqueStockLocIds },
-        })
-        for (const link of scStockLinks as Array<{
-          stock_location_id?: string
-          sales_channel_id?: string
-        }>) {
-          if (
-            link.stock_location_id &&
-            link.sales_channel_id &&
-            franchiseSalesChannelIds.has(link.sales_channel_id)
-          ) {
-            stockLocWithSalesChannel.add(link.stock_location_id)
-          }
-        }
-        resolved = true
-        break
-      } catch {
-        // try next entity name
+    let moduleResolved = false
+    try {
+      const stockLocationModule = req.scope.resolve(Modules.STOCK_LOCATION) as {
+        listStockLocations: (
+          filters: Record<string, unknown>,
+          config?: Record<string, unknown>
+        ) => Promise<
+          Array<{
+            id: string
+            sales_channels?: Array<{ id?: string }>
+          }>
+        >
       }
-    }
-
-    if (!resolved) {
-      try {
-        const stockLocationModule = req.scope.resolve(Modules.STOCK_LOCATION) as {
-          listStockLocations: (
-            filters: Record<string, unknown>,
-            config?: Record<string, unknown>
-          ) => Promise<
-            Array<{
-              id: string
-              sales_channels?: Array<{ id?: string }>
-            }>
-          >
+      const locs = await stockLocationModule.listStockLocations(
+        { id: uniqueStockLocIds },
+        { relations: ["sales_channels"], take: uniqueStockLocIds.length }
+      )
+      for (const loc of locs) {
+        const channels = loc.sales_channels ?? []
+        if (channels.some((sc) => Boolean(sc.id))) {
+          stockLocWithSalesChannel.add(loc.id)
         }
-        const locs = await stockLocationModule.listStockLocations(
-          { id: uniqueStockLocIds },
-          { relations: ["sales_channels"], take: uniqueStockLocIds.length }
-        )
-        for (const loc of locs) {
-          const linked = (loc.sales_channels ?? []).some(
+        if (
+          channels.some(
             (sc) => sc.id && franchiseSalesChannelIds.has(sc.id)
           )
-          if (linked) stockLocWithSalesChannel.add(loc.id)
+        ) {
+          stockLocWithFranchiseSalesChannel.add(loc.id)
         }
-      } catch {
-        // Leave set empty — branches will surface "not associated" issues.
+      }
+      moduleResolved = true
+    } catch {
+      // fall through to query.graph
+    }
+
+    if (!moduleResolved) {
+      const candidateEntities = [
+        "stock_location_sales_channel",
+        "sales_channel_stock_location",
+        "link_sales_channel_stock_location",
+      ]
+      for (const entity of candidateEntities) {
+        try {
+          const { data: scStockLinks } = await query.graph({
+            entity,
+            fields: ["stock_location_id", "sales_channel_id"],
+            filters: { stock_location_id: uniqueStockLocIds },
+          })
+          for (const link of scStockLinks as Array<{
+            stock_location_id?: string
+            sales_channel_id?: string
+          }>) {
+            if (link.stock_location_id && link.sales_channel_id) {
+              stockLocWithSalesChannel.add(link.stock_location_id)
+              if (franchiseSalesChannelIds.has(link.sales_channel_id)) {
+                stockLocWithFranchiseSalesChannel.add(link.stock_location_id)
+              }
+            }
+          }
+          break
+        } catch {
+          // try next entity name
+        }
       }
     }
   }
@@ -221,40 +228,66 @@ export const GET = async (
   }
 
   // 6. Assemble branch health objects
-  const branches: BranchHealth[] = storeLocations.map((sl: any) => {
-    const stockLocId = stockLocByStore.get(sl.id) ?? null
-    const hasStockLoc = stockLocId !== null
-    const hasSalesChannel = hasStockLoc && stockLocWithSalesChannel.has(stockLocId)
-    const invCount = stockLocId ? (inventoryCountByStockLoc.get(stockLocId) ?? 0) : 0
-    const isAccepting = Boolean(sl.is_accepting_orders)
+  const branches: BranchHealth[] = storeLocations.map(
+    (sl: {
+      id: string
+      name?: string
+      code?: string
+      is_accepting_orders?: boolean
+    }) => {
+      const stockLocId = stockLocByStore.get(sl.id) ?? null
+      const hasStockLoc = stockLocId !== null
+      // Operational truth: any SC on the stock location is enough for Medusa
+      // fulfillment. Prefer franchise SC match when franchise has SCs linked.
+      const hasAnySc =
+        hasStockLoc && stockLocWithSalesChannel.has(stockLocId!)
+      const hasFranchiseSc =
+        hasStockLoc && stockLocWithFranchiseSalesChannel.has(stockLocId!)
+      const hasSalesChannel =
+        franchiseSalesChannelIds.size > 0 ? hasFranchiseSc : hasAnySc
+      const invCount = stockLocId
+        ? (inventoryCountByStockLoc.get(stockLocId) ?? 0)
+        : 0
+      const isAccepting = Boolean(sl.is_accepting_orders)
 
-    const issues: string[] = []
-    if (!hasStockLoc) {
-      issues.push("No stock location linked — run the create-store workflow or use the repair API")
-    }
-    if (hasStockLoc && !hasSalesChannel) {
-      issues.push("Stock location not associated with a sales channel — click Fix to repair")
-    }
-    if (!isAccepting) {
-      issues.push("Branch is not accepting orders")
-    }
-    if (hasStockLoc && invCount === 0) {
-      issues.push("No inventory levels — products may not be orderable here")
-    }
+      const issues: string[] = []
+      if (!hasStockLoc) {
+        issues.push(
+          "No stock location linked — run the create-store workflow or use the repair API"
+        )
+      }
+      if (hasStockLoc && !hasSalesChannel) {
+        if (hasAnySc && franchiseSalesChannelIds.size > 0) {
+          issues.push(
+            "Stock location sales channel does not match franchise channel — click Fix to repair"
+          )
+        } else {
+          issues.push(
+            "Stock location not associated with a sales channel — click Fix to repair"
+          )
+        }
+      }
+      if (!isAccepting) {
+        issues.push("Branch is not accepting orders")
+      }
+      if (hasStockLoc && invCount === 0) {
+        issues.push("No inventory levels — products may not be orderable here")
+      }
 
-    return {
-      store_location_id: sl.id,
-      store_location_name: sl.name ?? "",
-      store_location_code: sl.code ?? "",
-      is_accepting_orders: isAccepting,
-      has_stock_location: hasStockLoc,
-      stock_location_id: stockLocId,
-      has_sales_channel: hasSalesChannel,
-      inventory_item_count: invCount,
-      issues,
-      healthy: hasStockLoc && hasSalesChannel && invCount > 0,
+      return {
+        store_location_id: sl.id,
+        store_location_name: sl.name ?? "",
+        store_location_code: sl.code ?? "",
+        is_accepting_orders: isAccepting,
+        has_stock_location: hasStockLoc,
+        stock_location_id: stockLocId,
+        has_sales_channel: hasSalesChannel,
+        inventory_item_count: invCount,
+        issues,
+        healthy: hasStockLoc && hasSalesChannel && invCount > 0,
+      }
     }
-  })
+  )
 
   const healthyCount = branches.filter((b) => b.healthy).length
 
@@ -264,176 +297,6 @@ export const GET = async (
     healthy_branches: healthyCount,
     unhealthy_branches: branches.length - healthyCount,
     branches,
-  })
-}
-
-// ── POST /fix/:store_location_id — one-click repair ───────────────────────────
-
-export const POST = async (
-  req: AuthenticatedMedusaRequest<{ store_location_id: string }>,
-  res: MedusaResponse
-) => {
-  const isSuper = await isSuperAdminUser(req)
-  const tenantReq = req as AuthenticatedTenantRequest
-  const franchiseId = await resolveAdminFranchiseContext(tenantReq)
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-  const remoteLink = req.scope.resolve("remoteLink")
-  const inventoryService = req.scope.resolve(Modules.INVENTORY) as any
-  const logger = req.scope.resolve("logger")
-
-  const storeLocationId = req.params?.store_location_id as string | undefined
-
-  if (!storeLocationId) {
-    return res.status(400).json({ message: "Missing store_location_id param" })
-  }
-
-  // Verify branch belongs to this franchise
-  const { data: slData } = await query.graph({
-    entity: "store_location",
-    fields: ["id", "name"],
-    filters: { id: storeLocationId, franchise_id: franchiseId },
-  })
-
-  if (!slData.length) {
-    return res.status(404).json({ message: "Store location not found in this franchise" })
-  }
-
-  const fixes: string[] = []
-  const errors: string[] = []
-
-  // 1. Resolve the stock location for this branch
-  const { data: slStockLinks } = await query.graph({
-    entity: StoreLocationStockLocationLink.entryPoint,
-    fields: ["stock_location_id"],
-    filters: { store_location_id: storeLocationId },
-  })
-
-  const stockLocationId = (slStockLinks as Array<{ stock_location_id?: string }>)[0]
-    ?.stock_location_id
-
-  if (!stockLocationId) {
-    errors.push(
-      `Branch "${(slData[0] as any).name}" has no stock location. ` +
-      `Delete and recreate it via the franchise-locations API to provision one atomically.`
-    )
-    return res.status(422).json({ fixed: false, fixes, errors })
-  }
-
-  // 2. Wire stock location → franchise's sales channels (if not already wired)
-  const { data: scLinks } = await query.graph({
-    entity: FranchiseSalesChannelLink.entryPoint,
-    fields: ["sales_channel_id"],
-    filters: { franchise_id: franchiseId },
-  })
-
-  const franchiseSalesChannelIds = (scLinks as Array<{ sales_channel_id?: string }>)
-    .map((l) => l.sales_channel_id)
-    .filter((id): id is string => Boolean(id))
-
-  if (franchiseSalesChannelIds.length) {
-    const { data: existingSCLinks } = await query.graph({
-      entity: "stock_location_sales_channel",
-      fields: ["sales_channel_id"],
-      filters: {
-        stock_location_id: stockLocationId,
-        sales_channel_id: franchiseSalesChannelIds,
-      },
-    })
-
-    const alreadyLinked = new Set(
-      (existingSCLinks as Array<{ sales_channel_id?: string }>)
-        .map((l) => l.sales_channel_id)
-        .filter((id): id is string => Boolean(id))
-    )
-
-    const toLink = franchiseSalesChannelIds.filter((id) => !alreadyLinked.has(id))
-
-    if (toLink.length) {
-      try {
-        await linkSalesChannelsToStockLocationWorkflow(req.scope).run({
-          input: { id: stockLocationId, add: toLink },
-        })
-        fixes.push(
-          `Linked stock location → ${toLink.length} sales channel(s)`
-        )
-        logger.info(
-          `[store-health fix] ✓ Linked stock ${stockLocationId} → sales channels ${toLink.join(",")}`
-        )
-      } catch (err: any) {
-        errors.push(`Failed to link sales channels: ${err.message}`)
-      }
-    } else {
-      fixes.push("Sales channel association already healthy — no change needed")
-    }
-  }
-
-  // 3. Create missing inventory levels for all franchise products
-  const { data: productLinks } = await query.graph({
-    entity: FranchiseProductLink.entryPoint,
-    fields: ["product_id"],
-    filters: { franchise_id: franchiseId },
-  })
-
-  const productIds = (productLinks as Array<{ product_id?: string }>)
-    .map((l) => l.product_id)
-    .filter((id): id is string => Boolean(id))
-
-  if (productIds.length) {
-    const { data: variantData } = await query.graph({
-      entity: "product_variant",
-      fields: ["id", "manage_inventory", "inventory_items.id"],
-      filters: { product_id: productIds },
-    })
-
-    const inventoryItemIds = Array.from(
-      new Set(
-        (variantData as Array<{
-          manage_inventory?: boolean
-          inventory_items?: Array<{ id?: string }>
-        }>)
-          .filter((v) => v.manage_inventory !== false)
-          .flatMap((v) => (v.inventory_items ?? []).map((i) => i.id))
-          .filter((id): id is string => Boolean(id))
-      )
-    )
-
-    let createdCount = 0
-
-    for (const inventoryItemId of inventoryItemIds) {
-      const existing = await inventoryService.listInventoryLevels({
-        inventory_item_id: inventoryItemId,
-        location_id: stockLocationId,
-      })
-
-      if (!existing.length) {
-        try {
-          await inventoryService.createInventoryLevels([{
-            inventory_item_id: inventoryItemId,
-            location_id: stockLocationId,
-            stocked_quantity: 0,
-          }])
-          createdCount++
-        } catch (err: any) {
-          errors.push(`Failed to create level for item ${inventoryItemId}: ${err.message}`)
-        }
-      }
-    }
-
-    if (createdCount > 0) {
-      fixes.push(`Created ${createdCount} missing inventory level(s) at qty 0`)
-      logger.info(
-        `[store-health fix] ✓ Created ${createdCount} inventory levels at stock ${stockLocationId}`
-      )
-    } else {
-      fixes.push("All inventory levels already exist — no change needed")
-    }
-  }
-
-  res.json({
-    fixed: errors.length === 0,
-    store_location_id: storeLocationId,
-    stock_location_id: stockLocationId,
-    fixes,
-    errors,
+    ...(franchiseIssues.length ? { franchise_issues: franchiseIssues } : {}),
   })
 }

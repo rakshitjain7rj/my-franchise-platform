@@ -46,6 +46,7 @@ type StoreHealthResponse = {
   healthy_branches: number
   unhealthy_branches: number
   branches: BranchHealth[]
+  franchise_issues?: string[]
 }
 
 // ── Status cell helpers ───────────────────────────────────────────────────────
@@ -79,16 +80,38 @@ const StoreHealthPanel = () => {
   })
 
   const fixMutation = useMutation({
-    mutationFn: (storeLocationId: string) =>
-      sdk.client.fetch(
-        `/admin/franchise-dashboard/store-health/fix/${storeLocationId}`,
-        { method: "POST" }
-      ) as Promise<{ fixed: boolean; fixes: string[]; errors: string[] }>,
+    mutationFn: async (storeLocationId: string) => {
+      try {
+        return (await sdk.client.fetch(
+          `/admin/franchise-dashboard/store-health/fix/${storeLocationId}`,
+          { method: "POST" }
+        )) as { fixed: boolean; fixes: string[]; errors: string[] }
+      } catch (err: any) {
+        // Surface HTTP body when present (Medusa FetchError / Response-like)
+        const status = err?.status ?? err?.response?.status
+        const bodyMessage =
+          err?.message ||
+          err?.response?.data?.message ||
+          (typeof err === "string" ? err : null)
+        if (status === 404) {
+          throw new Error(
+            "Repair endpoint not found (404). Deploy backend so POST /admin/franchise-dashboard/store-health/fix/:id is available."
+          )
+        }
+        throw new Error(
+          bodyMessage
+            ? status
+              ? `HTTP ${status}: ${bodyMessage}`
+              : bodyMessage
+            : "Repair request failed"
+        )
+      }
+    },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["franchise-store-health"] })
       if (result.fixed) {
         toast.success("Branch repaired", {
-          description: result.fixes.join(" · "),
+          description: result.fixes.join(" · ") || "No changes needed",
         })
       } else {
         toast.error("Partial repair", {
@@ -97,7 +120,9 @@ const StoreHealthPanel = () => {
       }
     },
     onError: (err: any) => {
-      toast.error("Repair failed", { description: err.message })
+      toast.error("Repair failed", {
+        description: err?.message || "Unknown error",
+      })
     },
   })
 
@@ -186,6 +211,16 @@ const StoreHealthPanel = () => {
           )}
         </div>
       </div>
+
+      {health.franchise_issues && health.franchise_issues.length > 0 && (
+        <div className="mb-3 rounded-md border border-ui-border-base bg-ui-bg-subtle px-3 py-2">
+          {health.franchise_issues.map((issue, i) => (
+            <Text key={i} size="xsmall" className="text-ui-fg-error leading-tight">
+              {issue}
+            </Text>
+          ))}
+        </div>
+      )}
 
       {/* ── Table (scrolls horizontally on narrow screens) ── */}
       <div className="overflow-x-auto">
