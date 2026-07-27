@@ -1,8 +1,8 @@
 /**
- * POST /store/carts/:id/complete — enforce kitchen lead time + bookable slot.
+ * POST /store/carts/:id/complete — enforce kitchen lead time on collection.
  *
- * Prevents completing a cart whose requested_pickup_* falls inside the
- * store's lead-time window (Kitchen Busy mode) or points at a closed branch.
+ * Resolves store + slot from cart metadata OR line-item attributes so PayPal
+ * return (where cart.metadata may lag the line custom_attributes) still works.
  */
 
 import type {
@@ -13,14 +13,15 @@ import type {
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import {
   assertCollectionSlotAllowed,
-  collectionRequestFromMetadata,
+  resolveCollectionRequest,
+  resolveStoreLocationId,
+  type LineItemLike,
   type StoreLocationForSlot,
 } from "../../utils/validate-collection-slot"
 import type { OpeningHours } from "../../utils/logistics"
 
 function cartIdFromPath(req: MedusaRequest): string | null {
   const path = req.path ?? req.url ?? ""
-  // /store/carts/:id/complete
   const m = /\/store\/carts\/([^/]+)\/complete/.exec(path)
   if (m?.[1]) return decodeURIComponent(m[1])
   const params = req.params as Record<string, string> | undefined
@@ -44,13 +45,19 @@ export async function validateCartCollectionSlot(
     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
     const { data: carts } = await query.graph({
       entity: "cart",
-      fields: ["id", "metadata"],
+      fields: [
+        "id",
+        "metadata",
+        "items.metadata",
+        "items.id",
+      ],
       filters: { id: cartId },
     })
 
     const cart = (carts?.[0] ?? null) as {
       id?: string
       metadata?: Record<string, unknown> | null
+      items?: LineItemLike[] | null
     } | null
 
     if (!cart?.id) {
@@ -60,12 +67,16 @@ export async function validateCartCollectionSlot(
       )
     }
 
-    const meta = cart.metadata ?? {}
-    const storeLocationId =
-      (typeof meta.store_location_id === "string" && meta.store_location_id) ||
-      (typeof req.headers["x-store-location-id"] === "string"
-        ? req.headers["x-store-location-id"].trim()
-        : "")
+    const headerStore =
+      typeof req.headers["x-store-location-id"] === "string"
+        ? req.headers["x-store-location-id"]
+        : null
+
+    const storeLocationId = resolveStoreLocationId(
+      cart.metadata,
+      cart.items,
+      headerStore
+    )
 
     if (!storeLocationId) {
       throw new MedusaError(
@@ -104,12 +115,14 @@ export async function validateCartCollectionSlot(
       )
     }
 
+    const request = resolveCollectionRequest(cart.metadata, cart.items)
+
     assertCollectionSlotAllowed(
       {
         ...location,
         opening_hours: location.opening_hours as OpeningHours | null,
       },
-      collectionRequestFromMetadata(meta)
+      request
     )
 
     return next()
