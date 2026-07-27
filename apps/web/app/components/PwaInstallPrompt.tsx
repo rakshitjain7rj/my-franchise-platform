@@ -205,7 +205,11 @@ export default function PwaInstallPrompt() {
       role="dialog"
       aria-label="Install Cake Break app"
       aria-live="polite"
-      className="fixed bottom-0 inset-x-0 z-[80] p-4 sm:p-6 pointer-events-none"
+      className="
+        fixed inset-x-0 z-[1050] p-3 sm:p-6 pointer-events-none
+        bottom-[calc(4.25rem+env(safe-area-inset-bottom,0px))]
+        md:bottom-0
+      "
     >
       <div className="pointer-events-auto mx-auto max-w-lg rounded-2xl border border-outline-variant/40 bg-white shadow-[0_-8px_40px_rgba(74,21,75,0.18)] p-5 flex flex-col gap-4">
         <div className="flex items-start gap-3 min-w-0">

@@ -3,6 +3,9 @@
 /**
  * GDPR-style cookie consent banner.
  * Preference stored in localStorage under cake_cookie_consent.
+ *
+ * Positioned above the mobile BottomNav (h-[4.25rem] + safe-area) so the
+ * full message and actions stay visible and tappable on phones.
  */
 
 import { useEffect, useState } from "react";
@@ -43,9 +46,23 @@ export default function CookieConsent() {
     <div
       role="dialog"
       aria-label="Cookie consent"
-      className="fixed bottom-0 inset-x-0 z-[70] p-4 sm:p-6 pointer-events-none"
+      aria-modal="false"
+      className="
+        fixed inset-x-0 z-[1100] p-3 sm:p-6 pointer-events-none
+        bottom-[calc(4.25rem+env(safe-area-inset-bottom,0px))]
+        md:bottom-0
+      "
     >
-      <div className="pointer-events-auto mx-auto max-w-3xl rounded-2xl border border-outline-variant/40 bg-white/95 backdrop-blur-md shadow-[0_-8px_40px_rgba(74,21,75,0.12)] p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4">
+      <div
+        className="
+          pointer-events-auto mx-auto max-w-3xl
+          rounded-2xl border border-outline-variant/40
+          bg-white/98 backdrop-blur-md
+          shadow-[0_8px_40px_rgba(74,21,75,0.14)]
+          p-4 sm:p-6
+          flex flex-col sm:flex-row sm:items-center gap-4
+        "
+      >
         <div className="flex-1 space-y-1.5 min-w-0">
           <p className="font-label-bold text-sm text-deep-plum uppercase tracking-wider">
             We use cookies
