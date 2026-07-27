@@ -12,6 +12,11 @@ import {
   prepareCartForCheckout,
   PAYPAL_PROVIDER_ID,
 } from "@/lib/cart/cart-actions"
+import {
+  getCartDeliveryPostcode,
+  getCartFulfillmentMethod,
+  resolveCartTotals,
+} from "@/lib/cart/cart-totals"
 import { getCurrentCustomer } from "@/lib/auth/auth-actions"
 import {
   getCustomerAddresses,
@@ -172,6 +177,10 @@ export default function CheckoutPage() {
         addresses[0] ??
         null
       const cartAddr = cart?.shipping_address
+      // Postcode SSOT: cart shipping_address / metadata.delivery_postcode
+      // always win over the address book so a cart-page delivery quote is
+      // not silently replaced by a different saved postcode.
+      const cartDeliveryPostcode = getCartDeliveryPostcode(cart)
 
       // Prefer cart shipping when present (mid-checkout resume), else default
       // address book entry. Profile fills only gaps (especially email).
@@ -202,13 +211,23 @@ export default function CheckoutPage() {
         city: pick(prev.city, cartAddr?.city, saved?.city),
         postalCode: pick(
           prev.postalCode,
+          cartDeliveryPostcode,
           cartAddr?.postal_code,
           saved?.postal_code
         ),
       }))
 
       if (!prefillDone) {
-        setSelectedAddressId(saved?.id ?? (customer ? "custom" : null))
+        // If cart already has a delivery postcode that does not match the
+        // default saved address, treat the form as custom so we do not
+        // overwrite the cart quote when the picker re-renders.
+        const savedPc = saved?.postal_code?.trim().toUpperCase() ?? ""
+        const cartPc = cartDeliveryPostcode?.trim().toUpperCase() ?? ""
+        if (cartPc && savedPc && cartPc !== savedPc) {
+          setSelectedAddressId("custom")
+        } else {
+          setSelectedAddressId(saved?.id ?? (customer ? "custom" : null))
+        }
         setPrefillDone(true)
       }
     }
@@ -342,28 +361,17 @@ export default function CheckoutPage() {
     }
   }
 
-  const subtotalVal = cart?.subtotal ?? 0
-  const taxVal = cart?.tax_total ?? 0
-  const discountVal = cart?.discount_total ?? 0
-  // Shipping: prefer Medusa shipping_total; else cart metadata delivery_fee
-  // from the backend logistics quote (never hardcode a client-side constant).
-  const isDelivery = cart?.metadata?.fulfillment_method === "delivery"
-  const quotedDeliveryFee =
-    typeof cart?.metadata?.delivery_fee === "number"
-      ? Number(cart.metadata.delivery_fee)
-      : 0
-  const shippingVal = cart
-    ? cart.shipping_total > 0
-      ? cart.shipping_total
-      : isDelivery
-        ? quotedDeliveryFee
-        : 0
-    : 0
-  const finalTotal = Math.max(
-    0,
-    (cart?.total ?? 0) + (cart && cart.shipping_total <= 0 ? shippingVal : 0)
-  )
+  // Same totals helper as the cart page — never invent a client-only fee.
+  const totals = resolveCartTotals(cart)
+  const isDelivery = getCartFulfillmentMethod(cart) === "delivery"
+  const subtotalVal = totals.subtotal
+  const taxVal = totals.tax
+  const discountVal = totals.discount
+  const shippingVal = totals.shipping
+  const finalTotal = totals.total
   const currencyCode = cart?.currency_code ?? "GBP"
+  const cartDeliveryPostcode =
+    totals.deliveryPostcode ?? getCartDeliveryPostcode(cart)
   const slotLabel =
     (typeof cart?.metadata?.requested_pickup_label === "string" &&
       cart.metadata.requested_pickup_label) ||
@@ -945,18 +953,17 @@ export default function CheckoutPage() {
                       <p className="mt-0.5 text-sm text-on-surface font-medium">
                         {[slotDate, slotLabel].filter(Boolean).join(" · ")}
                       </p>
-                      {isDelivery &&
-                        typeof cart?.metadata?.delivery_postcode === "string" && (
+                      {isDelivery && cartDeliveryPostcode && (
                           <p className="mt-0.5">
-                            To {String(cart.metadata.delivery_postcode)}
-                            {typeof cart.metadata.delivery_distance_km === "number" &&
+                            To {cartDeliveryPostcode}
+                            {typeof cart?.metadata?.delivery_distance_km === "number" &&
                               ` · ~${Number(cart.metadata.delivery_distance_km).toFixed(1)} km`}
                           </p>
                         )}
                     </div>
                   )}
 
-                  {/* Pricing Breakdowns */}
+                  {/* Pricing Breakdowns — totals from resolveCartTotals (SSOT) */}
                   <dl className="space-y-3 text-sm border-t border-outline-variant pt-6 mb-8">
                     <div className="flex items-center justify-between text-on-surface-variant">
                       <dt>Subtotal</dt>
@@ -970,7 +977,7 @@ export default function CheckoutPage() {
                         {shippingVal > 0
                           ? fmt(shippingVal, currencyCode)
                           : isDelivery
-                            ? "Quote on cart"
+                            ? "Calculated at bakery"
                             : "Free"}
                       </dd>
                     </div>

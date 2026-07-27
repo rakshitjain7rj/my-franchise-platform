@@ -4,9 +4,12 @@ import { useEffect, useState, useCallback, useRef } from "react"
 import { useCart, type InventoryCheckResult } from "@/lib/cart/cart-context"
 import {
   applyPromoCode,
+  applyPreferredShippingMethod,
   removePromoCode,
+  syncDeliveryQuoteToCart,
   updateCartMetadata,
 } from "@/lib/cart/cart-actions"
+import { getCartDeliveryPostcode, resolveCartTotals } from "@/lib/cart/cart-totals"
 import { getCustomerAddresses } from "@/lib/auth/account-actions"
 import { getMedusaHeadersSync } from "@/lib/medusa/headers"
 import { fetchDeliveryFee } from "@/lib/data/logistics"
@@ -191,9 +194,12 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
         mergedMetadata.delivery_deliverable = updates.delivery_deliverable
       }
 
+      // Must refresh cart context so checkout/account read the same metadata
+      // (previously only local React state had the quoted fee → checkout £25).
       await updateCartMetadata(cartId, mergedMetadata).catch(() => {})
+      await refreshCart().catch(() => {})
     },
-    [cartId, cart, fulfillment, locationId, franchiseId]
+    [cartId, cart, fulfillment, locationId, franchiseId, refreshCart]
   )
 
   const persistCartMetadataRef = useRef(persistCartMetadata)
@@ -231,11 +237,16 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
     if (meta?.fulfillment_method) {
       setFulfillment(meta.fulfillment_method as "pickup" | "delivery")
     }
-    if (typeof meta?.delivery_fee === "number") {
+    // Prefer Medusa shipping_total (authoritative) over metadata quote.
+    if ((cart.shipping_total ?? 0) > 0) {
+      setDeliveryFee(cart.shipping_total)
+    } else if (typeof meta?.delivery_fee === "number") {
       setDeliveryFee(meta.delivery_fee)
     }
-    if (typeof meta?.delivery_postcode === "string") {
-      setDeliveryPostcode(meta.delivery_postcode)
+    // Postcode SSOT: shipping_address → metadata → address book (gap fill only).
+    const cartPostcode = getCartDeliveryPostcode(cart)
+    if (cartPostcode) {
+      setDeliveryPostcode(cartPostcode)
     } else {
       void getCustomerAddresses()
         .then((addresses) => {
@@ -247,6 +258,9 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
           if (pc) setDeliveryPostcode((cur) => cur.trim() || pc)
         })
         .catch(() => {})
+    }
+    if (typeof meta?.delivery_distance_km === "number") {
+      setDeliveryDistanceKm(meta.delivery_distance_km)
     }
 
     // Promote product-page slot → cart metadata once (no cart UI to re-edit).
@@ -327,8 +341,23 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
   const persistFulfillment = useCallback(
     async (method: "pickup" | "delivery") => {
       await persistCartMetadata({ fulfillment_method: method })
+      if (!cartId) return
+      // Attach the matching shipping option so cart.total is payment truth
+      // for pickup (free) as well as delivery (quoted).
+      if (method === "pickup") {
+        setDeliveryFee(0)
+        setDeliveryFeeError(null)
+        setDeliveryDistanceKm(null)
+        try {
+          await applyPreferredShippingMethod(cartId, "pickup", locationId)
+          await refreshCart()
+        } catch {
+          // Shipping options may be unavailable until an address exists;
+          // checkout prepare will re-attach.
+        }
+      }
     },
-    [persistCartMetadata]
+    [persistCartMetadata, cartId, locationId, refreshCart]
   )
 
   const quoteDeliveryFee = useCallback(async () => {
@@ -338,33 +367,42 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
       setDeliveryFeeError(null)
       return
     }
+    if (!cartId) return
     setDeliveryFeeLoading(true)
     setDeliveryFeeError(null)
     try {
       const result = await fetchDeliveryFee(locationId, {
         postcode: deliveryPostcode.trim(),
       })
+      // Persist fee + postcode to cart (metadata + shipping_address) and
+      // attach local-delivery shipping method so cart.total / shipping_total
+      // match what checkout and payment will charge.
+      const updated = await syncDeliveryQuoteToCart(cartId, {
+        postcode: deliveryPostcode.trim(),
+        fee: result.fee,
+        distance_km: result.distance_km ?? null,
+        deliverable: result.deliverable,
+        storeLocationId: locationId,
+        existingMetadata: cart?.metadata ?? null,
+      })
+      await refreshCart()
+
       if (!result.deliverable) {
         setDeliveryFee(0)
         setDeliveryDistanceKm(result.distance_km ?? null)
         setDeliveryFeeError(
           result.message ?? "Delivery is not available to this postcode."
         )
-        await persistCartMetadata({
-          delivery_fee: 0,
-          delivery_postcode: deliveryPostcode.trim(),
-          delivery_deliverable: false,
-        })
         return
       }
-      setDeliveryFee(result.fee)
+
+      // Prefer Medusa shipping_total when the method attached successfully.
+      const charged =
+        (updated.shipping_total ?? 0) > 0
+          ? updated.shipping_total
+          : result.fee
+      setDeliveryFee(charged)
       setDeliveryDistanceKm(result.distance_km ?? null)
-      await persistCartMetadata({
-        delivery_fee: result.fee,
-        delivery_postcode: deliveryPostcode.trim(),
-        delivery_distance_km: result.distance_km,
-        delivery_deliverable: true,
-      })
     } catch (err) {
       setDeliveryFee(0)
       setDeliveryFeeError(
@@ -373,7 +411,14 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
     } finally {
       setDeliveryFeeLoading(false)
     }
-  }, [fulfillment, locationId, deliveryPostcode, persistCartMetadata])
+  }, [
+    fulfillment,
+    locationId,
+    deliveryPostcode,
+    cartId,
+    cart?.metadata,
+    refreshCart,
+  ])
 
   useEffect(() => {
     if (fulfillment === "pickup") {
@@ -420,17 +465,20 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
   }
 
   const currencyCode = cart?.currency_code ?? "GBP"
-  const shippingVal =
-    (cart?.shipping_total ?? 0) > 0
-      ? (cart?.shipping_total ?? 0)
-      : fulfillment === "delivery"
-        ? deliveryFee
-        : 0
+  // Single totals path shared with checkout (cart.shipping_total when set,
+  // else metadata quote / local quote while hydrating).
+  const totals = resolveCartTotals(cart, {
+    localDeliveryFee:
+      fulfillment === "delivery" && !deliveryFeeError ? deliveryFee : 0,
+  })
+  // Pickup is always free on the cart UI; delivery uses resolved shipping.
+  const shippingVal = fulfillment === "pickup" ? 0 : totals.shipping
   const isInventorySufficient = inventoryResult
     ? inventoryResult.all_sufficient
     : true
   const deliveryOk =
-    fulfillment === "pickup" || (deliveryFee > 0 && !deliveryFeeError)
+    fulfillment === "pickup" ||
+    ((deliveryFee > 0 || totals.shipping > 0) && !deliveryFeeError)
   // Collection window is set per cake on the product page (line custom_attributes).
   const itemsHaveCollectionSlot = cartItemsHaveCollectionSlots(cart?.items)
   const canCheckout =
@@ -439,14 +487,19 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
     isInventorySufficient &&
     deliveryOk
 
-  const subtotalVal = cart?.subtotal ?? 0
-  const taxVal = cart?.tax_total ?? 0
-  const discountVal = cart?.discount_total ?? 0
+  const subtotalVal = totals.subtotal
+  const taxVal = totals.tax
+  const discountVal = totals.discount
   const appliedPromos = cart?.promotions ?? []
+  // When UI is on pickup but a prior delivery method is still attached,
+  // strip shipping from the grand total so the shopper is not charged for
+  // delivery they unselected (prepareCartForCheckout re-attaches pickup).
   const finalTotal =
-    (cart?.shipping_total ?? 0) > 0 || discountVal > 0
-      ? Math.max(0, cart?.total ?? 0)
-      : Math.max(0, subtotalVal + shippingVal + taxVal - discountVal)
+    fulfillment === "pickup" && (cart?.shipping_total ?? 0) > 0
+      ? Math.max(0, (cart?.total ?? 0) - (cart?.shipping_total ?? 0))
+      : fulfillment === "pickup"
+        ? Math.max(0, totals.subtotal + totals.tax - totals.discount)
+        : totals.total
 
   return {
     cart,
