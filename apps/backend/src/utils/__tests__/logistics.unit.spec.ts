@@ -15,10 +15,26 @@ import {
   haversineKm,
   parseHHMM,
   quoteLocalDelivery,
+  resolveLeadTimeHours,
   resolveOpeningHours,
   roundDistanceKm,
   type DeliveryFeeConfig,
 } from "../logistics"
+
+describe("resolveLeadTimeHours", () => {
+  it("treats 0 as immediate (not falsy fallback to 24)", () => {
+    expect(resolveLeadTimeHours({ custom_lead_time_hours: 0 })).toBe(0)
+  })
+
+  it("uses custom lead time when set", () => {
+    expect(resolveLeadTimeHours({ custom_lead_time_hours: 24 })).toBe(24)
+  })
+
+  it("falls back to metadata then 24", () => {
+    expect(resolveLeadTimeHours({ metadata: { lead_time_hours: 6 } })).toBe(6)
+    expect(resolveLeadTimeHours({})).toBe(24)
+  })
+})
 
 describe("parseHHMM / formatHHMM", () => {
   it("parses valid times", () => {

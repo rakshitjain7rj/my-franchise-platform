@@ -201,17 +201,29 @@ export const PATCH = async (
     },
   ])
 
-  // Sync to all store locations of this franchise
+  // Sync effective lead time to all store locations of this franchise.
+  //
+  // Kitchen Busy mode is NOT the same as "closed":
+  //   - accepting_immediate_orders = true  → lead time 0 (order ASAP / same day)
+  //   - accepting_immediate_orders = false → lead time = custom_lead_time_hours
+  //                                           (e.g. 24h notice while kitchen is busy)
+  //
+  // Never flip `is_accepting_orders` here — that flag means "branch closed for
+  // orders" and is controlled per location (Orders toggle on Store Locations).
+  // Mapping busy mode onto it previously emptied all pickup slots.
   const storeLocations = await franchiseModuleService.listStoreLocations({
     franchise_id: id,
   })
+
+  const effectiveLeadTimeHours = updatedSettings.accepting_immediate_orders
+    ? 0
+    : Math.max(0, Number(updatedSettings.custom_lead_time_hours) || 0)
 
   if (storeLocations.length) {
     await franchiseModuleService.updateStoreLocations(
       storeLocations.map((loc) => ({
         id: loc.id,
-        is_accepting_orders: updatedSettings.accepting_immediate_orders,
-        custom_lead_time_hours: updatedSettings.custom_lead_time_hours,
+        custom_lead_time_hours: effectiveLeadTimeHours,
       }))
     )
   }

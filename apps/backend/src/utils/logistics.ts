@@ -38,6 +38,29 @@ export const DEFAULT_OPENING_HOURS: OpeningHours = {
   sunday: { open: "09:00", close: "18:00" },
 }
 
+/**
+ * Resolve customer-facing lead time (hours) for a store location.
+ *
+ * Important: `0` means immediate / no minimum notice. Do not use `|| 24`
+ * because that treats 0 as missing and incorrectly forces a day of lead time.
+ *
+ * Priority: custom_lead_time_hours → metadata.lead_time_hours → 24 (legacy).
+ */
+export function resolveLeadTimeHours(location: {
+  custom_lead_time_hours?: number | null
+  metadata?: Record<string, unknown> | null
+}): number {
+  const raw = location.custom_lead_time_hours
+  if (raw !== null && raw !== undefined && Number.isFinite(Number(raw))) {
+    return Math.max(0, Number(raw))
+  }
+  const meta = Number(location.metadata?.lead_time_hours)
+  if (Number.isFinite(meta)) {
+    return Math.max(0, meta)
+  }
+  return 24
+}
+
 export function parseHHMM(value: string): number | null {
   const m = /^(\d{1,2}):(\d{2})$/.exec(value.trim())
   if (!m) return null

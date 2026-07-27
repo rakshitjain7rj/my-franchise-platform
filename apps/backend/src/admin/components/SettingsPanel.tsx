@@ -183,9 +183,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ franchiseId }) => 
               Accepting Immediate Orders
             </Label>
             <Text size="small" className="text-ui-fg-subtle mt-1 max-w-prose">
-              When enabled, the kitchen can fulfil orders using the standard
-              platform lead time. Disable this for Kitchen Busy mode, which
-              extends customer-facing lead times by the value set below.
+              When enabled, customers can book slots for immediate preparation
+              (no minimum notice). Disable for Kitchen Busy mode — the kitchen
+              still accepts orders, but customers must give the lead time set
+              below (e.g. 24 hours).
             </Text>
           </div>
 
@@ -210,8 +211,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ franchiseId }) => 
               label="Custom Order Lead Time (hours)"
               helper={
                 acceptingOrders
-                  ? "Enter 0 to use the platform default. A positive value is applied when Kitchen Busy mode is active."
-                  : "Lead time is active because Kitchen Busy mode is on."
+                  ? "Used when Kitchen Busy is on. Toggle off Accepting Immediate Orders to enforce this notice period."
+                  : "Lead time is active because Kitchen Busy mode is on — customers need this many hours of notice."
               }
             >
               <Input

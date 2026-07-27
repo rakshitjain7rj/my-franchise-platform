@@ -23,6 +23,7 @@ import {
   applySlotUsage,
   buildDaySlots,
   extractSlotStart,
+  resolveLeadTimeHours,
   type OpeningHours,
 } from "../../../../../utils/logistics"
 
@@ -119,10 +120,8 @@ export const GET = async (
     return
   }
 
-  const leadTimeHours =
-    Number(location.custom_lead_time_hours) ||
-    Number(location.metadata?.lead_time_hours) ||
-    24
+  // 0 is a valid "immediate" lead time — do not treat it as falsy / fall back to 24.
+  const leadTimeHours = resolveLeadTimeHours(location)
 
   const slots = buildDaySlots({
     date: rawDate,
