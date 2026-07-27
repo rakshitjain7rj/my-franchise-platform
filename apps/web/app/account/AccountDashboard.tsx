@@ -243,9 +243,8 @@ function OverviewTab({
             {recent.map((o) => (
               <div key={o.id} className="flex items-center justify-between p-3 bg-lavender-bg rounded-xl">
                 <div>
-                  <p className="text-sm font-semibold text-deep-plum">Order #{o.display_id}</p>
-                  <p className="text-xs text-on-surface-variant flex items-center gap-1 mt-0.5">
-                    <Calendar className="h-3 w-3" /> {formatDate(o.created_at)}
+                  <p className="text-sm font-semibold text-deep-plum flex items-center gap-1">
+                    <Calendar className="h-3.5 w-3.5" /> {formatDate(o.created_at)}
                   </p>
                 </div>
                 <div className="text-right">
@@ -620,10 +619,6 @@ function OrdersTab({ orders }: { orders: Order[] }) {
               <div className="flex flex-wrap items-center justify-between px-5 py-4 border-b border-purple-50 bg-lavender-bg/50">
                 <div className="flex flex-wrap gap-4 text-sm">
                   <div>
-                    <span className="text-xs text-on-surface-variant uppercase tracking-wider">Order</span>
-                    <p className="font-bold text-deep-plum">#{order.display_id}</p>
-                  </div>
-                  <div>
                     <span className="text-xs text-on-surface-variant uppercase tracking-wider">Date</span>
                     <p className="font-semibold text-on-surface">{formatDate(order.created_at)}</p>
                   </div>
@@ -637,7 +632,7 @@ function OrdersTab({ orders }: { orders: Order[] }) {
                 </span>
               </div>
 
-              {/* Items */}
+              {/* Items + delivery line so cake price is never mistaken for the order total */}
               {order.items?.length > 0 && (
                 <div className="px-5 py-4 divide-y divide-purple-50">
                   {order.items.map((item) => (
@@ -662,6 +657,14 @@ function OrdersTab({ orders }: { orders: Order[] }) {
                       </p>
                     </div>
                   ))}
+                  {(order.shipping_total ?? 0) > 0 && (
+                    <div className="flex items-center justify-between py-3 text-sm">
+                      <p className="text-on-surface-variant">Local delivery</p>
+                      <p className="font-semibold text-deep-plum shrink-0">
+                        {formatPrice(order.shipping_total ?? 0, order.currency_code)}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
