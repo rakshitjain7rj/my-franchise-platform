@@ -1,6 +1,10 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 import StoreLocationStockLocationLink from "../../../links/store-location-stock-location"
+import {
+  computeAvailableQuantity,
+  isInventorySufficient,
+} from "../../../utils/inventory-availability"
 
 /**
  * POST /store/cart-inventory-check
@@ -189,15 +193,19 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
       const level = levels[0]
       const available = level
-        ? (level.stocked_quantity ?? 0) - (level.reserved_quantity ?? 0)
+        ? computeAvailableQuantity(
+            level.stocked_quantity ?? 0,
+            level.reserved_quantity ?? 0
+          )
         : 0
 
       result.push({
         variant_id: item.variant_id,
         requested_quantity: item.quantity,
         available_quantity: available,
-        is_sufficient: available >= item.quantity,
+        is_sufficient: isInventorySufficient(available, item.quantity),
       })
+
     } catch {
       // FAIL CLOSED: if the inventory lookup errors we must not assume stock is
       // available (that would risk overselling). Mark the item insufficient so

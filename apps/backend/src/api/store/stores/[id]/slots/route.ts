@@ -20,6 +20,7 @@ import {
 } from "@medusajs/framework/utils"
 import OrderStoreLocationLink from "../../../../../links/order-store-location"
 import {
+  applySlotUsage,
   buildDaySlots,
   extractSlotStart,
   type OpeningHours,
@@ -183,14 +184,7 @@ export const GET = async (
       usage.set(slotStart, (usage.get(slotStart) ?? 0) + 1)
     }
 
-    for (const slot of slots) {
-      const used = usage.get(slot.time) ?? 0
-      slot.available_capacity = Math.max(0, slot.available_capacity - used)
-      if (slot.available_capacity <= 0) {
-        slot.is_bookable = false
-        slot.available_capacity = 0
-      }
-    }
+    applySlotUsage(slots, usage)
   } catch {
     // Best-effort capacity — still return generated slots
   }

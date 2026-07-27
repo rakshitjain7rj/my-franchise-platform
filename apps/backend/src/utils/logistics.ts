@@ -167,6 +167,33 @@ export function buildDaySlots(input: {
 }
 
 /**
+ * Subtract existing bookings from generated slots (one order = one capacity unit).
+ * Slots already blocked by lead-time stay unbookable even if capacity remains.
+ * Mutates and returns the same array for route convenience.
+ */
+export function applySlotUsage(
+  slots: TimeSlot[],
+  usageBySlotStart: Map<string, number> | Record<string, number>
+): TimeSlot[] {
+  const getUsed = (time: string): number => {
+    if (usageBySlotStart instanceof Map) {
+      return usageBySlotStart.get(time) ?? 0
+    }
+    return usageBySlotStart[time] ?? 0
+  }
+
+  for (const slot of slots) {
+    const used = Math.max(0, Math.floor(getUsed(slot.time)) || 0)
+    slot.available_capacity = Math.max(0, slot.available_capacity - used)
+    if (slot.available_capacity <= 0) {
+      slot.is_bookable = false
+      slot.available_capacity = 0
+    }
+  }
+  return slots
+}
+
+/**
  * Extract a slot start "HH:mm" from various stored formats:
  *  - "09:00"
  *  - "09:00 – 09:30"

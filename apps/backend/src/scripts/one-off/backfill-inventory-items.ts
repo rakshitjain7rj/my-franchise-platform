@@ -9,7 +9,7 @@
  * "Unavailable" badge even though it's a real, sellable product.
  *
  * For every managed-inventory variant with no inventory item, this script:
- *   1. Creates an inventory item (sku/title copied from the variant).
+ *   1. Creates an inventory item (sku + product-prefixed title).
  *   2. Links it to the variant via the core product<->inventory link.
  *   3. Creates an inventory level at every stock location belonging to the
  *      variant's product's franchise, stocked at BACKFILL_STOCK_QTY.
@@ -21,12 +21,16 @@
  *
  * Env overrides:
  *   BACKFILL_STOCK_QTY  (default: 50)
+ *
+ * Title format matches backfill-inventory-item-titles.ts
+ * (`Product — Variant`). Re-run that script if older rows still look generic.
  */
 
 import { ExecArgs } from "@medusajs/framework/types";
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils";
 import FranchiseProductLink from "../../links/franchise-product";
 import StoreLocationStockLocationLink from "../../links/store-location-stock-location";
+import { buildInventoryItemTitle } from "./backfill-inventory-item-titles";
 
 const BACKFILL_STOCK_QTY = process.env.BACKFILL_STOCK_QTY
   ? parseInt(process.env.BACKFILL_STOCK_QTY, 10)
@@ -87,6 +91,18 @@ export default async function backfillInventoryItems({ container }: ExecArgs) {
     }
   }
 
+  const productTitleById = new Map<string, string>();
+  if (productIds.length) {
+    const { data: products } = await query.graph({
+      entity: "product",
+      fields: ["id", "title"],
+      filters: { id: productIds },
+    });
+    for (const p of products as Array<{ id?: string; title?: string | null }>) {
+      if (p.id) productTitleById.set(p.id, (p.title ?? "").trim());
+    }
+  }
+
   const franchiseToStockLocations = new Map<string, string[]>();
   const resolveStockLocations = async (franchiseId: string): Promise<string[]> => {
     if (franchiseToStockLocations.has(franchiseId)) {
@@ -126,7 +142,13 @@ export default async function backfillInventoryItems({ container }: ExecArgs) {
     const batch = orphanVariants.slice(i, i + BATCH_SIZE);
 
     const createdItems = await inventoryService.createInventoryItems(
-      batch.map((v) => ({ sku: v.sku ?? undefined, title: v.title ?? undefined }))
+      batch.map((v) => ({
+        sku: v.sku ?? undefined,
+        title: buildInventoryItemTitle(
+          v.product_id ? productTitleById.get(v.product_id) : undefined,
+          v.title
+        ),
+      }))
     );
     itemsCreated += createdItems.length;
 

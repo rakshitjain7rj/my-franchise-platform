@@ -6,6 +6,7 @@
 
 import {
   DEFAULT_OPENING_HOURS,
+  applySlotUsage,
   buildDaySlots,
   computeDeliveryFee,
   expandDailyHours,
@@ -151,6 +152,44 @@ describe("buildDaySlots", () => {
         now,
       })
     ).toEqual([])
+  })
+
+  it("24h default lead blocks all same-day slots after morning", () => {
+    const late = new Date("2026-07-10T10:00:00")
+    const slots = buildDaySlots({
+      date: friday,
+      openingHours: expandDailyHours("09:00", "18:00"),
+      capacityPerSlot: 10,
+      leadTimeHours: 24,
+      now: late,
+    })
+    expect(slots.every((s) => !s.is_bookable)).toBe(true)
+  })
+})
+
+describe("applySlotUsage — capacity consumed by bookings", () => {
+  const now = new Date("2026-07-10T08:00:00")
+  const friday = "2026-07-10"
+
+  it("reduces available_capacity and marks full slots unbookable", () => {
+    const slots = buildDaySlots({
+      date: friday,
+      openingHours: expandDailyHours("09:00", "11:00"),
+      capacityPerSlot: 10,
+      leadTimeHours: 0,
+      now,
+    })
+    applySlotUsage(slots, new Map([["09:00", 10], ["09:30", 1]]))
+
+    const nine = slots.find((s) => s.time === "09:00")
+    const nineThirty = slots.find((s) => s.time === "09:30")
+    const ten = slots.find((s) => s.time === "10:00")
+
+    expect(nine?.available_capacity).toBe(0)
+    expect(nine?.is_bookable).toBe(false)
+    expect(nineThirty?.available_capacity).toBe(9)
+    expect(nineThirty?.is_bookable).toBe(true)
+    expect(ten?.available_capacity).toBe(10)
   })
 })
 
