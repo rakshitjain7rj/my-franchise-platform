@@ -34,7 +34,6 @@ export default function PayPalReturnPage() {
   const { cartId, isLoading, clearCart } = useCart()
   const started = useRef(false)
   const [state, setState] = useState<"loading" | "success" | "error">("loading")
-  const [orderNumber, setOrderNumber] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Gate completion until after mount so we never read localStorage during
   // render (server vs client mismatch → React #418).
@@ -62,9 +61,8 @@ export default function PayPalReturnPage() {
 
     started.current = true
     void completeWithTimeout(checkoutCartId)
-      .then((order) => {
+      .then(() => {
         clearCart()
-        setOrderNumber(order.display_id)
         setState("success")
       })
       .catch((err) => {
@@ -101,11 +99,6 @@ export default function PayPalReturnPage() {
               <h1 className="mt-4 text-2xl font-bold text-[#4A154B]">
                 Order confirmed
               </h1>
-              {orderNumber != null && (
-                <p className="mt-2 text-sm font-bold text-[#4A154B]">
-                  Order #{orderNumber}
-                </p>
-              )}
               <p className="mt-3 text-sm text-on-surface-variant">
                 Thank you. Your payment and order have been received.
               </p>

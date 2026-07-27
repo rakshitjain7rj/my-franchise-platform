@@ -231,7 +231,6 @@ export default function CheckoutPage() {
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [orderNumber, setOrderNumber] = useState<number | null>(null)
   const [summaryOpen, setSummaryOpen] = useState(false)
 
   const totalItems = cart?.items.reduce((a, i) => a + i.quantity, 0) ?? 0
@@ -328,8 +327,7 @@ export default function CheckoutPage() {
         return
       } else {
         // Card / pay-on-collection — single-shot via the system provider.
-        const order = await placeOrder(cart.id, details)
-        setOrderNumber(order.display_id)
+        await placeOrder(cart.id, details)
         setSubmitted(true)
         clearCart()
       }
@@ -391,13 +389,8 @@ export default function CheckoutPage() {
             <h1 className={`text-3xl font-bold text-[#4A154B] ${playfair.className}`}>
               Order Confirmed!
             </h1>
-            {orderNumber != null && (
-              <p className="text-sm font-bold text-[#4A154B] tracking-widest uppercase">
-                Order #{orderNumber}
-              </p>
-            )}
             <p className="text-on-surface-variant text-sm leading-relaxed">
-              Thank you, <strong className="text-on-surface">{form.firstName}</strong>. Your order has been placed with the bakery — please quote your order number when you collect.
+              Thank you, <strong className="text-on-surface">{form.firstName}</strong>. Your order has been placed with the bakery.
             </p>
             <div className="bg-[#EEDFF5]/20 rounded-lg p-4 border border-outline-variant/30 text-left space-y-2">
               <p className="text-xs text-on-surface-variant">
