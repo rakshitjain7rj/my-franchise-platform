@@ -96,7 +96,7 @@ export const GET = async (
     ])
   )
 
-  // 3. Franchise → sales channels (for diagnostics + preferred SC match)
+  // 3. Franchise → sales channels (diagnostics + preferred match)
   const { data: scLinks } = await query.graph({
     entity: FranchiseSalesChannelLink.entryPoint,
     fields: ["sales_channel_id"],
@@ -116,78 +116,26 @@ export const GET = async (
     )
   }
 
-  // 4. Resolve which stock locations have sales-channel associations.
-  //    Prefer the Stock Location module (relations) — it is the reliable path.
-  //    Query-graph entity names vary across Medusa versions and previously
-  //    short-circuited the fallback, producing false "not associated" alerts
-  //    even when admin stock-location APIs showed channels linked.
+  // 4. Resolve stock ↔ sales-channel associations via the real link table.
+  //    Do not trust stock-location module relations alone — they often return
+  //    empty sales_channels even when sales_channel_stock_location has rows.
   const uniqueStockLocIds = Array.from(new Set(stockLocByStore.values()))
   const stockLocWithSalesChannel = new Set<string>()
   const stockLocWithFranchiseSalesChannel = new Set<string>()
 
   if (uniqueStockLocIds.length) {
-    let moduleResolved = false
-    try {
-      const stockLocationModule = req.scope.resolve(Modules.STOCK_LOCATION) as {
-        listStockLocations: (
-          filters: Record<string, unknown>,
-          config?: Record<string, unknown>
-        ) => Promise<
-          Array<{
-            id: string
-            sales_channels?: Array<{ id?: string }>
-          }>
-        >
+    const scByStock = await resolveStockSalesChannels(
+      req.scope,
+      uniqueStockLocIds
+    )
+    for (const [stockId, channelIds] of scByStock) {
+      if (channelIds.size) {
+        stockLocWithSalesChannel.add(stockId)
       }
-      const locs = await stockLocationModule.listStockLocations(
-        { id: uniqueStockLocIds },
-        { relations: ["sales_channels"], take: uniqueStockLocIds.length }
-      )
-      for (const loc of locs) {
-        const channels = loc.sales_channels ?? []
-        if (channels.some((sc) => Boolean(sc.id))) {
-          stockLocWithSalesChannel.add(loc.id)
-        }
-        if (
-          channels.some(
-            (sc) => sc.id && franchiseSalesChannelIds.has(sc.id)
-          )
-        ) {
-          stockLocWithFranchiseSalesChannel.add(loc.id)
-        }
-      }
-      moduleResolved = true
-    } catch {
-      // fall through to query.graph
-    }
-
-    if (!moduleResolved) {
-      const candidateEntities = [
-        "stock_location_sales_channel",
-        "sales_channel_stock_location",
-        "link_sales_channel_stock_location",
-      ]
-      for (const entity of candidateEntities) {
-        try {
-          const { data: scStockLinks } = await query.graph({
-            entity,
-            fields: ["stock_location_id", "sales_channel_id"],
-            filters: { stock_location_id: uniqueStockLocIds },
-          })
-          for (const link of scStockLinks as Array<{
-            stock_location_id?: string
-            sales_channel_id?: string
-          }>) {
-            if (link.stock_location_id && link.sales_channel_id) {
-              stockLocWithSalesChannel.add(link.stock_location_id)
-              if (franchiseSalesChannelIds.has(link.sales_channel_id)) {
-                stockLocWithFranchiseSalesChannel.add(link.stock_location_id)
-              }
-            }
-          }
+      for (const scId of channelIds) {
+        if (franchiseSalesChannelIds.has(scId)) {
+          stockLocWithFranchiseSalesChannel.add(stockId)
           break
-        } catch {
-          // try next entity name
         }
       }
     }
@@ -214,7 +162,6 @@ export const GET = async (
         inventoryCountByStockLoc.set(level.location_id, curr + 1)
       }
     } catch {
-      // Fall back to Query graph if the module path fails
       const { data: levels } = await query.graph({
         entity: "inventory_level",
         fields: ["location_id"],
@@ -237,14 +184,15 @@ export const GET = async (
     }) => {
       const stockLocId = stockLocByStore.get(sl.id) ?? null
       const hasStockLoc = stockLocId !== null
-      // Operational truth: any SC on the stock location is enough for Medusa
-      // fulfillment. Prefer franchise SC match when franchise has SCs linked.
       const hasAnySc =
         hasStockLoc && stockLocWithSalesChannel.has(stockLocId!)
       const hasFranchiseSc =
         hasStockLoc && stockLocWithFranchiseSalesChannel.has(stockLocId!)
+      // Prefer franchise SC match when franchise has channels; otherwise any SC.
       const hasSalesChannel =
-        franchiseSalesChannelIds.size > 0 ? hasFranchiseSc : hasAnySc
+        franchiseSalesChannelIds.size > 0
+          ? hasFranchiseSc || hasAnySc
+          : hasAnySc
       const invCount = stockLocId
         ? (inventoryCountByStockLoc.get(stockLocId) ?? 0)
         : 0
@@ -257,15 +205,18 @@ export const GET = async (
         )
       }
       if (hasStockLoc && !hasSalesChannel) {
-        if (hasAnySc && franchiseSalesChannelIds.size > 0) {
-          issues.push(
-            "Stock location sales channel does not match franchise channel — click Fix to repair"
-          )
-        } else {
-          issues.push(
-            "Stock location not associated with a sales channel — click Fix to repair"
-          )
-        }
+        issues.push(
+          "Stock location not associated with a sales channel — click Fix to repair"
+        )
+      } else if (
+        hasStockLoc &&
+        hasAnySc &&
+        franchiseSalesChannelIds.size > 0 &&
+        !hasFranchiseSc
+      ) {
+        issues.push(
+          "Stock location sales channel does not match franchise channel — click Fix to repair"
+        )
       }
       if (!isAccepting) {
         issues.push("Branch is not accepting orders")
@@ -273,6 +224,11 @@ export const GET = async (
       if (hasStockLoc && invCount === 0) {
         issues.push("No inventory levels — products may not be orderable here")
       }
+
+      // Healthy = stock wired + usable SC + inventory present.
+      // Soft franchise-SC mismatch is still listed, but if any SC is present
+      // the branch is operational for Medusa fulfillment.
+      const healthy = hasStockLoc && hasSalesChannel && invCount > 0
 
       return {
         store_location_id: sl.id,
@@ -284,7 +240,7 @@ export const GET = async (
         has_sales_channel: hasSalesChannel,
         inventory_item_count: invCount,
         issues,
-        healthy: hasStockLoc && hasSalesChannel && invCount > 0,
+        healthy,
       }
     }
   )
@@ -299,4 +255,104 @@ export const GET = async (
     branches,
     ...(franchiseIssues.length ? { franchise_issues: franchiseIssues } : {}),
   })
+}
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Map stock_location_id → set of sales_channel_ids.
+ * Prefer the real Medusa link table; merge module relations as a fallback.
+ */
+async function resolveStockSalesChannels(
+  scope: { resolve: (key: string) => unknown },
+  stockLocationIds: string[]
+): Promise<Map<string, Set<string>>> {
+  const result = new Map<string, Set<string>>()
+  const add = (stockId: string, scId: string) => {
+    if (!result.has(stockId)) result.set(stockId, new Set())
+    result.get(stockId)!.add(scId)
+  }
+
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY) as {
+    graph: (args: Record<string, unknown>) => Promise<{ data: unknown[] }>
+  }
+
+  // Known Medusa v2 link entity / table name first
+  const candidateEntities = [
+    "sales_channel_stock_location",
+    "stock_location_sales_channel",
+    "link_sales_channel_stock_location",
+  ]
+
+  for (const entity of candidateEntities) {
+    try {
+      const { data } = await query.graph({
+        entity,
+        fields: ["stock_location_id", "sales_channel_id"],
+        filters: { stock_location_id: stockLocationIds },
+      })
+      for (const row of data as Array<{
+        stock_location_id?: string
+        sales_channel_id?: string
+      }>) {
+        if (row.stock_location_id && row.sales_channel_id) {
+          add(row.stock_location_id, row.sales_channel_id)
+        }
+      }
+      // Entity existed (no throw). Stop even if empty — don't thrash aliases.
+      break
+    } catch {
+      // try next name
+    }
+  }
+
+  // Admin-style graph: stock_location → sales_channels (matches
+  // /admin/stock-locations?fields=id,*sales_channels which already works live)
+  if (!result.size) {
+    try {
+      const { data: locs } = await query.graph({
+        entity: "stock_location",
+        fields: ["id", "sales_channels.id"],
+        filters: { id: stockLocationIds },
+      })
+      for (const loc of locs as Array<{
+        id?: string
+        sales_channels?: Array<{ id?: string } | null> | null
+      }>) {
+        if (!loc.id) continue
+        for (const sc of loc.sales_channels ?? []) {
+          if (sc?.id) add(loc.id, sc.id)
+        }
+      }
+    } catch {
+      // fall through
+    }
+  }
+
+  // Module relations as a last resort
+  if (!result.size) {
+    try {
+      const stockLocationModule = scope.resolve(Modules.STOCK_LOCATION) as {
+        listStockLocations: (
+          filters: Record<string, unknown>,
+          config?: Record<string, unknown>
+        ) => Promise<
+          Array<{ id: string; sales_channels?: Array<{ id?: string }> }>
+        >
+      }
+      const locs = await stockLocationModule.listStockLocations(
+        { id: stockLocationIds },
+        { relations: ["sales_channels"], take: stockLocationIds.length }
+      )
+      for (const loc of locs) {
+        for (const sc of loc.sales_channels ?? []) {
+          if (sc.id) add(loc.id, sc.id)
+        }
+      }
+    } catch {
+      // leave map as-is
+    }
+  }
+
+  return result
 }

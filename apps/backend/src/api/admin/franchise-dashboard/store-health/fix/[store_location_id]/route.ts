@@ -174,9 +174,17 @@ export const POST = async (
     .filter((id): id is string => Boolean(id))
 
   if (productIds.length) {
+    // Prefer inventory_items.inventory_item_id. Bare inventory_items.id is the
+    // product_variant_inventory_item *link* id (pvitem_…), which is not a valid
+    // inventory_level.inventory_item_id (must be iitem_…).
     const { data: variantData } = await query.graph({
       entity: "product_variant",
-      fields: ["id", "manage_inventory", "inventory_items.id"],
+      fields: [
+        "id",
+        "manage_inventory",
+        "inventory_items.id",
+        "inventory_items.inventory_item_id",
+      ],
       filters: { product_id: productIds },
     })
 
@@ -185,11 +193,19 @@ export const POST = async (
         (
           variantData as Array<{
             manage_inventory?: boolean
-            inventory_items?: Array<{ id?: string }>
+            inventory_items?: Array<{ id?: string; inventory_item_id?: string }>
           }>
         )
           .filter((v) => v.manage_inventory !== false)
-          .flatMap((v) => (v.inventory_items ?? []).map((i) => i.id))
+          .flatMap((v) =>
+            (v.inventory_items ?? []).map((item) => {
+              if (item.inventory_item_id?.startsWith("iitem_")) {
+                return item.inventory_item_id
+              }
+              if (item.id?.startsWith("iitem_")) return item.id
+              return undefined
+            })
+          )
           .filter((id): id is string => Boolean(id))
       )
     )
@@ -201,18 +217,11 @@ export const POST = async (
       }> = []
       try {
         existingLevels = await inventoryService.listInventoryLevels(
-          {
-            inventory_item_id: inventoryItemIds,
-            location_id: stockLocationId,
-          },
-          { take: inventoryItemIds.length + 1000 }
-        )
-      } catch {
-        // Fallback: list by location only
-        existingLevels = await inventoryService.listInventoryLevels(
           { location_id: stockLocationId },
           { take: 500_000 }
         )
+      } catch {
+        existingLevels = []
       }
 
       const haveLevel = new Set(
@@ -230,24 +239,28 @@ export const POST = async (
         }))
 
       let createdCount = 0
+      let failedCount = 0
       const BATCH = 200
       for (let i = 0; i < toCreate.length; i += BATCH) {
         const batch = toCreate.slice(i, i + BATCH)
         try {
           await inventoryService.createInventoryLevels(batch)
           createdCount += batch.length
-        } catch (err: unknown) {
-          // Fall back to per-item create so one bad row doesn't abort the batch
+        } catch {
           for (const row of batch) {
             try {
               await inventoryService.createInventoryLevels([row])
               createdCount++
             } catch (inner: unknown) {
-              const message =
-                inner instanceof Error ? inner.message : String(inner)
-              errors.push(
-                `Failed to create level for item ${row.inventory_item_id}: ${message}`
-              )
+              failedCount++
+              // Cap noisy errors (large catalogs) — keep the first few
+              if (errors.length < 5) {
+                const message =
+                  inner instanceof Error ? inner.message : String(inner)
+                errors.push(
+                  `Failed to create level for item ${row.inventory_item_id}: ${message}`
+                )
+              }
             }
           }
         }
@@ -260,9 +273,16 @@ export const POST = async (
         logger.info(
           `[store-health fix] ✓ Created ${createdCount} inventory levels at stock ${stockLocationId}`
         )
-      } else {
+      } else if (failedCount === 0) {
         fixes.push("All inventory levels already exist — no change needed")
       }
+      if (failedCount > 5) {
+        errors.push(
+          `…and ${failedCount - Math.min(5, failedCount)} more inventory level failures`
+        )
+      }
+    } else {
+      fixes.push("No inventory items resolved for franchise products")
     }
   }
 
@@ -322,34 +342,14 @@ async function listLinkedSalesChannelIds(
   stockLocationId: string
 ): Promise<Set<string>> {
   const linked = new Set<string>()
-
-  try {
-    const stockLocationModule = scope.resolve(Modules.STOCK_LOCATION) as {
-      listStockLocations: (
-        filters: Record<string, unknown>,
-        config?: Record<string, unknown>
-      ) => Promise<
-        Array<{ id: string; sales_channels?: Array<{ id?: string }> }>
-      >
-    }
-    const locs = await stockLocationModule.listStockLocations(
-      { id: stockLocationId },
-      { relations: ["sales_channels"], take: 1 }
-    )
-    for (const sc of locs[0]?.sales_channels ?? []) {
-      if (sc.id) linked.add(sc.id)
-    }
-    if (linked.size) return linked
-  } catch {
-    // fall through to query.graph
-  }
-
   const query = scope.resolve(ContainerRegistrationKeys.QUERY) as {
     graph: (args: Record<string, unknown>) => Promise<{ data: unknown[] }>
   }
+
+  // Prefer the real Medusa link table (sales_channel_stock_location)
   const candidateEntities = [
-    "stock_location_sales_channel",
     "sales_channel_stock_location",
+    "stock_location_sales_channel",
     "link_sales_channel_stock_location",
   ]
   for (const entity of candidateEntities) {
@@ -367,5 +367,49 @@ async function listLinkedSalesChannelIds(
       // try next
     }
   }
+
+  // Admin-style graph path (matches live /admin/stock-locations fields)
+  if (!linked.size) {
+    try {
+      const { data: locs } = await query.graph({
+        entity: "stock_location",
+        fields: ["id", "sales_channels.id"],
+        filters: { id: stockLocationId },
+      })
+      for (const loc of locs as Array<{
+        sales_channels?: Array<{ id?: string } | null> | null
+      }>) {
+        for (const sc of loc.sales_channels ?? []) {
+          if (sc?.id) linked.add(sc.id)
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // Module relations last
+  if (!linked.size) {
+    try {
+      const stockLocationModule = scope.resolve(Modules.STOCK_LOCATION) as {
+        listStockLocations: (
+          filters: Record<string, unknown>,
+          config?: Record<string, unknown>
+        ) => Promise<
+          Array<{ id: string; sales_channels?: Array<{ id?: string }> }>
+        >
+      }
+      const locs = await stockLocationModule.listStockLocations(
+        { id: stockLocationId },
+        { relations: ["sales_channels"], take: 1 }
+      )
+      for (const sc of locs[0]?.sales_channels ?? []) {
+        if (sc.id) linked.add(sc.id)
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   return linked
 }
