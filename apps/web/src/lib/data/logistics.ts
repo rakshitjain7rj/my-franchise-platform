@@ -87,16 +87,15 @@ export async function fetchDeliveryFee(
   return res.json() as Promise<DeliveryFeeResponse>
 }
 
-/** Min selectable date as YYYY-MM-DD (tomorrow local). */
+/**
+ * Earliest calendar day a shopper may pick given kitchen lead time (hours).
+ * Lead 0 → today is allowed (immediate mode). Lead 24 → roughly tomorrow.
+ */
 export function defaultMinCollectionDate(leadTimeHours = 24): string {
-  const d = new Date()
-  d.setTime(d.getTime() + Math.max(leadTimeHours, 24) * 60 * 60 * 1000)
-  // At least tomorrow calendar day for cake lead times
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const target = d > tomorrow ? d : tomorrow
-  const yyyy = target.getFullYear()
-  const mm = String(target.getMonth() + 1).padStart(2, "0")
-  const dd = String(target.getDate()).padStart(2, "0")
+  const hours = Math.max(0, Number(leadTimeHours) || 0)
+  const cutoff = new Date(Date.now() + hours * 60 * 60 * 1000)
+  const yyyy = cutoff.getFullYear()
+  const mm = String(cutoff.getMonth() + 1).padStart(2, "0")
+  const dd = String(cutoff.getDate()).padStart(2, "0")
   return `${yyyy}-${mm}-${dd}`
 }

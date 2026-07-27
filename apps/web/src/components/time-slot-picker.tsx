@@ -61,7 +61,10 @@ export default function TimeSlotPicker({
       const data = await fetchStoreSlots(storeLocationId, date);
       setSlots(data.slots ?? []);
       setMessage(data.message ?? null);
-      if (data.lead_time_hours) setLeadHours(data.lead_time_hours);
+      // 0 is a valid "immediate" lead time — do not treat as falsy.
+      if (typeof data.lead_time_hours === "number") {
+        setLeadHours(data.lead_time_hours);
+      }
 
       // If current selection is not bookable, clear it
       const stillOk = (data.slots ?? []).some(

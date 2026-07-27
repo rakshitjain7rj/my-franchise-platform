@@ -43,6 +43,7 @@ import {
   customerLoginRateLimiter,
   customerRegisterRateLimiter,
 } from "./middlewares/rate-limit-auth"
+import { validateCartCollectionSlot } from "./middlewares/validate-cart-collection-slot"
 import FranchiseSalesChannelLink from "../links/franchise-sales-channel"
 import {
   bindCakeFulfillmentQuery,
@@ -360,6 +361,14 @@ export default defineMiddlewares({
       matcher: "/store/active-cart",
       methods: ["GET"],
       middlewares: [authenticate("customer", ["session", "bearer"])],
+    },
+
+    // ── Checkout: kitchen lead time / busy mode on collection slot ────────────
+    // Must run before completeCart so busy-mode lead hours cannot be bypassed.
+    {
+      matcher: "/store/carts/:id/complete",
+      methods: ["POST"],
+      middlewares: [validateCartCollectionSlot],
     },
 
     // ── Store product scoping ─────────────────────────────────────────────────

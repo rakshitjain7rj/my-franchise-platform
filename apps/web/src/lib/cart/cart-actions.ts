@@ -16,6 +16,7 @@
  */
 
 import { getMedusaHeadersSync } from "@/lib/medusa/headers"
+import { fetchStoreSlots } from "@/lib/data/logistics"
 import {
   FRANCHISE_COOKIE,
   getBrowserCookie,
@@ -335,6 +336,139 @@ export async function updateCartMetadata(
   return cart
 }
 
+/**
+ * Patches cart fields (metadata and/or shipping_address). Used to keep the
+ * delivery postcode on Medusa's shipping address in lockstep with
+ * metadata.delivery_postcode so cart → checkout cannot drift.
+ */
+export async function updateCartFields(
+  cartId: string,
+  payload: {
+    metadata?: Record<string, unknown>
+    shipping_address?: Partial<MedusaCartAddress>
+    email?: string
+  }
+): Promise<MedusaCart> {
+  const { cart } = await cartFetch<{ cart: MedusaCart }>(
+    `/store/carts/${cartId}`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }
+  )
+  return cart
+}
+
+/**
+ * Attaches the preferred shipping option for pickup or local delivery so
+ * cart.shipping_total / cart.total become payment truth (not UI-only fees).
+ */
+export async function applyPreferredShippingMethod(
+  cartId: string,
+  fulfillmentMethod: "pickup" | "delivery",
+  storeLocationId?: string | null
+): Promise<MedusaCart> {
+  const options = await listCartShippingOptions(cartId)
+  if (!options.length) {
+    throw new Error(
+      "No delivery or collection option is available for this address."
+    )
+  }
+
+  const preferred =
+    fulfillmentMethod === "pickup"
+      ? options.find((o) => /pick.?up|collect/i.test(o.name))
+      : options.find((o) => /local.?deliver|local delivery/i.test(o.name)) ||
+        options.find(
+          (o) => /deliver/i.test(o.name) && !/standard|express/i.test(o.name)
+        )
+
+  const shippingBody: Record<string, unknown> = {
+    option_id: (preferred ?? options[0]).id,
+  }
+  if (storeLocationId) {
+    shippingBody.data = { store_location_id: storeLocationId }
+  }
+
+  const { cart } = await cartFetch<{ cart: MedusaCart }>(
+    `/store/carts/${cartId}/shipping-methods`,
+    {
+      method: "POST",
+      body: JSON.stringify(shippingBody),
+    }
+  )
+  return cart
+}
+
+/**
+ * Writes the cart-page delivery quote into the cart as the single source of
+ * truth for postcode + fee metadata, stamps shipping_address.postal_code,
+ * and attaches the local-delivery shipping method so cart.total includes it.
+ */
+export async function syncDeliveryQuoteToCart(
+  cartId: string,
+  params: {
+    postcode: string
+    fee: number
+    distance_km?: number | null
+    deliverable: boolean
+    storeLocationId?: string | null
+    existingMetadata?: Record<string, unknown> | null
+  }
+): Promise<MedusaCart> {
+  const postcode = params.postcode.trim()
+  const current = params.existingMetadata ?? (await getCart(cartId))?.metadata
+  const metadata: Record<string, unknown> = {
+    ...(current ?? {}),
+    fulfillment_method: "delivery",
+    delivery_fee: params.deliverable ? params.fee : 0,
+    delivery_postcode: postcode,
+    delivery_deliverable: params.deliverable,
+  }
+  if (params.distance_km != null) {
+    metadata.delivery_distance_km = params.distance_km
+  }
+  if (params.storeLocationId) {
+    metadata.store_location_id = params.storeLocationId
+  }
+
+  // Preserve any existing address fields; only stamp the postcode + country.
+  const existing = await getCart(cartId)
+  const prevAddr = existing?.shipping_address ?? {}
+
+  await updateCartFields(cartId, {
+    metadata,
+    shipping_address: {
+      first_name: prevAddr.first_name ?? undefined,
+      last_name: prevAddr.last_name ?? undefined,
+      address_1: prevAddr.address_1 ?? undefined,
+      address_2: prevAddr.address_2 ?? undefined,
+      city: prevAddr.city ?? undefined,
+      phone: prevAddr.phone ?? undefined,
+      province: prevAddr.province ?? undefined,
+      company: prevAddr.company ?? undefined,
+      postal_code: postcode,
+      country_code: prevAddr.country_code ?? "gb",
+    },
+  })
+
+  // Attach shipping method so cart.shipping_total is payment truth. If this
+  // fails (e.g. options not ready until full address), metadata.delivery_fee
+  // still lets cart/checkout show the same quoted total; prepareCartForCheckout
+  // re-attaches at place-order with the full address.
+  try {
+    return await applyPreferredShippingMethod(
+      cartId,
+      params.deliverable ? "delivery" : "pickup",
+      params.storeLocationId
+    )
+  } catch {
+    const cart = await getCart(cartId)
+    if (!cart) throw new Error("Your cart could not be found.")
+    return cart
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Promotions
 // ---------------------------------------------------------------------------
@@ -528,58 +662,37 @@ export async function prepareCartForCheckout(
     }
   }
 
-  await cartFetch<{ cart: MedusaCart }>(`/store/carts/${cartId}`, {
-    method: "POST",
-    body: JSON.stringify({
-      email: details.email,
-      shipping_address: address,
-      billing_address: address,
-      metadata: {
-        // Preserve existing keys (store_location_id, fulfillment_method, …) —
-        // Medusa replaces the metadata object wholesale on update.
-        ...(current.metadata ?? {}),
-        fulfillment_method: fulfillmentMethod,
-        ...(storeLocationId ? { store_location_id: storeLocationId } : {}),
-        ...slotMeta,
-        ...deliveryMeta,
-        ...(details.notes?.trim()
-          ? { notes_for_baker: details.notes.trim() }
-          : {}),
-      },
-    }),
+  await updateCartFields(cartId, {
+    email: details.email,
+    shipping_address: address,
+    metadata: {
+      // Preserve existing keys (store_location_id, fulfillment_method, …) —
+      // Medusa replaces the metadata object wholesale on update.
+      ...(current.metadata ?? {}),
+      fulfillment_method: fulfillmentMethod,
+      ...(storeLocationId ? { store_location_id: storeLocationId } : {}),
+      ...slotMeta,
+      ...deliveryMeta,
+      ...(details.notes?.trim()
+        ? { notes_for_baker: details.notes.trim() }
+        : {}),
+    },
   })
 
-  const options = await listCartShippingOptions(cartId)
-  if (!options.length) {
-    throw new Error(
-      "No delivery or collection option is available for this address."
-    )
-  }
-
-  const preferred =
-    fulfillmentMethod === "pickup"
-      ? options.find((o) => /pick.?up|collect/i.test(o.name))
-      : options.find((o) => /local.?deliver|local delivery/i.test(o.name)) ||
-        options.find((o) => /deliver/i.test(o.name) && !/standard|express/i.test(o.name))
+  // Also stamp billing to match shipping (prepare path historically did this).
+  await cartFetch<{ cart: MedusaCart }>(`/store/carts/${cartId}`, {
+    method: "POST",
+    body: JSON.stringify({ billing_address: address }),
+  })
 
   // Forward store_location_id on the shipping method so the calculated
   // delivery provider can price even when Medusa omits cart.metadata from
   // the calculatePrice context (core field allow-list).
-  const shippingBody: Record<string, unknown> = {
-    option_id: (preferred ?? options[0]).id,
-  }
-  if (storeLocationId) {
-    shippingBody.data = { store_location_id: storeLocationId }
-  }
-
-  const { cart } = await cartFetch<{ cart: MedusaCart }>(
-    `/store/carts/${cartId}/shipping-methods`,
-    {
-      method: "POST",
-      body: JSON.stringify(shippingBody),
-    }
+  return applyPreferredShippingMethod(
+    cartId,
+    fulfillmentMethod,
+    storeLocationId
   )
-  return cart
 }
 
 /**
@@ -712,6 +825,54 @@ export function extractPaypalRedirectUrl(session: MedusaPaymentSession): string 
  * (e.g. payment not authorised); callers should surface that to the shopper.
  */
 export async function completeCartOrder(cartId: string): Promise<MedusaOrder> {
+  // Soft client check before the network call (server still enforces lead time).
+  try {
+    const cart = await cartFetch<{ cart: MedusaCart }>(
+      `/store/carts/${cartId}?fields=*metadata`
+    )
+    const meta = (cart.cart?.metadata ?? {}) as Record<string, unknown>
+    const storeId =
+      typeof meta.store_location_id === "string" ? meta.store_location_id : ""
+    const date =
+      typeof meta.requested_pickup_date === "string"
+        ? meta.requested_pickup_date
+        : ""
+    const time =
+      typeof meta.requested_pickup_time === "string"
+        ? meta.requested_pickup_time
+        : ""
+    if (storeId && date && time) {
+      const slots = await fetchStoreSlots(storeId, date)
+      const start = time.includes("–")
+        ? time.split("–")[0].trim()
+        : time.slice(0, 5)
+      const ok = (slots.slots ?? []).some(
+        (s) => s.is_bookable && (s.time === start || s.label === time)
+      )
+      if (!ok) {
+        const hours = slots.lead_time_hours
+        throw new Error(
+          typeof hours === "number" && hours > 0
+            ? `This bakery needs at least ${hours} hour${hours === 1 ? "" : "s"} notice. Please pick a later collection slot on the product or cart page.`
+            : "The selected collection slot is no longer available. Please choose another time."
+        )
+      }
+    } else if (!date || !time) {
+      throw new Error(
+        "Please choose a collection date and time slot before placing your order."
+      )
+    }
+  } catch (err) {
+    // Re-throw intentional validation errors; continue to server for other fetch issues
+    if (
+      err instanceof Error &&
+      (/notice|collection|slot|bakery/i.test(err.message) ||
+        err.message.includes("available"))
+    ) {
+      throw err
+    }
+  }
+
   const result = await cartFetch<
     | { type: "order"; order: MedusaOrder }
     | { type: "cart"; cart: MedusaCart; error?: { message?: string } }
