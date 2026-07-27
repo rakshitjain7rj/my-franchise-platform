@@ -42,6 +42,8 @@ export interface Order {
   status: string;
   created_at: string;
   total: number;
+  /** Shipping / delivery charge when present (order grand total still in `total`). */
+  shipping_total?: number;
   currency_code: string;
   items: OrderItem[];
 }
@@ -276,7 +278,7 @@ export async function getCustomerOrders(
     if (!headers["Authorization"]) return { orders: [], count: 0 };
 
     const res = await fetch(
-      `${BACKEND_URL}/store/orders?limit=${limit}&offset=${offset}&fields=id,display_id,status,created_at,total,currency_code,items.*`,
+      `${BACKEND_URL}/store/orders?limit=${limit}&offset=${offset}&fields=id,display_id,status,created_at,total,shipping_total,currency_code,items.*`,
       {
         headers,
         next: { revalidate: 0 },
