@@ -66,7 +66,7 @@ export default function HeroCarousel({ slides: slidesProp }: HeroCarouselProps) 
 
   return (
     <section
-      className="relative h-[480px] sm:h-[540px] md:h-[620px] rounded-2xl sm:rounded-3xl overflow-hidden premium-shadow bg-lavender-bg"
+      className="relative h-[420px] sm:h-[480px] md:h-[540px] lg:h-[560px] rounded-2xl sm:rounded-3xl overflow-hidden premium-shadow bg-lavender-bg"
       id="hero-carousel"
       aria-label="Featured Collections Carousel"
     >
@@ -128,20 +128,24 @@ export default function HeroCarousel({ slides: slidesProp }: HeroCarouselProps) 
               </div>
             </div>
 
-            {/* Right side: Image — full bleed behind content on mobile */}
-            <div className="w-full md:w-[65%] h-full overflow-hidden absolute md:relative right-0 top-0 -z-0 md:z-0">
+            {/*
+              Right side: Image — full bleed behind content on mobile.
+              Use object-contain (not cover) so tall product shots aren't
+              cropped at the top/bottom; soft fill matches the hero canvas.
+            */}
+            <div className="w-full md:w-[65%] h-full overflow-hidden absolute md:relative right-0 top-0 -z-0 md:z-0 bg-gradient-to-br from-[#F8F0F8] via-[#F6EDE4] to-[#F3E8F0]">
               <img
                 alt={slide.imageAlt}
                 className={cn(
-                  "w-full h-full object-cover transition-transform duration-[6000ms] ease-out",
-                  isActive ? "scale-100" : "scale-105"
+                  "w-full h-full object-contain object-center p-3 sm:p-4 md:p-6 md:pl-2 transition-transform duration-[6000ms] ease-out",
+                  isActive ? "scale-100" : "scale-[1.02]"
                 )}
                 src={slide.imageSrc}
               />
               {/* Mobile: gradient from bottom so text card is readable */}
               <div className="absolute inset-0 bg-gradient-to-t from-lavender-bg/80 via-lavender-bg/20 to-transparent pointer-events-none md:hidden" />
-              {/* Desktop: gradient from left */}
-              <div className="absolute inset-0 bg-gradient-to-r from-lavender-bg/40 via-transparent to-transparent pointer-events-none hidden md:block" />
+              {/* Desktop: soft blend into the content card edge */}
+              <div className="absolute inset-0 bg-gradient-to-r from-lavender-bg/35 via-transparent to-transparent pointer-events-none hidden md:block" />
             </div>
           </div>
         );
