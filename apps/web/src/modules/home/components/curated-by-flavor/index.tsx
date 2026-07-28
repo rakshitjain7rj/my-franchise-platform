@@ -2,67 +2,64 @@
 
 import React from "react";
 import Link from "next/link";
-import type { CategoryItem } from "@/modules/home/lib/category-display";
 
-export type { CategoryItem };
+export type FlavourItem = {
+  id: string;
+  name: string;
+  handle: string;
+  imageSrc: string;
+  href: string;
+};
 
-/** Fallback circles when product categories are empty or unavailable. */
-const FALLBACK_CATEGORIES: CategoryItem[] = [
+/**
+ * Canonical sponge flavours from the live catalogue
+ * (`FLAVOUR_OPTIONS` / product Sponge option values).
+ * Images are local studio assets under /images/flavors/.
+ */
+export const SPONGE_FLAVOURS: FlavourItem[] = [
   {
-    id: "fallback-red-velvet",
-    name: "Eggless Red Velvet",
-    handle: "red-velvet",
-    imageSrc: "/images/flavors/red-velvet.png",
-    href: "/cake-catalogue?flavour=red-velvet",
-  },
-  {
-    id: "fallback-chocolate",
+    id: "sponge-chocolate",
     name: "Eggless Chocolate",
     handle: "chocolate",
-    imageSrc: "/images/flavors/dark-truffle.png",
+    imageSrc: "/images/flavors/eggless-chocolate.jpg",
     href: "/cake-catalogue?flavour=chocolate",
   },
   {
-    id: "fallback-vanilla",
+    id: "sponge-vanilla",
     name: "Eggless Vanilla",
     handle: "victoria",
-    imageSrc: "/images/flavors/madagascar-vanilla.png",
+    imageSrc: "/images/flavors/eggless-vanilla.jpg",
     href: "/cake-catalogue?flavour=victoria",
   },
   {
-    id: "fallback-blueberry",
-    name: "Blueberry Silk",
-    handle: "blueberry",
-    imageSrc: "/images/flavors/blueberry-silk.png",
-    href: "/cake-catalogue?q=blueberry",
-  },
-  {
-    id: "fallback-summer",
-    name: "Summer Harvest",
-    handle: "round-cakes",
-    imageSrc: "/images/flavors/summer-harvest.png",
-    href: "/cake-catalogue?cats=round-cakes",
-  },
-  {
-    id: "fallback-butterscotch",
-    name: "Gold Butterscotch",
-    handle: "caramel",
-    imageSrc: "/images/flavors/gold-butterscotch.png",
-    href: "/cake-catalogue?q=caramel",
+    id: "sponge-red-velvet",
+    name: "Eggless Red Velvet",
+    handle: "red-velvet",
+    imageSrc: "/images/flavors/eggless-red-velvet.jpg",
+    href: "/cake-catalogue?flavour=red-velvet",
   },
 ];
 
+/** @deprecated Use FlavourItem */
+export type CategoryItem = FlavourItem;
+
 type CuratedByFlavorProps = {
-  categories?: CategoryItem[];
+  /** Optional override; defaults to the three live sponge flavours. */
+  flavours?: FlavourItem[];
+  /** @deprecated Use `flavours` */
+  categories?: FlavourItem[];
 };
 
 export default function CuratedByFlavor({
-  categories: categoriesProp,
+  flavours,
+  categories,
 }: CuratedByFlavorProps) {
-  const categories =
-    categoriesProp && categoriesProp.length > 0
-      ? categoriesProp
-      : FALLBACK_CATEGORIES;
+  const items =
+    flavours && flavours.length > 0
+      ? flavours
+      : categories && categories.length > 0
+        ? categories
+        : SPONGE_FLAVOURS;
 
   return (
     <section className="space-y-8" aria-label="Curated by Flavor">
@@ -82,18 +79,17 @@ export default function CuratedByFlavor({
         </Link>
       </div>
 
-      {/* Categories Grid */}
-      <div className="grid grid-cols-3 md:grid-cols-6 gap-3 sm:gap-6 md:gap-8 justify-items-center">
-        {categories.map((category) => (
+      {/* Sponge flavour circles — 3 live options, centred */}
+      <div className="grid grid-cols-3 gap-3 sm:gap-6 md:gap-10 max-w-xl mx-auto justify-items-center">
+        {items.map((flavour) => (
           <Link
-            key={category.id}
-            href={category.href}
+            key={flavour.id}
+            href={flavour.href}
             className="group flex flex-col items-center space-y-2 sm:space-y-3 focus:outline-none"
           >
-            {/* Circle Image Wrapper */}
             <div
               className="
-                w-16 h-16 sm:w-20 sm:h-20 md:w-28 md:h-28
+                w-20 h-20 sm:w-24 sm:h-24 md:w-32 md:h-32
                 rounded-full
                 overflow-hidden
                 border-2 border-white
@@ -106,13 +102,12 @@ export default function CuratedByFlavor({
               "
             >
               <img
-                alt={category.name}
+                alt={flavour.name}
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                src={category.imageSrc}
+                src={flavour.imageSrc}
               />
             </div>
 
-            {/* Label */}
             <span
               className="
                 font-label-bold text-[10px] sm:text-xs text-deep-plum text-center
@@ -122,7 +117,7 @@ export default function CuratedByFlavor({
                 leading-tight
               "
             >
-              {category.name}
+              {flavour.name}
             </span>
           </Link>
         ))}

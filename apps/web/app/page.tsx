@@ -19,8 +19,9 @@
  *   `BentoProductGrid` (which awaits `getMedusaHeaders()` + a Medusa fetch)
  *   streams in behind a skeleton, giving a perceived instant load.
  *
- * • Hero banners + categories are fetched server-side from Medusa (CMS module
- *   and product categories). Components keep static fallbacks when empty.
+ * • Hero banners are fetched server-side from Medusa CMS. Curated-by-flavor
+ *   uses a fixed sponge list with local studio images. Components keep
+ *   static fallbacks when CMS data is empty.
  */
 
 import { Suspense } from "react";
@@ -32,18 +33,11 @@ import HeroCarousel, {
   type SlideContent,
 } from "@/modules/home/components/hero-carousel";
 import CuratedByFlavor from "@/modules/home/components/curated-by-flavor";
-import {
-  categoryImageFromMetadata,
-  type CategoryItem,
-} from "@/modules/home/lib/category-display";
 import SeasonalCollection from "@/modules/home/components/seasonal-collection";
 import ConnoisseurClub from "@/modules/home/components/connoisseur-club";
 import FooterPromoCards from "@/modules/home/components/footer-promo-cards";
 import NoFranchiseFallback from "@/modules/home/components/no-franchise-fallback";
-import {
-  fetchCatalogueCategories,
-  fetchHeroBanners,
-} from "@/lib/data/catalogue";
+import { fetchHeroBanners } from "@/lib/data/catalogue";
 
 // ─── Force dynamic rendering ──────────────────────────────────────────────────
 // Products are scoped to the `franchise_id` cookie — a per-user value that
@@ -82,11 +76,8 @@ export default async function HomePage() {
   const cookieStore = await cookies();
   const franchiseId = cookieStore.get("franchise_id")?.value?.trim();
 
-  // Parallel CMS + catalogue meta fetch (graceful empty → component fallbacks)
-  const [heroBanners, categories] = await Promise.all([
-    fetchHeroBanners(),
-    fetchCatalogueCategories(),
-  ]);
+  // CMS hero banners (graceful empty → carousel static fallback)
+  const heroBanners = await fetchHeroBanners();
 
   const heroSlides: SlideContent[] = heroBanners.map((b) => ({
     tag: b.tag,
@@ -109,15 +100,6 @@ export default async function HomePage() {
     imageAlt: b.image_alt || b.title,
   }));
 
-  // Cap home-page circles so the grid stays balanced (3×2 / 6-up)
-  const categoryItems: CategoryItem[] = categories.slice(0, 12).map((cat, i) => ({
-    id: cat.id,
-    name: cat.name,
-    handle: cat.handle,
-    imageSrc: categoryImageFromMetadata(cat.metadata, i),
-    href: `/cake-catalogue?cats=${encodeURIComponent(cat.handle)}`,
-  }));
-
   return (
     <div>
       <Header />
@@ -128,8 +110,8 @@ export default async function HomePage() {
           {/* 1. Hero sliding carousel (CMS-driven with static fallback) */}
           <HeroCarousel slides={heroSlides} />
 
-          {/* 2. Product categories (dynamic circles → catalogue filter) */}
-          <CuratedByFlavor categories={categoryItems} />
+          {/* 2. Sponge flavours (fixed circles → ?flavour= catalogue filter) */}
+          <CuratedByFlavor />
 
           {/* 3. The Seasonal Collection product cards */}
           {franchiseId ? (

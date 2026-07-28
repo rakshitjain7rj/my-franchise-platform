@@ -1,6 +1,10 @@
 /**
- * Shared (server-safe) helpers for home-page category circles.
+ * Shared (server-safe) helpers for product-category display.
  * Keep this free of "use client" so RSCs can call it.
+ *
+ * Note: Home “Curated by Flavor” no longer uses product categories — it uses
+ * the fixed sponge list in curated-by-flavor. These helpers remain for
+ * category filters / other surfaces that may set metadata.image_url.
  */
 
 export type CategoryItem = {
@@ -11,14 +15,15 @@ export type CategoryItem = {
   href: string;
 };
 
-/** Deterministic local placeholders when a category has no metadata image. */
+/**
+ * Deterministic local placeholders when a category has no metadata image.
+ * Reuses the three sponge studio shots (not flavour-accurate for arbitrary
+ * categories — prefer setting metadata.image_url on each category).
+ */
 export const CATEGORY_PLACEHOLDER_IMAGES = [
-  "/images/flavors/red-velvet.png",
-  "/images/flavors/dark-truffle.png",
-  "/images/flavors/madagascar-vanilla.png",
-  "/images/flavors/blueberry-silk.png",
-  "/images/flavors/summer-harvest.png",
-  "/images/flavors/gold-butterscotch.png",
+  "/images/flavors/eggless-chocolate.jpg",
+  "/images/flavors/eggless-vanilla.jpg",
+  "/images/flavors/eggless-red-velvet.jpg",
 ] as const;
 
 export function categoryImageFromMetadata(
