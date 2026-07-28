@@ -55,136 +55,153 @@ export const FranchiseLocationModal = ({
   return (
     <FocusModal open={open} onOpenChange={onOpenChange}>
       <FocusModal.Content>
-        <form onSubmit={onSubmit}>
+        {/*
+          Full-height flex shell so the action bar stays pinned at the bottom
+          while the form fields scroll — without this, Save sits below the fold.
+        */}
+        <form
+          onSubmit={onSubmit}
+          className="flex h-full flex-col overflow-hidden"
+        >
           <FocusModal.Header>
             <div className="flex items-center gap-2">
               <FocusModal.Title asChild>
-                <Heading level="h2">{isEdit ? "Modify Store Location Settings" : "Configure New Store Location"}</Heading>
+                <Heading level="h2">
+                  {isEdit
+                    ? "Modify Store Location Settings"
+                    : "Configure New Store Location"}
+                </Heading>
               </FocusModal.Title>
             </div>
           </FocusModal.Header>
-          <FocusModal.Body className="flex flex-col gap-6 max-w-lg mx-auto py-8">
 
-            {/* Name */}
-            <FormField
-              id="floc-name"
-              label="Location Name"
-              required
-              helper="The unique store code will be automatically generated from the franchise context on save."
-            >
-              <Input
+          <FocusModal.Body className="flex-1 overflow-y-auto px-6 py-6">
+            <div className="mx-auto flex w-full max-w-lg flex-col gap-6">
+              {/* Name */}
+              <FormField
                 id="floc-name"
-                placeholder="e.g. Koramangala Kitchen"
-                value={locName}
-                onChange={(e) => onNameChange(e.target.value)}
+                label="Location Name"
                 required
-                autoComplete="off"
-              />
-            </FormField>
-
-            {/* Address */}
-            <FormField id="floc-address" label="Physical Street Address">
-              <Input
-                id="floc-address"
-                placeholder="e.g. 12th Main Road, Koramangala, Bengaluru"
-                value={locAddress}
-                onChange={(e) => onAddressChange(e.target.value)}
-                autoComplete="off"
-              />
-            </FormField>
-
-            {/* Lat / Lng */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField id="floc-lat" label="Latitude">
-                <Input
-                  id="floc-lat"
-                  type="number"
-                  step="0.000001"
-                  placeholder="12.9348"
-                  value={locLat}
-                  onChange={(e) => onLatChange(e.target.value)}
-                />
-              </FormField>
-              <FormField id="floc-lng" label="Longitude">
-                <Input
-                  id="floc-lng"
-                  type="number"
-                  step="0.000001"
-                  placeholder="77.6189"
-                  value={locLng}
-                  onChange={(e) => onLngChange(e.target.value)}
-                />
-              </FormField>
-            </div>
-
-            {/* Lead Time + Capacity */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField
-                id="floc-lead"
-                label="Lead Time (Hours)"
-                helper="Minimum notice before collection."
+                helper="The unique store code will be automatically generated from the franchise context on save."
               >
                 <Input
+                  id="floc-name"
+                  placeholder="e.g. Koramangala Kitchen"
+                  value={locName}
+                  onChange={(e) => onNameChange(e.target.value)}
+                  required
+                  autoComplete="off"
+                />
+              </FormField>
+
+              {/* Address */}
+              <FormField id="floc-address" label="Physical Street Address">
+                <Input
+                  id="floc-address"
+                  placeholder="e.g. 12th Main Road, Koramangala, Bengaluru"
+                  value={locAddress}
+                  onChange={(e) => onAddressChange(e.target.value)}
+                  autoComplete="off"
+                />
+              </FormField>
+
+              {/* Lat / Lng */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField id="floc-lat" label="Latitude">
+                  <Input
+                    id="floc-lat"
+                    type="number"
+                    step="0.000001"
+                    placeholder="12.9348"
+                    value={locLat}
+                    onChange={(e) => onLatChange(e.target.value)}
+                  />
+                </FormField>
+                <FormField id="floc-lng" label="Longitude">
+                  <Input
+                    id="floc-lng"
+                    type="number"
+                    step="0.000001"
+                    placeholder="77.6189"
+                    value={locLng}
+                    onChange={(e) => onLngChange(e.target.value)}
+                  />
+                </FormField>
+              </div>
+
+              {/* Lead Time + Capacity */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
                   id="floc-lead"
-                  type="number"
-                  min={0}
-                  value={locLeadTime}
-                  onChange={(e) => onLeadTimeChange(e.target.value)}
-                />
-              </FormField>
-              <FormField
-                id="floc-capacity"
-                label="Orders Capacity / Slot"
-                helper="Max orders per time slot."
-              >
-                <Input
+                  label="Lead Time (Hours)"
+                  helper="Minimum notice before collection."
+                >
+                  <Input
+                    id="floc-lead"
+                    type="number"
+                    min={0}
+                    value={locLeadTime}
+                    onChange={(e) => onLeadTimeChange(e.target.value)}
+                  />
+                </FormField>
+                <FormField
                   id="floc-capacity"
-                  type="number"
-                  min={0}
-                  value={locCapacity}
-                  onChange={(e) => onCapacityChange(e.target.value)}
+                  label="Orders Capacity / Slot"
+                  helper="Max orders per time slot."
+                >
+                  <Input
+                    id="floc-capacity"
+                    type="number"
+                    min={0}
+                    value={locCapacity}
+                    onChange={(e) => onCapacityChange(e.target.value)}
+                  />
+                </FormField>
+              </div>
+
+              {/* Active toggle */}
+              <div className="flex items-center justify-between gap-4 rounded-lg border border-ui-border-base px-4 py-3">
+                <div className="min-w-0">
+                  <Label htmlFor="floc-active">Show Location</Label>
+                  <Text size="xsmall" className="text-ui-fg-subtle mt-0.5">
+                    Visible on the storefront finder and open for routing.
+                  </Text>
+                </div>
+                <Switch
+                  id="floc-active"
+                  checked={locActive}
+                  onCheckedChange={onActiveChange}
+                  className="shrink-0"
                 />
-              </FormField>
-            </div>
-
-            {/* Active toggle */}
-            <div className="flex items-center justify-between gap-4 rounded-lg border border-ui-border-base px-4 py-3">
-              <div className="min-w-0">
-                <Label htmlFor="floc-active">Show Location</Label>
-                <Text size="xsmall" className="text-ui-fg-subtle mt-0.5">
-                  Visible on the storefront finder and open for routing.
-                </Text>
               </div>
-              <Switch
-                id="floc-active"
-                checked={locActive}
-                onCheckedChange={onActiveChange}
-                className="shrink-0"
-              />
-            </div>
 
-            {/* Accepting orders toggle — disabled when location itself is not active */}
-            <div className="flex items-center justify-between gap-4 rounded-lg border border-ui-border-base px-4 py-3">
-              <div className="min-w-0">
-                <Label htmlFor="floc-accepting">Accepting Orders</Label>
-                <Text size="xsmall" className="text-ui-fg-subtle mt-0.5">
-                  {locActive
-                    ? "Temporarily toggle off during kitchen rush or holidays."
-                    : "Enable the location first before accepting orders."}
-                </Text>
+              {/* Accepting orders toggle — disabled when location itself is not active */}
+              <div className="flex items-center justify-between gap-4 rounded-lg border border-ui-border-base px-4 py-3">
+                <div className="min-w-0">
+                  <Label htmlFor="floc-accepting">Accepting Orders</Label>
+                  <Text size="xsmall" className="text-ui-fg-subtle mt-0.5">
+                    {locActive
+                      ? "Temporarily toggle off during kitchen rush or holidays."
+                      : "Enable the location first before accepting orders."}
+                  </Text>
+                </div>
+                <Switch
+                  id="floc-accepting"
+                  checked={locAccepting}
+                  disabled={!locActive}
+                  onCheckedChange={onAcceptingChange}
+                  className="shrink-0"
+                />
               </div>
-              <Switch
-                id="floc-accepting"
-                checked={locAccepting}
-                disabled={!locActive}
-                onCheckedChange={onAcceptingChange}
-                className="shrink-0"
-              />
             </div>
-
           </FocusModal.Body>
-          <div className="border-t px-6 py-4 flex items-center justify-end gap-3 bg-ui-bg-subtle">
-            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+
+          <div className="shrink-0 border-t px-6 py-4 flex items-center justify-end gap-3 bg-ui-bg-base">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => onOpenChange(false)}
+            >
               Cancel
             </Button>
             <Button type="submit" isLoading={isPending} disabled={!locName}>

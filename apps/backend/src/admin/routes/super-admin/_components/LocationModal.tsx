@@ -73,15 +73,27 @@ export const LocationModal = ({
   return (
     <FocusModal open={open} onOpenChange={onOpenChange}>
       <FocusModal.Content>
-        <form onSubmit={onSubmit}>
+        {/*
+          Full-height flex shell so the action bar stays pinned at the bottom
+          while the form fields scroll — without this, Save sits below the fold.
+        */}
+        <form
+          onSubmit={onSubmit}
+          className="flex h-full flex-col overflow-hidden"
+        >
           <FocusModal.Header>
             <div className="flex items-center gap-2">
               <FocusModal.Title asChild>
-                <Heading level="h2">{isEdit ? "Modify Store Location Settings" : "Configure New Store Location"}</Heading>
+                <Heading level="h2">
+                  {isEdit
+                    ? "Modify Store Location Settings"
+                    : "Configure New Store Location"}
+                </Heading>
               </FocusModal.Title>
             </div>
           </FocusModal.Header>
-          <FocusModal.Body className="flex flex-col gap-6 max-w-lg mx-auto py-8">
+          <FocusModal.Body className="flex-1 overflow-y-auto px-6 py-6">
+            <div className="mx-auto flex w-full max-w-lg flex-col gap-6">
 
             {/* Name + Code */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -242,10 +254,15 @@ export const LocationModal = ({
                 className="shrink-0"
               />
             </div>
-
+            </div>
           </FocusModal.Body>
-          <div className="border-t px-6 py-4 flex items-center justify-end gap-3 bg-ui-bg-subtle">
-            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+
+          <div className="shrink-0 border-t px-6 py-4 flex items-center justify-end gap-3 bg-ui-bg-base">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => onOpenChange(false)}
+            >
               Cancel
             </Button>
             <Button
