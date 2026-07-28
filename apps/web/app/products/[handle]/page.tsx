@@ -212,6 +212,52 @@ const getProductDietaryTags = cache(
   }
 );
 
+/**
+ * Fallback when product-dietary-tag links are missing (e.g. products imported
+ * after a backfill, or catalogues larger than an old take:500 seed).
+ * Uses metadata.scraped_dietary written by scrape / cake-card fix scripts.
+ */
+const DIETARY_TAG_COPY: Record<string, { name: string; description: string }> =
+  {
+    eggless: {
+      name: "Eggless",
+      description: "Prepared without eggs. Uses plant-based binders.",
+    },
+    vegan: {
+      name: "Vegan",
+      description: "Plant-based recipe with no animal products.",
+    },
+    "dairy-free": {
+      name: "Dairy-free",
+      description: "Made without dairy milk or butter.",
+    },
+    "gluten-free": {
+      name: "Gluten-free",
+      description: "Made without gluten-containing grains.",
+    },
+  };
+
+function dietaryTagsFromMetadata(
+  metadata?: Record<string, unknown> | null
+): DietaryTag[] {
+  const raw = metadata?.scraped_dietary;
+  const names: string[] = Array.isArray(raw)
+    ? raw.map(String).map((s) => s.trim()).filter(Boolean)
+    : typeof raw === "string" && raw.trim()
+      ? raw.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+  return names.map((name, i) => {
+    const slug = name.toLowerCase().replace(/\s+/g, "-");
+    const known = DIETARY_TAG_COPY[slug];
+    return {
+      id: `meta-dietary-${i}-${slug}`,
+      name: known?.name ?? name,
+      slug,
+      description: known?.description ?? null,
+    };
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Dynamic SEO metadata
 // ---------------------------------------------------------------------------
@@ -285,7 +331,12 @@ export default async function ProductDetailPage({
     notFound();
   }
 
-  const dietaryTags = await getProductDietaryTags(product.id);
+  const linkedDietaryTags = await getProductDietaryTags(product.id);
+  // Prefer real product-dietary-tag links; fall back to scrape metadata.
+  const dietaryTags =
+    linkedDietaryTags.length > 0
+      ? linkedDietaryTags
+      : dietaryTagsFromMetadata(product.metadata);
 
   return (
     <div>
