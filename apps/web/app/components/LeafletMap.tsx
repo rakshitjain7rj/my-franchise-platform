@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import { useMemo } from "react";
-import { selectStore } from "@/lib/store-selection";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -41,6 +40,11 @@ const StoreMapContent = dynamic(
     const L = await import("leaflet");
     const { useRouter } = await import("next/navigation");
     const { useEffect } = await import("react");
+    const { useCart } = await import("@/lib/cart/cart-context");
+    const {
+      trySelectStore,
+      STORE_SELECTION_LOCKED_MESSAGE,
+    } = await import("@/lib/store-selection");
 
     // ── 1. Create an explicit default icon to avoid the broken Default icon ──
     //    Leaflet's Icon.Default relies on _getIconUrl which breaks under
@@ -156,6 +160,7 @@ const StoreMapContent = dynamic(
     // ── 5. Inner Map component ─────────────────────────────────────────────
     return function Map({ markers, selectedId, onSelectMarker, onSelectStore }: LeafletMapProps) {
       const router = useRouter();
+      const { totalItems } = useCart();
 
       const center = useMemo<[number, number]>(() => {
         if (markers.length === 0) return [52.4862, -1.8904]; // Birmingham fallback
@@ -178,16 +183,19 @@ const StoreMapContent = dynamic(
         if (onSelectStore) {
           onSelectStore(marker);
         } else {
-          // Standalone mode — write cookie then navigate.
-          // Explicit user choice persists until they pick another bakery.
-          selectStore(
+          // Standalone mode — enforce cart lock, then navigate.
+          const result = trySelectStore(
             {
               storeLocationId: marker.id,
               storeName: marker.name,
               franchiseId: marker.franchiseId,
             },
-            "user-select"
+            { cartItemCount: totalItems, source: "user-select" }
           );
+          if (!result.ok) {
+            window.alert(STORE_SELECTION_LOCKED_MESSAGE);
+            return;
+          }
 
           // Honour the ?redirect= param set by middleware. Fall back to home.
           const params = new URLSearchParams(window.location.search);

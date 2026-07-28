@@ -3,7 +3,11 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import type { StoreLocationCard } from "../map-routing/page";
-import { selectStore } from "@/lib/store-selection";
+import {
+  STORE_SELECTION_LOCKED_MESSAGE,
+  trySelectStore,
+} from "@/lib/store-selection";
+import { useCart } from "@/lib/cart/cart-context";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -41,6 +45,11 @@ interface BakerySidebarProps {
    * Ignored on desktop (md+).
    */
   compactMobile?: boolean;
+  /**
+   * When true, "Shop here" is disabled for non-selected stores (cart has items).
+   * Parent should also enforce via trySelectStore.
+   */
+  selectionLocked?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -56,15 +65,22 @@ export default function BakerySidebar({
   selectedId: propSelectedId,
   isNavigating: propIsNavigating,
   compactMobile = false,
+  selectionLocked: propSelectionLocked,
 }: BakerySidebarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { totalItems } = useCart();
   const [localSelectedId, setLocalSelectedId] = useState<string | null>(null);
   const [localIsNavigating, setLocalIsNavigating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [lockHint, setLockHint] = useState<string | null>(null);
 
   const selectedId = propSelectedId !== undefined ? propSelectedId : localSelectedId;
   const isNavigating = propIsNavigating !== undefined ? propIsNavigating : localIsNavigating;
+  const selectionLocked =
+    propSelectionLocked !== undefined
+      ? propSelectionLocked
+      : totalItems > 0;
 
   // Client-side search filter
   const filteredLocations = locations.filter((loc) => {
@@ -84,6 +100,12 @@ export default function BakerySidebar({
   function handleSelectLocation(location: StoreLocationCard) {
     if (isNavigating) return;
 
+    // Same branch is always fine; switching while cart has items is not.
+    if (selectionLocked && selectedId && location.id !== selectedId) {
+      setLockHint(STORE_SELECTION_LOCKED_MESSAGE);
+      return;
+    }
+
     const franchiseObj: Franchise = {
       id: location.id,
       franchiseId: location.franchiseId,
@@ -97,17 +119,22 @@ export default function BakerySidebar({
     if (onSelectStore) {
       onSelectStore(franchiseObj);
     } else {
-      setLocalSelectedId(location.id);
-      setLocalIsNavigating(true);
-      // Explicit user choice — persists until they pick another bakery.
-      selectStore(
+      const result = trySelectStore(
         {
           storeLocationId: location.id,
           storeName: location.name,
           franchiseId: location.franchiseId,
         },
-        "user-select"
+        { cartItemCount: totalItems, source: "user-select" }
       );
+
+      if (!result.ok) {
+        setLockHint(STORE_SELECTION_LOCKED_MESSAGE);
+        return;
+      }
+
+      setLocalSelectedId(location.id);
+      setLocalIsNavigating(true);
 
       // Honour the ?redirect= param set by Next.js middleware when the user
       // was redirected here from a gated page. Fall back to home.
@@ -201,8 +228,18 @@ export default function BakerySidebar({
               }
             `}
           >
-            Pick a location for delivery &amp; pickup — your catalog stays the same.
+            {selectionLocked
+              ? "Your cart locks this bakery for the order. Empty the cart to switch branch."
+              : "Pick a location for delivery & pickup — your catalog stays the same."}
           </p>
+          {lockHint && (
+            <p
+              className="mt-2 text-xs font-semibold text-amber-800 bg-amber-50/90 border border-amber-200 rounded-xl px-3 py-2"
+              role="status"
+            >
+              {lockHint}
+            </p>
+          )}
 
           {/* Search input — frosted field so map peeks through edges */}
           <div className={`relative ${compactMobile ? "mt-3" : "mt-5"}`}>
@@ -335,11 +372,24 @@ export default function BakerySidebar({
                     </div>
 
                     {/* CTA */}
+                    {(() => {
+                      const switchBlocked =
+                        selectionLocked && Boolean(selectedId) && !isSelected;
+                      return (
                     <button
                       id={`select-location-${location.id}`}
                       type="button"
-                      disabled={isNavigating}
-                      aria-label={`Select ${location.name}`}
+                      disabled={isNavigating || switchBlocked}
+                      aria-label={
+                        switchBlocked
+                          ? `Cannot switch to ${location.name} while cart has items`
+                          : `Select ${location.name}`
+                      }
+                      title={
+                        switchBlocked
+                          ? STORE_SELECTION_LOCKED_MESSAGE
+                          : undefined
+                      }
                       onClick={(e) => {
                         e.stopPropagation();
                         handleSelectLocation(location);
@@ -350,6 +400,8 @@ export default function BakerySidebar({
                         ${
                           isNavigating && isSelected
                             ? "opacity-70 cursor-wait"
+                            : switchBlocked
+                            ? "bg-deep-plum/30 text-white/80 cursor-not-allowed"
                             : isActive
                             ? "bg-vibrant-magenta text-white hover:bg-[#e05095] shadow-[0_4px_16px_-4px_rgba(255,105,180,0.5)]"
                             : "bg-deep-plum text-white hover:bg-black shadow-sm"
@@ -363,6 +415,20 @@ export default function BakerySidebar({
                           </span>
                           Redirecting…
                         </>
+                      ) : switchBlocked ? (
+                        <>
+                          <span className="material-symbols-outlined !text-[14px]">
+                            lock
+                          </span>
+                          Empty cart to switch
+                        </>
+                      ) : isSelected ? (
+                        <>
+                          Current bakery
+                          <span className="material-symbols-outlined !text-[14px]">
+                            check
+                          </span>
+                        </>
                       ) : (
                         <>
                           Shop here
@@ -372,6 +438,8 @@ export default function BakerySidebar({
                         </>
                       )}
                     </button>
+                      );
+                    })()}
                   </div>
                 </div>
               );

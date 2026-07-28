@@ -66,8 +66,27 @@ export interface SelectStoreInput {
 }
 
 /**
+ * Bakery is universal for the order: once the cart has line items, switching
+ * branch is blocked until the cart is emptied (avoids mixed-branch confusion).
+ */
+export function isStoreSelectionLocked(cartItemCount: number): boolean {
+  return cartItemCount > 0;
+}
+
+/** Shown when the user tries to change bakery with items still in the cart. */
+export const STORE_SELECTION_LOCKED_MESSAGE =
+  "Empty your cart before changing bakery.";
+
+export type TrySelectStoreResult =
+  | { ok: true; selection: SelectedStore }
+  | { ok: false; reason: "locked"; selection: SelectedStore };
+
+/**
  * Persist bakery selection and notify all listeners.
  * Does nothing when storeLocationId is empty.
+ *
+ * Prefer `trySelectStore` for user-driven switches so a non-empty cart cannot
+ * rebind the whole order to another branch.
  */
 export function selectStore(
   input: SelectStoreInput,
@@ -112,6 +131,51 @@ export function selectStore(
     franchiseId:
       franchiseId ??
       (getBrowserCookie(FRANCHISE_COOKIE)?.trim() || null),
+  };
+}
+
+/**
+ * User-driven bakery change with cart lock enforcement.
+ *
+ * - Same bakery id (or empty input): always allowed (name hydrate / re-click).
+ * - No bakery set yet: allowed even with items (recovery).
+ * - Different bakery while cart has items: blocked.
+ */
+export function trySelectStore(
+  input: SelectStoreInput,
+  options: {
+    cartItemCount: number;
+    source?: StoreSelectionSource;
+  }
+): TrySelectStoreResult {
+  const current = readSelectedStore();
+  const nextId = input.storeLocationId?.trim();
+  if (!nextId) {
+    return { ok: true, selection: current };
+  }
+
+  if (current.storeLocationId === nextId) {
+    return {
+      ok: true,
+      selection: selectStore(input, options.source ?? "user-select"),
+    };
+  }
+
+  // Recovery: cart exists but no branch cookie — still need a fulfillment store.
+  if (!current.storeLocationId) {
+    return {
+      ok: true,
+      selection: selectStore(input, options.source ?? "user-select"),
+    };
+  }
+
+  if (isStoreSelectionLocked(options.cartItemCount)) {
+    return { ok: false, reason: "locked", selection: current };
+  }
+
+  return {
+    ok: true,
+    selection: selectStore(input, options.source ?? "user-select"),
   };
 }
 

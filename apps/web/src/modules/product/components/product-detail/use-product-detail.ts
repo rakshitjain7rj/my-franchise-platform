@@ -39,7 +39,8 @@ const PRODUCT_DETAIL_SOURCE = "product-detail";
 
 export function useProductDetail(product: MedusaProduct) {
   const router = useRouter();
-  const { addToCart } = useCart();
+  const { addToCart, totalItems } = useCart();
+  const storeSelectionLocked = totalItems > 0;
 
   const [selectedOptions, setSelectedOptions] = useState<
     Record<string, string>
@@ -197,55 +198,8 @@ export function useProductDetail(product: MedusaProduct) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [franchiseId]);
 
-  const storeSelectOptions = useMemo(() => {
-    const opts = storeLocations.map((loc) => ({
-      value: loc.id,
-      label: loc.name,
-      description: loc.address?.trim() || undefined,
-    }));
-    if (
-      storeLocationId &&
-      storeName &&
-      !opts.some((o) => o.value === storeLocationId)
-    ) {
-      opts.unshift({
-        value: storeLocationId,
-        label: storeName,
-        description: undefined,
-      });
-    }
-    return opts;
-  }, [storeLocations, storeLocationId, storeName]);
-
-  const handleStoreChange = useCallback(
-    (nextStoreId: string) => {
-      if (!nextStoreId || nextStoreId === storeLocationId) return;
-
-      const next = storeLocations.find((l) => l.id === nextStoreId);
-      const nextName = next?.name ?? "Selected bakery";
-
-      selectStoreSelection(
-        {
-          storeLocationId: nextStoreId,
-          storeName: nextName,
-          franchiseId: franchiseId ?? undefined,
-        },
-        PRODUCT_DETAIL_SOURCE
-      );
-      setShowLocationModal(false);
-      setCartError(null);
-      setCollectionTime("");
-      setCollectionTimeLabel("");
-      router.refresh();
-    },
-    [
-      storeLocationId,
-      storeLocations,
-      selectStoreSelection,
-      franchiseId,
-      router,
-    ]
-  );
+  // Bakery is session-wide and locked while the cart has items. PDP only
+  // hydrates the display name; intentional switches go via /map-routing.
 
   const handleSlotChange = useCallback((slot: SlotSelection | null) => {
     if (!slot) {
@@ -469,8 +423,7 @@ export function useProductDetail(product: MedusaProduct) {
     storeName,
     storeLocations,
     storesLoading,
-    storeSelectOptions,
-    handleStoreChange,
+    storeSelectionLocked,
     // configure
     selectedOptions,
     handleOptionChange,

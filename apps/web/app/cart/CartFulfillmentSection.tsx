@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import { fmt } from "./format"
 
 interface CartFulfillmentSectionProps {
@@ -145,19 +144,11 @@ export function CartFulfillmentSection({
             <span className="material-symbols-outlined">location_on</span>
           </div>
           <div className="flex-grow">
-            <div className="flex justify-between items-start">
-              <h4 className="font-headline font-bold text-primary text-sm">
-                {fulfillment === "pickup"
-                  ? "Selected Pickup Location"
-                  : "Selected Bakery"}
-              </h4>
-              <Link
-                href={`/map-routing?redirect=/cart`}
-                className="text-secondary hover:text-secondary-container text-xs font-bold uppercase tracking-widest transition-colors"
-              >
-                Change Store
-              </Link>
-            </div>
+            <h4 className="font-headline font-bold text-primary text-sm">
+              {fulfillment === "pickup"
+                ? "Selected Pickup Location"
+                : "Selected Bakery"}
+            </h4>
             <p className="text-on-surface-variant text-sm mt-1 font-medium">
               {locationName}
             </p>
@@ -166,6 +157,10 @@ export function CartFulfillmentSection({
                 {locationAddress}
               </p>
             )}
+            <p className="text-[11px] text-on-surface-variant/80 mt-2 leading-relaxed">
+              Bakery is fixed for this order. Empty your cart to shop from a
+              different branch.
+            </p>
           </div>
         </div>
       )}

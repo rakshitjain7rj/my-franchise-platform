@@ -45,8 +45,7 @@ export function PurchasePanel({
     storeLocationId,
     storeName,
     storesLoading,
-    storeSelectOptions,
-    handleStoreChange,
+    storeSelectionLocked,
     selectedOptions,
     handleOptionChange,
     metadataFlavour,
@@ -153,42 +152,41 @@ export function PurchasePanel({
                   Collection bakery
                 </span>
               </div>
-              {storeSelectOptions.length > 1 && (
+              {storeSelectionLocked && (
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/70">
-                  Change anytime
+                  Fixed for cart
                 </span>
               )}
             </div>
             {storesLoading ? (
               <div className="h-10 w-full animate-pulse rounded-full bg-lavender-bg/80" />
-            ) : storeSelectOptions.length > 0 ? (
+            ) : storeLocationId || storeName ? (
               <>
-                <PremiumSelect
-                  label="Collection bakery"
-                  value={storeLocationId ?? ""}
-                  placeholder="Select a bakery"
-                  options={storeSelectOptions}
-                  onChange={handleStoreChange}
-                  active={Boolean(storeLocationId)}
-                  fullWidth
-                  contentClassName="z-50"
-                />
-                {storeName && storeLocationId && (
-                  <p className="text-[11px] text-on-surface-variant leading-relaxed">
-                    Ordering from{" "}
-                    <span className="font-semibold text-deep-plum">
-                      {storeName}
-                    </span>
-                    . Collection slots and stock update for this bakery.
-                  </p>
+                <p className="text-sm text-deep-plum font-semibold leading-snug">
+                  Collecting from{" "}
+                  <span className="text-vibrant-magenta">
+                    {storeName ?? "your selected bakery"}
+                  </span>
+                </p>
+                <p className="text-[11px] text-on-surface-variant leading-relaxed">
+                  One bakery for the whole order. Collection slots and stock
+                  apply to this branch.
+                </p>
+                {!storeSelectionLocked && (
+                  <Link
+                    href={`/map-routing?redirect=${encodeURIComponent(
+                      `/products/${product.handle}`
+                    )}`}
+                    className="inline-flex h-9 w-fit items-center justify-center gap-1.5 rounded-full border border-deep-plum/15 bg-lavender-bg/60 px-3.5 text-xs font-semibold text-deep-plum transition-all hover:border-vibrant-magenta/40 hover:text-vibrant-magenta"
+                  >
+                    Change bakery
+                  </Link>
                 )}
               </>
             ) : (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-on-surface-variant">
-                  {storeName
-                    ? `Current bakery: ${storeName}`
-                    : "No bakery selected yet."}
+                  No bakery selected yet.
                 </p>
                 <Link
                   href={`/map-routing?redirect=${encodeURIComponent(
@@ -430,29 +428,26 @@ export function PurchasePanel({
               Select a bakery location first
             </p>
             <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-              {storeSelectOptions.length > 0
-                ? "Use the Collection bakery dropdown above to pick your local Cake Break boutique, then add this cake to your cart."
-                : "You need to choose your local Cake Break boutique before adding items to your cart."}
+              Choose your local Cake Break boutique first — bakery is fixed for
+              the whole order once items are in the cart.
             </p>
-            {storeSelectOptions.length === 0 && (
-              <button
-                type="button"
-                onClick={() =>
-                  router.push(
-                    `/map-routing?redirect=${encodeURIComponent(
-                      `/products/${product.handle}`
-                    )}`
-                  )
-                }
-                className="mt-3 inline-flex items-center gap-2 px-5 py-2 rounded-full bg-deep-plum text-white text-xs font-label-bold uppercase tracking-widest hover:bg-vibrant-magenta transition-colors"
-                id="choose-location-btn"
-              >
-                <span className="material-symbols-outlined !text-[14px]">
-                  store
-                </span>
-                Choose Location
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() =>
+                router.push(
+                  `/map-routing?redirect=${encodeURIComponent(
+                    `/products/${product.handle}`
+                  )}`
+                )
+              }
+              className="mt-3 inline-flex items-center gap-2 px-5 py-2 rounded-full bg-deep-plum text-white text-xs font-label-bold uppercase tracking-widest hover:bg-vibrant-magenta transition-colors"
+              id="choose-location-btn"
+            >
+              <span className="material-symbols-outlined !text-[14px]">
+                store
+              </span>
+              Choose Location
+            </button>
           </div>
           <button
             type="button"

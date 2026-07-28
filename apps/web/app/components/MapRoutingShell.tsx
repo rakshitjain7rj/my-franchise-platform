@@ -25,8 +25,11 @@ import type { StoreLocationCard } from "../map-routing/page";
 import {
   readSelectedStore,
   selectStore,
+  STORE_SELECTION_LOCKED_MESSAGE,
+  trySelectStore,
 } from "@/lib/store-selection";
 import { saveStorePreference } from "@/lib/auth/storePreferenceActions";
+import { useCart } from "@/lib/cart/cart-context";
 
 interface MapRoutingShellProps {
   /** The active Franchise (brand) ID — read-only, never mutated. */
@@ -68,6 +71,8 @@ export default function MapRoutingShell({
 }: MapRoutingShellProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { totalItems } = useCart();
+  const storeLocked = totalItems > 0;
 
   const [highlightedId, setHighlightedId] = useState<string | null>(
     initialHighlightedId
@@ -75,6 +80,7 @@ export default function MapRoutingShell({
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId);
   const [isNavigating, setIsNavigating] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastTone, setToastTone] = useState<"success" | "warning">("success");
   /**
    * Mobile bottom sheet: collapsed shows map + a usable peek of locations;
    * expanded almost fills the screen. Start expanded on small screens so
@@ -104,21 +110,27 @@ export default function MapRoutingShell({
 
   const handleSelectStore = (storeId: string, franchiseId: string, storeName: string) => {
     if (isNavigating) return;
-    
-    setSelectedId(storeId);
-    setHighlightedId(storeId);
-    setIsNavigating(true);
 
-    // Persist until the shopper picks another bakery (long-lived cookies).
-    // Explicit user choice always wins over the admin default bootstrap.
-    selectStore(
+    const result = trySelectStore(
       {
         storeLocationId: storeId,
         storeName,
         franchiseId,
       },
-      "user-select"
+      { cartItemCount: totalItems, source: "user-select" }
     );
+
+    if (!result.ok) {
+      setToastTone("warning");
+      setToastMessage(STORE_SELECTION_LOCKED_MESSAGE);
+      // Keep current selection; do not navigate away.
+      setTimeout(() => setToastMessage(null), 4000);
+      return;
+    }
+
+    setSelectedId(storeId);
+    setHighlightedId(storeId);
+    setIsNavigating(true);
 
     // If the user is logged in, also persist the preference to the server so
     // it survives cookie expiration and syncs across devices.
@@ -128,7 +140,7 @@ export default function MapRoutingShell({
       );
     }
 
-    // Show toast message
+    setToastTone("success");
     setToastMessage(`Switched to ${storeName}`);
 
     // Redirect after 1.5 seconds so the user has time to read the toast
@@ -214,21 +226,50 @@ export default function MapRoutingShell({
           md:left-auto md:right-6 md:translate-x-0
           z-[9999] toast-animate
         ">
-          <div className="
-            bg-[#4A154B] text-white px-6 py-4 rounded-2xl
+          <div className={`
+            text-white px-6 py-4 rounded-2xl
             shadow-[0_12px_40px_-8px_rgba(74,21,75,0.45)]
             border border-white/10 backdrop-blur-md
             flex items-center gap-3
-          ">
-            <div className="w-7 h-7 rounded-full bg-[#FF69B4] flex items-center justify-center shrink-0">
+            ${toastTone === "warning" ? "bg-amber-800" : "bg-[#4A154B]"}
+          `}>
+            <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
+              toastTone === "warning" ? "bg-amber-500" : "bg-[#FF69B4]"
+            }`}>
               <span className="material-symbols-outlined !text-[16px] text-white font-bold">
-                done
+                {toastTone === "warning" ? "lock" : "done"}
               </span>
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#FF69B4]">Active Location</p>
+              <p className={`text-[10px] font-bold uppercase tracking-[0.2em] ${
+                toastTone === "warning" ? "text-amber-200" : "text-[#FF69B4]"
+              }`}>
+                {toastTone === "warning" ? "Bakery locked" : "Active Location"}
+              </p>
               <p className="font-headline text-sm font-semibold text-white mt-0.5">{toastMessage}</p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {storeLocked && (
+        <div className="
+          absolute top-20 left-4 right-4 z-[1002]
+          md:top-6 md:left-auto md:right-6 md:max-w-sm
+          pointer-events-none
+        ">
+          <div className="
+            rounded-2xl border border-amber-200/80 bg-amber-50/95 backdrop-blur-md
+            px-4 py-3 shadow-sm
+            text-amber-900 text-xs leading-relaxed
+          ">
+            <p className="font-label-bold text-[11px] uppercase tracking-widest text-amber-800 mb-0.5">
+              Order bakery fixed
+            </p>
+            <p>
+              Your cart has items, so the fulfillment bakery can&apos;t change.
+              Empty the cart first if you need a different branch.
+            </p>
           </div>
         </div>
       )}
@@ -307,6 +348,7 @@ export default function MapRoutingShell({
               selectedId={selectedId}
               isNavigating={isNavigating}
               compactMobile={!sheetExpanded}
+              selectionLocked={storeLocked}
             />
           </div>
         </div>

@@ -245,7 +245,13 @@ export default function Header() {
                   ? "bg-green-50/50 border-green-200/70 hover:border-green-300 text-green-800 hover:bg-green-50"
                   : "bg-purple-50/50 border-purple-100 hover:border-purple-300 text-purple-700 hover:bg-purple-50 animate-pulse hover:animate-none"
               }`}
-              title={selectedStoreName ? `Selected Store: ${selectedStoreName}` : "Find a Bakery"}
+              title={
+                totalItems > 0 && selectedStoreName
+                  ? `Order bakery: ${selectedStoreName} (empty cart to change)`
+                  : selectedStoreName
+                    ? `Selected Store: ${selectedStoreName}`
+                    : "Find a Bakery"
+              }
             >
               {selectedStoreName ? (
                 <span className="relative flex h-2 w-2 shrink-0">

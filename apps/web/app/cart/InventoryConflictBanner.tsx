@@ -1,6 +1,5 @@
 "use client"
 
-import Link from "next/link"
 import type { InventoryCheckResult } from "@/lib/cart/cart-context"
 
 interface InventoryConflictBannerProps {
@@ -36,8 +35,8 @@ export function InventoryConflictBanner({
         <p className="text-xs text-red-700 mt-1 leading-relaxed">
           {inventoryResult.reason === "STORE_HAS_NO_STOCK_LOCATION"
             ? inventoryResult.message ??
-              "This location's inventory is not configured yet. Please choose another bakery to continue."
-            : "The items flagged below are out of stock or short at your selected bakery. Adjust your cart, or pick a different bakery that has them."}
+              "This location's inventory is not configured yet. Empty your cart, then choose another bakery from Find a Bakery."
+            : "The items flagged below are out of stock or short at your selected bakery. Adjust quantities or remove them — bakery can't be changed while items are in your cart."}
         </p>
         <div className="flex flex-wrap items-center gap-3 mt-3">
           {inventoryResult.reason !== "STORE_HAS_NO_STOCK_LOCATION" && (
@@ -53,15 +52,6 @@ export function InventoryConflictBanner({
               {adjustingCart ? "Adjusting…" : "Adjust cart to availability"}
             </button>
           )}
-          <Link
-            href="/map-routing?redirect=/cart"
-            className="inline-flex items-center gap-1.5 border border-red-300 text-red-700 hover:bg-red-100 font-label-bold text-xs px-4 py-2 rounded-full transition-colors"
-          >
-            <span className="material-symbols-outlined !text-[14px]">
-              storefront
-            </span>
-            Choose another bakery
-          </Link>
         </div>
       </div>
     </div>
