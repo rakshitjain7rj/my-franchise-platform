@@ -109,8 +109,7 @@ export default async function backfillProductCakeMetadata({
       dirty = true
     }
     if (meta.storage_serving === undefined && !meta.storage_and_serving) {
-      meta.storage_serving =
-        "Keep refrigerated. Best served at room temperature."
+      meta.storage_serving = "Keep refrigerated and consume within 24 hours"
       dirty = true
     }
 

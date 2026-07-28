@@ -21,8 +21,7 @@ const DEFAULT_INGREDIENTS =
 
 const DEFAULT_ALLERGENS = "Gluten, Dairy"
 
-const DEFAULT_STORAGE =
-  "Keep refrigerated and consume within 2 days. For best flavour, remove from the fridge 30–45 minutes before serving."
+const DEFAULT_STORAGE = "Keep refrigerated and consume within 24 hours"
 
 function hasText(value: unknown): boolean {
   if (typeof value === "string") return value.trim().length > 0

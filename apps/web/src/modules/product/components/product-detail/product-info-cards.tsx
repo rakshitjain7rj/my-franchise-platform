@@ -109,7 +109,7 @@ export function ProductInfoCards({
         </div>
         <p className="font-body-md text-on-surface-variant leading-relaxed text-sm">
           {storageText ||
-            "Keep refrigerated and consume within 3 days. For best flavour, remove from the fridge 30–45 minutes before serving."}
+            "Keep refrigerated and consume within 24 hours"}
         </p>
       </div>
     </div>

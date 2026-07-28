@@ -227,7 +227,7 @@ export default async function seedPremiumCakes({ container }: ExecArgs) {
           // Canonical key for storefront; material kept for legacy readers.
           ingredients: `Premium ${flavor.name} elements, Organic Flour, Cane Sugar, Sweet Butter.`,
           material: `Premium ${flavor.name} elements, Organic Flour, Cane Sugar, Sweet Butter.`,
-          storage_serving: "Keep refrigerated. Best served fresh."
+          storage_serving: "Keep refrigerated and consume within 24 hours"
         },
         tags: flavor.tags.map(t => getTagRef(t)),
         options: [

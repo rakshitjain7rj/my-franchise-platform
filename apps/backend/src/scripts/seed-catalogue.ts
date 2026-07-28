@@ -116,8 +116,7 @@ export default async function seedCatalogue({ container }: ExecArgs) {
         allergens: "Gluten, Dairy",
         ingredients:
           "Flour, Sugar, Butter, Milk, Cocoa, Raising agents, Natural flavourings",
-        storage_serving:
-          "Keep refrigerated and consume within 2 days. Bring to room temperature before serving.",
+        storage_serving: "Keep refrigerated and consume within 24 hours",
       },
     }))
 

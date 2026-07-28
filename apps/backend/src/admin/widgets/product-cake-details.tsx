@@ -223,7 +223,7 @@ const ProductCakeDetailsWidget = ({ data }: { data: { id: string } }) => {
                 onChange={(e) =>
                   setForm((f) => ({ ...f, storage_serving: e.target.value }))
                 }
-                placeholder="e.g. Keep refrigerated and consume within 2 days."
+                placeholder="e.g. Keep refrigerated and consume within 24 hours"
               />
             </FormField>
           </>
