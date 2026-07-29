@@ -23,16 +23,20 @@ import {
   type ProductDetailModel,
 } from "./use-product-detail";
 import type { DietaryTag, MedusaProduct } from "./types";
+import type { ReactNode } from "react";
 
 interface PurchasePanelProps {
   product: MedusaProduct;
   dietaryTags: DietaryTag[];
+  /** When set, replaces the default dietary badge list (streamed RSC slot). */
+  dietaryBadgesSlot?: ReactNode;
   model: ProductDetailModel;
 }
 
 export function PurchasePanel({
   product,
   dietaryTags,
+  dietaryBadgesSlot,
   model,
 }: PurchasePanelProps) {
   const {
@@ -113,18 +117,22 @@ export function PurchasePanel({
 
         {reviewBadge && <div className="pt-1">{reviewBadge}</div>}
 
-        {dietaryTags.length > 0 && (
-          <div className="flex flex-wrap gap-2 pt-1">
-            {dietaryTags.map((tag) => (
-              <span
-                key={tag.id}
-                title={tag.description ?? undefined}
-                className="inline-flex items-center px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-bold uppercase tracking-wider"
-              >
-                {tag.name}
-              </span>
-            ))}
-          </div>
+        {dietaryBadgesSlot !== undefined ? (
+          dietaryBadgesSlot
+        ) : (
+          dietaryTags.length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {dietaryTags.map((tag) => (
+                <span
+                  key={tag.id}
+                  title={tag.description ?? undefined}
+                  className="inline-flex items-center px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-bold uppercase tracking-wider"
+                >
+                  {tag.name}
+                </span>
+              ))}
+            </div>
+          )
         )}
       </div>
 

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
 import { CheckIcon, getAllergenIcon } from "./icons";
 import type { DietaryTag } from "./types";
@@ -7,6 +8,8 @@ interface ProductInfoCardsProps {
   allergenLabels: string[];
   storageText: string | null;
   dietaryTags: DietaryTag[];
+  /** When set, replaces the default dietary tag rows (streamed RSC slot). */
+  dietaryInfoSlot?: ReactNode;
 }
 
 export function ProductInfoCards({
@@ -14,6 +17,7 @@ export function ProductInfoCards({
   allergenLabels,
   storageText,
   dietaryTags,
+  dietaryInfoSlot,
 }: ProductInfoCardsProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-[35%_30%_35%] gap-4 pt-10 border-t border-outline-variant/20">
@@ -58,24 +62,26 @@ export function ProductInfoCards({
           </span>
         </div>
         <div className="flex flex-col gap-2.5 pt-1">
-          {dietaryTags.map((tag) => (
-            <div
-              key={tag.id}
-              className="flex items-center gap-3 bg-white border border-emerald-200/60 rounded-2xl p-3 shadow-sm text-emerald-800 text-sm font-semibold"
-            >
-              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-50 shrink-0">
-                <CheckIcon />
-              </div>
-              <div className="min-w-0">
-                <span>{tag.name}</span>
-                {tag.description && (
-                  <p className="text-xs font-normal text-on-surface-variant truncate">
-                    {tag.description}
-                  </p>
-                )}
-              </div>
-            </div>
-          ))}
+          {dietaryInfoSlot !== undefined
+            ? dietaryInfoSlot
+            : dietaryTags.map((tag) => (
+                <div
+                  key={tag.id}
+                  className="flex items-center gap-3 bg-white border border-emerald-200/60 rounded-2xl p-3 shadow-sm text-emerald-800 text-sm font-semibold"
+                >
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-50 shrink-0">
+                    <CheckIcon />
+                  </div>
+                  <div className="min-w-0">
+                    <span>{tag.name}</span>
+                    {tag.description && (
+                      <p className="text-xs font-normal text-on-surface-variant truncate">
+                        {tag.description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
 
           {allergenLabels.slice(0, 6).map((allergen) => (
             <div
@@ -89,7 +95,11 @@ export function ProductInfoCards({
             </div>
           ))}
 
-          {dietaryTags.length === 0 && allergenLabels.length === 0 && (
+          {/* When dietary rows stream via slot, empty state is deferred until
+              allergens are also empty and no metadata tags were provided. */}
+          {allergenLabels.length === 0 &&
+            dietaryTags.length === 0 &&
+            dietaryInfoSlot === undefined && (
             <p className="text-sm text-on-surface-variant">
               Allergen information is available on request — please add a note
               in Special Instructions or contact your local bakery.

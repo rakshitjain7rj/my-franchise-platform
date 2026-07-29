@@ -16,6 +16,8 @@ export type { DietaryTag, MedusaProduct, ProductDetailProps };
 export default function ProductDetail({
   product,
   dietaryTags = [],
+  dietaryBadgesSlot,
+  dietaryInfoSlot,
 }: ProductDetailProps) {
   const model = useProductDetail(product);
   const {
@@ -66,6 +68,7 @@ export default function ProductDetail({
         <PurchasePanel
           product={product}
           dietaryTags={dietaryTags}
+          dietaryBadgesSlot={dietaryBadgesSlot}
           model={model}
         />
 
@@ -84,6 +87,7 @@ export default function ProductDetail({
         allergenLabels={allergenLabels}
         storageText={storageText}
         dietaryTags={dietaryTags}
+        dietaryInfoSlot={dietaryInfoSlot}
       />
 
       <ProductReviewsSection

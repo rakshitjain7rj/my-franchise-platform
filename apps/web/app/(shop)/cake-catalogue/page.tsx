@@ -16,7 +16,8 @@
  *   page's RSC reads them from `searchParams` and fires a fresh Medusa fetch.
  *   Shareable, bookmarkable, back-button-safe URLs with zero client product state.
  *
- * • `<Suspense>` streaming — Header renders instantly; content streams in.
+ * • Shared `(shop)/layout` owns Header/Footer; this page streams content only.
+ * • `<Suspense>` streaming — shell chrome is stable; catalogue content streams in.
  *
  * Data flow per request
  * ──────────────────────
@@ -30,8 +31,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
 
-import Header from "../components/Header";
-import Footer from "../components/Footer";
 import { CatalogueGridSkeleton } from "@/modules/catalogue/components/catalogue-grid";
 import CatalogueFilters, {
   CatalogueCategorySidebar,
@@ -345,15 +344,10 @@ export default async function CakeCataloguePage({
   const CatalogueContentComponent = CatalogueContent as any;
 
   return (
-    <div className="min-h-screen bg-[#FAF7FC]">
-      <Header />
-
-      <main className="pb-16 md:pb-0">
-        <Suspense fallback={<CatalogueShellSkeleton />}>
-          <CatalogueContentComponent searchParams={resolvedParams} />
-        </Suspense>
-      </main>
-      <Footer />
-    </div>
+    <main className="pb-16 md:pb-0">
+      <Suspense fallback={<CatalogueShellSkeleton />}>
+        <CatalogueContentComponent searchParams={resolvedParams} />
+      </Suspense>
+    </main>
   );
 }

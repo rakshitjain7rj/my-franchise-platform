@@ -1,5 +1,7 @@
 // Types mirroring the Medusa Store API product shape used by product detail.
 
+import type { ReactNode } from "react";
+
 export interface ProductImage {
   url: string;
   id?: string;
@@ -78,8 +80,15 @@ export interface MedusaProduct {
 
 export interface ProductDetailProps {
   product: MedusaProduct;
-  /** From product-dietary-tag relation (server-fetched). */
+  /**
+   * From product-dietary-tag relation (server-fetched).
+   * Prefer streamed slots when tags resolve after the product payload.
+   */
   dietaryTags?: DietaryTag[];
+  /** Server-streamed badges (purchase panel). Overrides dietaryTags when set. */
+  dietaryBadgesSlot?: ReactNode;
+  /** Server-streamed dietary rows (info cards). Overrides dietaryTags when set. */
+  dietaryInfoSlot?: ReactNode;
 }
 
 export type StoreLocationOption = {

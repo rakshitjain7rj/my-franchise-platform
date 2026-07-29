@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -20,15 +20,36 @@ interface ImageGalleryProps {
 // Component
 // ---------------------------------------------------------------------------
 
+/**
+ * Hero gallery: content around the PDP never waits on the image file.
+ * We reserve aspect-ratio space + a skeleton, then fade the photo in on load
+ * (including cache hits via the img.complete check).
+ */
 export default function ImageGallery({
   images,
   productTitle,
 }: ImageGalleryProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [heroLoaded, setHeroLoaded] = useState(false);
+  const heroImgRef = useRef<HTMLImageElement | null>(null);
 
   const hasImages = images.length > 0;
   const currentImage = hasImages ? images[selectedIndex] : null;
+  const heroUrl = currentImage?.url ?? null;
+
+  // Reset fade state when the active hero URL changes; handle cached images.
+  useEffect(() => {
+    if (!heroUrl) {
+      setHeroLoaded(false);
+      return;
+    }
+    setHeroLoaded(false);
+    const img = heroImgRef.current;
+    if (img && img.src && img.complete && img.naturalWidth > 0) {
+      setHeroLoaded(true);
+    }
+  }, [heroUrl]);
 
   const goTo = useCallback(
     (index: number) => {
@@ -62,16 +83,51 @@ export default function ImageGallery({
           onClick={() => setIsLightboxOpen(true)}
           className="group relative w-full aspect-[3/4] rounded-2xl overflow-hidden bg-lavender-bg cursor-zoom-in premium-shadow"
           aria-label={`View ${productTitle} full screen`}
+          aria-busy={!heroLoaded}
         >
+          {/* Skeleton — visible until the hero file has loaded */}
+          <div
+            className={`pointer-events-none absolute inset-0 bg-gradient-to-br from-deep-plum/10 via-lavender-bg to-deep-plum/5 transition-opacity duration-300 ${
+              heroLoaded ? "opacity-0" : "opacity-100 animate-pulse"
+            }`}
+            aria-hidden
+          >
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="material-symbols-outlined text-deep-plum/15 !text-[72px]">
+                cake
+              </span>
+            </div>
+          </div>
+
+          {/*
+            decoding=async: decode off the critical main-thread path so title/
+            price in the purchase panel stay interactive while bytes arrive.
+            Opacity fade: photo appears when ready; layout space already reserved.
+          */}
           <img
-            src={currentImage!.url}
+            ref={heroImgRef}
+            key={heroUrl!}
+            src={heroUrl!}
             alt={currentImage!.alt ?? productTitle}
-            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+            className={`absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-500 ease-out group-hover:scale-105 ${
+              heroLoaded ? "opacity-100" : "opacity-0"
+            }`}
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
+            onLoad={() => setHeroLoaded(true)}
+            onError={() => setHeroLoaded(true)}
           />
 
           {/* Hover zoom icon */}
           <div className="absolute inset-0 bg-deep-plum/0 group-hover:bg-deep-plum/10 transition-colors duration-300 flex items-center justify-center">
-            <span className="material-symbols-outlined text-white !text-[32px] opacity-0 group-hover:opacity-100 transition-opacity duration-300 drop-shadow-lg">
+            <span
+              className={`material-symbols-outlined text-white !text-[32px] transition-opacity duration-300 drop-shadow-lg ${
+                heroLoaded
+                  ? "opacity-0 group-hover:opacity-100"
+                  : "opacity-0"
+              }`}
+            >
               zoom_in
             </span>
           </div>
@@ -85,7 +141,7 @@ export default function ImageGallery({
                   e.stopPropagation();
                   prev();
                 }}
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center text-deep-plum opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-white hover:scale-110 premium-shadow"
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center text-deep-plum opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-white hover:scale-110 premium-shadow z-10"
                 aria-label="Previous image"
               >
                 <span className="material-symbols-outlined !text-[20px]">
@@ -98,7 +154,7 @@ export default function ImageGallery({
                   e.stopPropagation();
                   next();
                 }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center text-deep-plum opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-white hover:scale-110 premium-shadow"
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center text-deep-plum opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-white hover:scale-110 premium-shadow z-10"
                 aria-label="Next image"
               >
                 <span className="material-symbols-outlined !text-[20px]">
@@ -110,7 +166,7 @@ export default function ImageGallery({
 
           {/* Image counter badge */}
           {images.length > 1 && (
-            <div className="absolute bottom-4 right-4 bg-deep-plum/70 backdrop-blur-sm text-white text-[11px] font-label-bold px-3 py-1 rounded-full tracking-wider">
+            <div className="absolute bottom-4 right-4 bg-deep-plum/70 backdrop-blur-sm text-white text-[11px] font-label-bold px-3 py-1 rounded-full tracking-wider z-10">
               {selectedIndex + 1} / {images.length}
             </div>
           )}
@@ -124,7 +180,7 @@ export default function ImageGallery({
                 key={image.url}
                 type="button"
                 onClick={() => setSelectedIndex(index)}
-                className={`relative flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-xl overflow-hidden transition-all duration-300 ${
+                className={`relative flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-xl overflow-hidden bg-lavender-bg transition-all duration-300 ${
                   index === selectedIndex
                     ? "ring-2 ring-vibrant-magenta ring-offset-2 ring-offset-[#E2D4F0] scale-105"
                     : "opacity-60 hover:opacity-100 hover:ring-1 hover:ring-deep-plum/30"
@@ -135,6 +191,8 @@ export default function ImageGallery({
                   src={image.url}
                   alt={image.alt ?? `${productTitle} view ${index + 1}`}
                   className="w-full h-full object-cover"
+                  loading="lazy"
+                  decoding="async"
                 />
               </button>
             ))}
@@ -171,6 +229,7 @@ export default function ImageGallery({
               src={currentImage!.url}
               alt={currentImage!.alt ?? productTitle}
               className="max-w-full max-h-[85vh] object-contain rounded-lg"
+              decoding="async"
             />
 
             {/* Lightbox arrows */}

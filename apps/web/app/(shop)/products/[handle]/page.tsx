@@ -7,20 +7,13 @@
  *   via the `franchise_id` cookie. Every request must hit the server so
  *   the backend middleware can enforce tenant isolation.
  *
- * • No franchise guard needed here. The Next.js Middleware (middleware.ts)
- *   intercepts every request at the edge, checks for the `franchise_id`
- *   cookie, and redirects unauthenticated users to /map-routing before
- *   this page ever renders. This page can safely assume the cookie exists.
+ * • Shared `(shop)/layout` owns Header/Footer so chrome does not wait on
+ *   Medusa product fetches during catalogue → PDP soft navigations.
  *
- * • `getMedusaHeaders()` injects both `x-franchise-id` and the publishable
- *   API key, matching the pattern established in the home page product grid.
+ * • Product payload is awaited first; dietary tags stream behind Suspense
+ *   so title/price/gallery can paint without the dietary-tags HTTP call.
  *
- * • The page fetches a single product by handle from `/store/products` with
- *   a `handle` filter, then passes the full product object to the interactive
- *   `ProductDetail` client component.
- *
- * • `<Suspense>` streams the related-products section behind a skeleton so
- *   the primary content renders immediately.
+ * • `<Suspense>` streams the related-products section behind a skeleton.
  *
  * • If the product is not found (empty result or 404), `notFound()` renders
  *   Next.js's built-in 404 page.
@@ -31,9 +24,12 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { unstable_cache } from "next/cache";
 
-import Header from "../../components/Header";
-import Footer from "../../components/Footer";
 import ProductDetail from "@/modules/product/components/product-detail";
+import {
+  DietaryTagBadges,
+  DietaryTagInfoRows,
+  DietaryTagsBadgesSkeleton,
+} from "@/modules/product/components/product-detail/dietary-tags-ui";
 import RelatedProducts from "@/modules/product/components/related-products";
 import type {
   DietaryTag,
@@ -190,6 +186,7 @@ const getProductByHandle = cache(async (
 /**
  * Fetches dietary tags linked via product-dietary-tag. Runs per request
  * (not unstable_cache) so franchise scoping always reflects the active cookie.
+ * React `cache()` dedupes multiple streamed slots in one request.
  */
 const getProductDietaryTags = cache(
   async (productId: string): Promise<DietaryTag[]> => {
@@ -256,6 +253,36 @@ function dietaryTagsFromMetadata(
       description: known?.description ?? null,
     };
   });
+}
+
+async function resolveDietaryTags(
+  productId: string,
+  metadata?: Record<string, unknown> | null
+): Promise<DietaryTag[]> {
+  const linked = await getProductDietaryTags(productId);
+  return linked.length > 0 ? linked : dietaryTagsFromMetadata(metadata);
+}
+
+async function StreamedDietaryBadges({
+  productId,
+  metadata,
+}: {
+  productId: string;
+  metadata?: Record<string, unknown> | null;
+}) {
+  const tags = await resolveDietaryTags(productId, metadata);
+  return <DietaryTagBadges tags={tags} />;
+}
+
+async function StreamedDietaryInfo({
+  productId,
+  metadata,
+}: {
+  productId: string;
+  metadata?: Record<string, unknown> | null;
+}) {
+  const tags = await resolveDietaryTags(productId, metadata);
+  return <DietaryTagInfoRows tags={tags} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -331,29 +358,54 @@ export default async function ProductDetailPage({
     notFound();
   }
 
-  const linkedDietaryTags = await getProductDietaryTags(product.id);
-  // Prefer real product-dietary-tag links; fall back to scrape metadata.
-  const dietaryTags =
-    linkedDietaryTags.length > 0
-      ? linkedDietaryTags
-      : dietaryTagsFromMetadata(product.metadata);
+  // Metadata tags are free (from product payload) — use as Suspense fallback
+  // so badges can appear immediately while linked tags stream in.
+  const metadataTags = dietaryTagsFromMetadata(product.metadata);
 
   return (
-    <div>
-      <Header />
+    <main className="pb-20 bg-[#FDFBFE]">
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-margin-mobile md:px-margin-desktop pb-12 pt-20 sm:pt-8 md:pb-20 space-y-16 sm:space-y-20">
+        {/* ── Product Detail (product first; tags streamed) ─────────────── */}
+        <ProductDetail
+          product={product}
+          dietaryTags={metadataTags}
+          dietaryBadgesSlot={
+            <Suspense
+              fallback={
+                metadataTags.length > 0 ? (
+                  <DietaryTagBadges tags={metadataTags} />
+                ) : (
+                  <DietaryTagsBadgesSkeleton />
+                )
+              }
+            >
+              <StreamedDietaryBadges
+                productId={product.id}
+                metadata={product.metadata}
+              />
+            </Suspense>
+          }
+          dietaryInfoSlot={
+            <Suspense
+              fallback={
+                metadataTags.length > 0 ? (
+                  <DietaryTagInfoRows tags={metadataTags} />
+                ) : null
+              }
+            >
+              <StreamedDietaryInfo
+                productId={product.id}
+                metadata={product.metadata}
+              />
+            </Suspense>
+          }
+        />
 
-      <main className="pb-20 bg-[#FDFBFE]">
-        <div className="max-w-[1440px] mx-auto px-4 sm:px-margin-mobile md:px-margin-desktop pb-12 pt-20 sm:pt-8 md:pb-20 space-y-16 sm:space-y-20">
-          {/* ── Product Detail ─────────────────────────────────────────── */}
-          <ProductDetail product={product} dietaryTags={dietaryTags} />
-
-          {/* ── Related Products (streamed) ────────────────────────────── */}
-          <Suspense fallback={<RelatedSkeleton />}>
-            <RelatedProducts currentProductId={product.id} />
-          </Suspense>
-        </div>
-      </main>
-      <Footer />
-    </div>
+        {/* ── Related Products (streamed) ────────────────────────────── */}
+        <Suspense fallback={<RelatedSkeleton />}>
+          <RelatedProducts currentProductId={product.id} />
+        </Suspense>
+      </div>
+    </main>
   );
 }
