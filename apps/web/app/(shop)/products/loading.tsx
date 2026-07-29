@@ -18,7 +18,7 @@ export default function ProductLoading() {
           <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-10 lg:gap-16">
             {/* Gallery */}
             <div className="space-y-4">
-              <div className="aspect-[3/4] w-full rounded-2xl bg-deep-plum/10" />
+              <div className="aspect-square w-full rounded-2xl bg-deep-plum/10" />
               <div className="hidden gap-3 sm:flex">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div
