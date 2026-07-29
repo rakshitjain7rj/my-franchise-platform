@@ -17,6 +17,8 @@ export type PremiumSelectOption = {
   label: string;
   /** Optional secondary line (e.g. store address). */
   description?: string;
+  /** When true, option is visible but not selectable. */
+  disabled?: boolean;
 };
 
 export type PremiumSelectProps = {
@@ -125,21 +127,27 @@ export function PremiumSelect({
         >
           {options.map((opt) => {
             const isSelected = opt.value === value;
+            const isDisabled = Boolean(opt.disabled);
             return (
               <li key={opt.value || "__any"}>
                 <button
                   type="button"
                   role="option"
                   aria-selected={isSelected}
+                  aria-disabled={isDisabled || undefined}
+                  disabled={isDisabled}
                   onClick={() => {
+                    if (isDisabled) return;
                     onChange(opt.value);
                     setOpen(false);
                   }}
                   className={cn(
                     "flex w-full items-start justify-between gap-3 px-3.5 py-2 text-left transition-colors",
-                    isSelected
-                      ? "bg-lavender-bg font-semibold text-deep-plum"
-                      : "text-on-surface-variant hover:bg-lavender-bg/70 hover:text-deep-plum"
+                    isDisabled
+                      ? "cursor-not-allowed opacity-50 text-on-surface-variant"
+                      : isSelected
+                        ? "bg-lavender-bg font-semibold text-deep-plum"
+                        : "text-on-surface-variant hover:bg-lavender-bg/70 hover:text-deep-plum"
                   )}
                 >
                   <span className="min-w-0 flex-1">
@@ -152,7 +160,7 @@ export function PremiumSelect({
                       </span>
                     )}
                   </span>
-                  {isSelected && (
+                  {isSelected && !isDisabled && (
                     <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-vibrant-magenta" />
                   )}
                 </button>

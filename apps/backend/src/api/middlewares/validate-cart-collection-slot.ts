@@ -1,5 +1,6 @@
 /**
- * POST /store/carts/:id/complete — enforce kitchen lead time on collection.
+ * POST /store/carts/:id/complete — enforce kitchen lead time, grid slot, and
+ * capacity on collection.
  *
  * Resolves store + slot from cart metadata OR line-item attributes so PayPal
  * return (where cart.metadata may lag the line custom_attributes) still works.
@@ -11,6 +12,7 @@ import type {
   MedusaResponse,
 } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import OrderStoreLocationLink from "../../links/order-store-location"
 import {
   assertCollectionSlotAllowed,
   resolveCollectionRequest,
@@ -18,7 +20,11 @@ import {
   type LineItemLike,
   type StoreLocationForSlot,
 } from "../../utils/validate-collection-slot"
-import type { OpeningHours } from "../../utils/logistics"
+import {
+  countSlotUsageForDate,
+  resolveKitchenBusy,
+  type OpeningHours,
+} from "../../utils/logistics"
 
 function cartIdFromPath(req: MedusaRequest): string | null {
   const path = req.path ?? req.url ?? ""
@@ -89,7 +95,17 @@ export async function validateCartCollectionSlot(
       listStoreLocations: (
         filters?: Record<string, unknown>,
         config?: Record<string, unknown>
-      ) => Promise<StoreLocationForSlot[]>
+      ) => Promise<
+        Array<
+          StoreLocationForSlot & {
+            franchise_id?: string | null
+          }
+        >
+      >
+      listFranchises: (
+        filters?: Record<string, unknown>,
+        config?: Record<string, unknown>
+      ) => Promise<Array<{ id: string; metadata?: Record<string, unknown> | null }>>
     }
 
     const [location] = await franchiseService.listStoreLocations(
@@ -98,6 +114,7 @@ export async function validateCartCollectionSlot(
         select: [
           "id",
           "name",
+          "franchise_id",
           "is_active",
           "is_accepting_orders",
           "custom_lead_time_hours",
@@ -117,12 +134,58 @@ export async function validateCartCollectionSlot(
 
     const request = resolveCollectionRequest(cart.metadata, cart.items)
 
+    let kitchenBusy = false
+    if (location.franchise_id) {
+      try {
+        const [franchise] = await franchiseService.listFranchises(
+          { id: location.franchise_id },
+          { select: ["id", "metadata"] }
+        )
+        kitchenBusy = resolveKitchenBusy(franchise?.metadata)
+      } catch {
+        kitchenBusy = false
+      }
+    }
+
+    // Capacity usage for the requested day (best-effort; missing usage fails open
+    // only if the graph query throws — we still enforce lead + grid).
+    let usageBySlotStart: Map<string, number> | undefined
+    const date =
+      typeof request.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(request.date)
+        ? request.date
+        : typeof request.iso === "string" && request.iso.includes("T")
+          ? request.iso.split("T")[0]
+          : ""
+    if (date) {
+      try {
+        const { data: linkRows } = await query.graph({
+          entity: OrderStoreLocationLink.entryPoint,
+          fields: ["order.metadata", "order.id"],
+          filters: { store_location_id: storeLocationId },
+        })
+        const metas = (
+          linkRows as Array<{
+            order?: { metadata?: Record<string, unknown> | null }
+          }>
+        ).map((row) => row.order?.metadata ?? null)
+        usageBySlotStart = countSlotUsageForDate(metas, date)
+      } catch {
+        usageBySlotStart = undefined
+      }
+    }
+
     assertCollectionSlotAllowed(
       {
         ...location,
         opening_hours: location.opening_hours as OpeningHours | null,
       },
-      request
+      request,
+      {
+        kitchenBusy,
+        usageBySlotStart,
+        requireGridSlot: true,
+        requireCapacity: Boolean(usageBySlotStart),
+      }
     )
 
     return next()

@@ -111,6 +111,18 @@ describe("Lead time — minimum advance booking window", () => {
     // Even blocked slots retain their capacity figure until bookings are applied
     expect(slots.every((s) => s.available_capacity === 10)).toBe(true)
   })
+
+  it("lead-blocked slots carry unbookable_reason lead_time", () => {
+    const now = new Date("2026-07-10T10:00:00")
+    const slots = buildDaySlots({
+      date: FRIDAY,
+      openingHours: OPEN,
+      capacityPerSlot: 10,
+      leadTimeHours: 24,
+      now,
+    })
+    expect(slots.every((s) => s.unbookable_reason === "lead_time")).toBe(true)
+  })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -169,9 +181,25 @@ describe("Slot capacity — orders per 30-minute window", () => {
     // Full slot — user cannot pick it (uninterrupted: hide/disable full times)
     expect(map.get("11:00")?.available_capacity).toBe(0)
     expect(map.get("11:00")?.is_bookable).toBe(false)
+    expect(map.get("11:00")?.unbookable_reason).toBe("capacity")
 
     // Other slot untouched
     expect(map.get("12:00")?.available_capacity).toBe(10)
+  })
+
+  it("lead_time reason wins over capacity when both apply", () => {
+    const late = new Date("2026-07-10T11:00:00")
+    const slots = buildDaySlots({
+      date: FRIDAY,
+      openingHours: OPEN,
+      capacityPerSlot: 10,
+      leadTimeHours: 2, // cutoff 13:00
+      now: late,
+    })
+    applySlotUsage(slots, { "09:00": 10 })
+    const map = slotMap(slots)
+    expect(map.get("09:00")?.is_bookable).toBe(false)
+    expect(map.get("09:00")?.unbookable_reason).toBe("lead_time")
   })
 
   it("over-booking usage never makes capacity negative", () => {

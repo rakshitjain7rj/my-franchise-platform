@@ -77,6 +77,56 @@ describe("assertCollectionSlotAllowed", () => {
       )
     ).not.toThrow()
   })
+
+  it("uses kitchen-busy copy when kitchenBusy is true", () => {
+    expect(() =>
+      assertCollectionSlotAllowed(
+        baseStore,
+        { date: "2026-07-27", time: "16:00" },
+        { now, kitchenBusy: true }
+      )
+    ).toThrow(/kitchen is busy/i)
+  })
+
+  it("rejects times outside the opening-hours grid", () => {
+    // Store opens 09:00 — 08:00 is not a generated slot (extractSlotStart
+    // snaps odd minutes to the 30-min floor, so use a clean off-hours start).
+    expect(() =>
+      assertCollectionSlotAllowed(
+        baseStore,
+        { date: "2026-07-29", time: "08:00" },
+        { now, requireGridSlot: true }
+      )
+    ).toThrow(/not a valid slot/i)
+  })
+
+  it("rejects when the slot is full after usage", () => {
+    expect(() =>
+      assertCollectionSlotAllowed(
+        { ...baseStore, daily_order_capacity: 2, custom_lead_time_hours: 0 },
+        { date: "2026-07-27", time: "16:00" },
+        {
+          now,
+          usageBySlotStart: { "16:00": 2 },
+          requireCapacity: true,
+        }
+      )
+    ).toThrow(/slot is full/i)
+  })
+
+  it("allows a slot that is only slightly past due thanks to the 2-minute grace", () => {
+    // lead 0: without grace, now 15:01 would reject slot 15:00; with grace it passes.
+    expect(() =>
+      assertCollectionSlotAllowed(
+        { ...baseStore, custom_lead_time_hours: 0 },
+        { date: "2026-07-27", time: "15:00" },
+        {
+          now: new Date("2026-07-27T15:01:00"),
+          requireGridSlot: true,
+        }
+      )
+    ).not.toThrow()
+  })
 })
 
 describe("resolveCollectionRequest", () => {

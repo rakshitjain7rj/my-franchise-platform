@@ -6,6 +6,9 @@
 export type DayHours = { open: string; close: string }
 export type OpeningHours = Record<string, DayHours>
 
+/** Why a generated slot cannot be booked (omitted / null when bookable). */
+export type UnbookableReason = "lead_time" | "capacity"
+
 export type TimeSlot = {
   /** Slot start "HH:mm" (24h) */
   time: string
@@ -15,6 +18,13 @@ export type TimeSlot = {
   label: string
   available_capacity: number
   is_bookable: boolean
+  /**
+   * Present when `is_bookable` is false.
+   * - lead_time: start is before now + lead hours
+   * - capacity: remaining capacity is 0
+   * Lead-time takes priority over capacity when both apply.
+   */
+  unbookable_reason?: UnbookableReason | null
 }
 
 const WEEKDAYS = [
@@ -176,14 +186,20 @@ export function buildDaySlots(input: {
     const time = formatHHMM(cursor)
     const end = formatHHMM(cursor + 30)
     const slotStart = new Date(`${date}T${time}:00`)
-    const isPast = slotStart.getTime() < cutoffMs
+    const blockedByLead = slotStart.getTime() < cutoffMs
+    const blockedByCapacity = capacity <= 0
+
+    let unbookable_reason: UnbookableReason | null = null
+    if (blockedByLead) unbookable_reason = "lead_time"
+    else if (blockedByCapacity) unbookable_reason = "capacity"
 
     slots.push({
       time,
       end,
       label: `${time} – ${end}`,
       available_capacity: capacity,
-      is_bookable: !isPast && capacity > 0,
+      is_bookable: !blockedByLead && !blockedByCapacity,
+      unbookable_reason,
     })
   }
   return slots
@@ -209,11 +225,60 @@ export function applySlotUsage(
     const used = Math.max(0, Math.floor(getUsed(slot.time)) || 0)
     slot.available_capacity = Math.max(0, slot.available_capacity - used)
     if (slot.available_capacity <= 0) {
-      slot.is_bookable = false
       slot.available_capacity = 0
+      slot.is_bookable = false
+      // Lead-time blocks take priority over capacity for customer messaging.
+      if (slot.unbookable_reason !== "lead_time") {
+        slot.unbookable_reason = "capacity"
+      }
     }
   }
   return slots
+}
+
+/**
+ * Count bookings per slot start ("HH:mm") for a single calendar day from
+ * order metadata rows (cart/order `requested_pickup_*` fields).
+ */
+export function countSlotUsageForDate(
+  ordersMeta: Array<Record<string, unknown> | null | undefined>,
+  date: string
+): Map<string, number> {
+  const usage = new Map<string, number>()
+  for (const meta of ordersMeta) {
+    if (!meta) continue
+    const dateKey =
+      typeof meta.requested_pickup_date === "string"
+        ? meta.requested_pickup_date
+        : null
+    const timeRaw =
+      typeof meta.requested_pickup_time === "string"
+        ? meta.requested_pickup_time
+        : null
+
+    let slotStart: string | null = null
+    if (dateKey === date && timeRaw) {
+      slotStart = extractSlotStart(timeRaw, date)
+    } else if (timeRaw && (timeRaw.includes("T") || timeRaw.includes("-"))) {
+      slotStart = extractSlotStart(timeRaw, date)
+    }
+    if (!slotStart) continue
+    usage.set(slotStart, (usage.get(slotStart) ?? 0) + 1)
+  }
+  return usage
+}
+
+/** Franchise ops: kitchen busy when not accepting immediate orders. */
+export function resolveKitchenBusy(
+  franchiseMetadata: Record<string, unknown> | null | undefined
+): boolean {
+  const raw = franchiseMetadata?.franchise_ops_settings
+  if (!raw || typeof raw !== "object") return false
+  const accepting = (raw as { accepting_immediate_orders?: unknown })
+    .accepting_immediate_orders
+  // Default open (not busy) when the flag was never written.
+  if (accepting === false) return true
+  return false
 }
 
 /**

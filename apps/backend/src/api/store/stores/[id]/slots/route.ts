@@ -8,8 +8,8 @@
  *
  * Response:
  * {
- *   date, store_location_id, lead_time_hours,
- *   slots: [{ time, end, label, available_capacity, is_bookable }]
+ *   date, store_location_id, lead_time_hours, kitchen_busy,
+ *   slots: [{ time, end, label, available_capacity, is_bookable, unbookable_reason? }]
  * }
  */
 
@@ -22,7 +22,8 @@ import OrderStoreLocationLink from "../../../../../links/order-store-location"
 import {
   applySlotUsage,
   buildDaySlots,
-  extractSlotStart,
+  countSlotUsageForDate,
+  resolveKitchenBusy,
   resolveLeadTimeHours,
   type OpeningHours,
 } from "../../../../../utils/logistics"
@@ -37,6 +38,11 @@ type StoreLoc = {
   is_active: boolean
   is_accepting_orders?: boolean
   metadata: Record<string, unknown> | null
+}
+
+type FranchiseRow = {
+  id: string
+  metadata?: Record<string, unknown> | null
 }
 
 export const GET = async (
@@ -66,6 +72,10 @@ export const GET = async (
       filters?: Record<string, unknown>,
       config?: Record<string, unknown>
     ) => Promise<StoreLoc[]>
+    listFranchises: (
+      filters?: Record<string, unknown>,
+      config?: Record<string, unknown>
+    ) => Promise<FranchiseRow[]>
   }
 
   const [location] = await franchiseService.listStoreLocations(
@@ -92,6 +102,21 @@ export const GET = async (
     )
   }
 
+  // 0 is a valid "immediate" lead time — do not treat it as falsy / fall back to 24.
+  const leadTimeHours = resolveLeadTimeHours(location)
+
+  // Kitchen Busy comes from franchise ops settings (not inferred from lead hours).
+  let kitchenBusy = false
+  try {
+    const [franchise] = await franchiseService.listFranchises(
+      { id: location.franchise_id },
+      { select: ["id", "metadata"] }
+    )
+    kitchenBusy = resolveKitchenBusy(franchise?.metadata)
+  } catch {
+    kitchenBusy = false
+  }
+
   // Optional franchise header guard — if present, store must belong to it
   const headerFranchise =
     typeof req.headers["x-franchise-id"] === "string"
@@ -101,7 +126,8 @@ export const GET = async (
     res.status(200).json({
       date: rawDate,
       store_location_id: storeId,
-      lead_time_hours: location.custom_lead_time_hours ?? 24,
+      lead_time_hours: leadTimeHours,
+      kitchen_busy: kitchenBusy,
       slots: [],
       message:
         "This bakery does not belong to the active franchise. Pick a store from the map and try again.",
@@ -113,15 +139,13 @@ export const GET = async (
     res.status(200).json({
       date: rawDate,
       store_location_id: storeId,
-      lead_time_hours: location.custom_lead_time_hours ?? 24,
+      lead_time_hours: leadTimeHours,
+      kitchen_busy: kitchenBusy,
       slots: [],
       message: "This bakery is not accepting orders right now.",
     })
     return
   }
-
-  // 0 is a valid "immediate" lead time — do not treat it as falsy / fall back to 24.
-  const leadTimeHours = resolveLeadTimeHours(location)
 
   const slots = buildDaySlots({
     date: rawDate,
@@ -138,8 +162,9 @@ export const GET = async (
       date: rawDate,
       store_location_id: storeId,
       lead_time_hours: leadTimeHours,
+      kitchen_busy: kitchenBusy,
       slots: [],
-      message: "Closed on this date, or no slots within the lead-time window.",
+      message: "Closed on this date.",
     })
     return
   }
@@ -153,45 +178,34 @@ export const GET = async (
       filters: { store_location_id: storeId },
     })
 
-    const usage = new Map<string, number>()
-
-    for (const row of linkRows as Array<{
-      order?: { metadata?: Record<string, unknown> | null }
-    }>) {
-      const meta = row.order?.metadata
-      if (!meta) continue
-
-      // Prefer composite date+time; fall back to ISO requested_pickup_time
-      const dateKey =
-        typeof meta.requested_pickup_date === "string"
-          ? meta.requested_pickup_date
-          : null
-      const timeRaw =
-        typeof meta.requested_pickup_time === "string"
-          ? meta.requested_pickup_time
-          : null
-
-      let slotStart: string | null = null
-      if (dateKey === rawDate && timeRaw) {
-        slotStart = extractSlotStart(timeRaw, rawDate)
-      } else if (timeRaw && (timeRaw.includes("T") || timeRaw.includes("-"))) {
-        // ISO full timestamp
-        slotStart = extractSlotStart(timeRaw, rawDate)
-      }
-
-      if (!slotStart) continue
-      usage.set(slotStart, (usage.get(slotStart) ?? 0) + 1)
-    }
-
+    const metas = (
+      linkRows as Array<{ order?: { metadata?: Record<string, unknown> | null } }>
+    ).map((row) => row.order?.metadata ?? null)
+    const usage = countSlotUsageForDate(metas, rawDate)
     applySlotUsage(slots, usage)
   } catch {
     // Best-effort capacity — still return generated slots
   }
 
+  const anyBookable = slots.some((s) => s.is_bookable)
   res.status(200).json({
     date: rawDate,
     store_location_id: storeId,
     lead_time_hours: leadTimeHours,
+    kitchen_busy: kitchenBusy,
     slots,
+    ...(anyBookable
+      ? {}
+      : {
+          message: kitchenBusy
+            ? `Kitchen is busy — orders need at least ${leadTimeHours} hour${
+                leadTimeHours === 1 ? "" : "s"
+              } notice. Please choose a later date or time.`
+            : leadTimeHours > 0
+              ? `Orders need at least ${leadTimeHours} hour${
+                  leadTimeHours === 1 ? "" : "s"
+                } notice. Please choose a later date or time.`
+              : "No bookable slots on this date.",
+        }),
   })
 }

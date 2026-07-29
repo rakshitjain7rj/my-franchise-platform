@@ -1,18 +1,20 @@
 /**
- * Server-side collection window validation against kitchen lead time.
+ * Server-side collection window validation against kitchen lead time,
+ * opening-hours grid, and per-slot capacity.
  *
  * Enforces:
  *  1. Collection date + time present (cart metadata or line attributes)
  *  2. Store is open / accepting orders
  *  3. Slot start is at least `custom_lead_time_hours` after now (busy mode)
- *
- * Does NOT require the time to appear in the generated slot grid — that list
- * can disagree with shopper clocks (server TZ vs UK local) and was rejecting
- * legitimate out-of-lead-time PayPal returns.
+ *     — with a small grace for PayPal redirect latency
+ *  4. Time matches a generated 30-minute opening-hours slot
+ *  5. Slot still has remaining capacity (when usage is provided)
  */
 
 import { MedusaError } from "@medusajs/framework/utils"
 import {
+  applySlotUsage,
+  buildDaySlots,
   extractSlotStart,
   resolveLeadTimeHours,
   type OpeningHours,
@@ -160,15 +162,47 @@ export function parseSlotStart(
   return d
 }
 
+export type AssertCollectionSlotOptions = {
+  now?: Date
+  /**
+   * When true, lead-time rejection uses kitchen-busy customer copy.
+   * Must come from franchise ops settings — never inferred from lead hours alone.
+   */
+  kitchenBusy?: boolean
+  /**
+   * Existing bookings for this store on the requested date (slot start → count).
+   * When omitted, capacity is not re-checked (lead + grid still are).
+   */
+  usageBySlotStart?: Map<string, number> | Record<string, number>
+  /**
+   * When false, skip the opening-hours grid membership check.
+   * Default true.
+   */
+  requireGridSlot?: boolean
+  /**
+   * When false, skip capacity re-check even if usage is provided.
+   * Default true when usage is provided.
+   */
+  requireCapacity?: boolean
+}
+
 /**
  * Throws MedusaError when the requested collection window violates kitchen
- * lead time or store open status.
+ * lead time, store open status, grid membership, or (when usage is provided)
+ * remaining capacity.
  */
 export function assertCollectionSlotAllowed(
   location: StoreLocationForSlot,
   request: CollectionSlotRequest,
-  now: Date = new Date()
+  nowOrOptions: Date | AssertCollectionSlotOptions = new Date()
 ): void {
+  const options: AssertCollectionSlotOptions =
+    nowOrOptions instanceof Date ? { now: nowOrOptions } : nowOrOptions ?? {}
+  const now = options.now ?? new Date()
+  const kitchenBusy = Boolean(options.kitchenBusy)
+  const requireGridSlot = options.requireGridSlot !== false
+  const requireCapacity = options.requireCapacity !== false
+
   if (location.is_active === false) {
     throw new MedusaError(
       MedusaError.Types.NOT_ALLOWED,
@@ -214,7 +248,7 @@ export function assertCollectionSlotAllowed(
 
   const leadTimeHours = resolveLeadTimeHours(location)
   // 2-minute grace so clock skew / redirect latency after PayPal does not
-  // reject a slot that was valid when the shopper paid.
+  // reject a slot that was valid when the shopper paid. Applies to lead only.
   const graceMs = 2 * 60 * 1000
   const cutoffMs = now.getTime() + leadTimeHours * 60 * 60 * 1000 - graceMs
 
@@ -225,12 +259,56 @@ export function assertCollectionSlotAllowed(
         : leadTimeHours < 1
           ? "a short preparation window"
           : `${leadTimeHours} hours`
+    if (leadTimeHours > 0) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        kitchenBusy
+          ? `Kitchen is busy — orders need at least ${hoursLabel} notice. Please choose a later collection slot.`
+          : `This bakery needs at least ${hoursLabel} notice. Please choose a later collection slot.`
+      )
+    }
     throw new MedusaError(
       MedusaError.Types.NOT_ALLOWED,
-      leadTimeHours > 0
-        ? `This bakery needs at least ${hoursLabel} notice (kitchen busy / lead time). ` +
-            `Please choose a later collection slot.`
-        : `The selected collection slot is no longer available. Please choose another time.`
+      "The selected collection slot is no longer available. Please choose another time."
+    )
+  }
+
+  if (!requireGridSlot && !options.usageBySlotStart) {
+    return
+  }
+
+  // Grid + capacity use the same generator as GET /store/stores/:id/slots
+  // so complete cannot accept times the picker never offered.
+  const slots = buildDaySlots({
+    date,
+    openingHours: location.opening_hours,
+    capacityPerSlot: location.daily_order_capacity ?? 10,
+    leadTimeHours,
+    now,
+    metadata: location.metadata,
+  })
+
+  if (options.usageBySlotStart) {
+    applySlotUsage(slots, options.usageBySlotStart)
+  }
+
+  const match = slots.find((s) => s.time === time)
+  if (requireGridSlot && !match) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "The selected collection time is not a valid slot for this bakery. Please choose the slot again."
+    )
+  }
+
+  if (
+    requireCapacity &&
+    options.usageBySlotStart &&
+    match &&
+    match.available_capacity <= 0
+  ) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      "This collection slot is full. Please choose another time."
     )
   }
 }

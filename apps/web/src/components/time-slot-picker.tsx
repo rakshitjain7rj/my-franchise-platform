@@ -3,12 +3,17 @@
 /**
  * Date + 30-min time slot picker backed by GET /store/stores/:id/slots.
  * Controls match PremiumSelect styling used on product customisation fields.
+ *
+ * Lead-blocked and full slots are shown disabled with a reason (not hidden).
+ * Kitchen busy vs normal lead copy comes from the API `kitchen_busy` flag.
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  defaultMinCollectionDate,
+  collectionLeadBanner,
   fetchStoreSlots,
+  slotUnbookableLabel,
+  todayCollectionDate,
   type StoreTimeSlot,
 } from "@/lib/data/logistics";
 import { PremiumSelect } from "@/components/ui/premium-select";
@@ -45,9 +50,12 @@ export default function TimeSlotPicker({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [leadHours, setLeadHours] = useState(24);
+  const [leadHours, setLeadHours] = useState(0);
+  const [kitchenBusy, setKitchenBusy] = useState(false);
+  const [clearedNotice, setClearedNotice] = useState<string | null>(null);
 
-  const minDate = defaultMinCollectionDate(leadHours);
+  // Date picker min is today so lead-blocked days stay openable and show reasons.
+  const minDate = todayCollectionDate();
 
   const load = useCallback(async () => {
     if (!storeLocationId || !date) {
@@ -59,21 +67,40 @@ export default function TimeSlotPicker({
     setMessage(null);
     try {
       const data = await fetchStoreSlots(storeLocationId, date);
-      setSlots(data.slots ?? []);
+      const nextSlots = data.slots ?? [];
+      setSlots(nextSlots);
       setMessage(data.message ?? null);
       // 0 is a valid "immediate" lead time — do not treat as falsy.
       if (typeof data.lead_time_hours === "number") {
         setLeadHours(data.lead_time_hours);
       }
+      setKitchenBusy(Boolean(data.kitchen_busy));
 
-      // If current selection is not bookable, clear it
-      const stillOk = (data.slots ?? []).some(
+      // If current selection is not bookable, clear it with a clear notice.
+      const stillOk = nextSlots.some(
         (s) =>
           s.is_bookable &&
           (s.time === selectedTime || s.label === selectedTime)
       );
       if (selectedTime && !stillOk) {
+        const dead = nextSlots.find(
+          (s) => s.time === selectedTime || s.label === selectedTime
+        );
+        const leadForCopy =
+          typeof data.lead_time_hours === "number" ? data.lead_time_hours : 0
+        const reason = dead
+          ? slotUnbookableLabel(dead, {
+              leadHours: leadForCopy,
+              kitchenBusy: Boolean(data.kitchen_busy),
+            })
+          : data.message ||
+            (data.kitchen_busy
+              ? "That time is no longer available — kitchen is busy."
+              : "That time is no longer available. Please choose another slot.");
+        setClearedNotice(reason);
         onSlotChange(null);
+      } else if (selectedTime && stillOk) {
+        setClearedNotice(null);
       }
     } catch (err) {
       setSlots([]);
@@ -89,7 +116,18 @@ export default function TimeSlotPicker({
     load();
   }, [load]);
 
-  // Ensure date is not before min
+  // Refresh when the shopper returns to the tab (busy mode may have changed).
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        void load();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [load]);
+
+  // Block past calendar days only (not the lead cutoff).
   useEffect(() => {
     if (date && date < minDate) {
       onDateChange(minDate);
@@ -104,29 +142,50 @@ export default function TimeSlotPicker({
 
   const timeOptions = useMemo(() => {
     if (loading) {
-      return [{ value: "", label: "Loading slots…" }];
+      return [{ value: "", label: "Loading slots…", disabled: true }];
     }
     if (!storeLocationId) {
-      return [{ value: "", label: "Select bakery first" }];
+      return [{ value: "", label: "Select bakery first", disabled: true }];
     }
-    if (bookable.length === 0) {
-      return [{ value: "", label: "No slots available" }];
+    if (slots.length === 0) {
+      return [{ value: "", label: "No slots available", disabled: true }];
     }
-    return bookable.map((slot) => ({
-      value: slot.time,
-      label:
-        slot.available_capacity <= 3
-          ? `${slot.label} · ${slot.available_capacity} left`
-          : slot.label,
-    }));
-  }, [loading, storeLocationId, bookable]);
+    return slots.map((slot) => {
+      if (!slot.is_bookable) {
+        const reason = slotUnbookableLabel(slot, { leadHours, kitchenBusy });
+        return {
+          value: slot.time,
+          label: `${slot.label} · ${reason}`,
+          description: reason,
+          disabled: true,
+        };
+      }
+      return {
+        value: slot.time,
+        label:
+          slot.available_capacity <= 3
+            ? `${slot.label} · ${slot.available_capacity} left`
+            : slot.label,
+        disabled: false,
+      };
+    });
+  }, [loading, storeLocationId, slots, leadHours, kitchenBusy]);
 
   const dateActive = Boolean(date);
-  const timeDisabled =
-    !storeLocationId || loading || bookable.length === 0;
+  const timeDisabled = !storeLocationId || loading || slots.length === 0;
+  const banner = collectionLeadBanner({ leadHours, kitchenBusy });
 
   return (
     <div className={cn("space-y-3", className)}>
+      {banner && (
+        <p
+          className="rounded-xl border border-amber-200/80 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900"
+          role="status"
+        >
+          {banner}
+        </p>
+      )}
+
       <div
         className={cn(
           "grid grid-cols-2 items-end",
@@ -169,13 +228,14 @@ export default function TimeSlotPicker({
               loading
                 ? "Loading slots…"
                 : bookable.length === 0
-                  ? "No slots available"
+                  ? "No bookable slots"
                   : "Select a time"
             }
             options={timeOptions.filter((o) => o.value !== "")}
             onChange={(v) => {
-              const slot = slots.find((s) => s.time === v);
+              const slot = slots.find((s) => s.time === v && s.is_bookable);
               if (slot) {
+                setClearedNotice(null);
                 onSlotChange({
                   date,
                   time: slot.time,
@@ -203,14 +263,13 @@ export default function TimeSlotPicker({
           {error}
         </p>
       )}
-      {message && !error && bookable.length === 0 && (
-        <p className="text-xs text-on-surface-variant">{message}</p>
-      )}
-      {leadHours > 0 && bookable.length > 0 && (
-        <p className="text-[11px] text-on-surface-variant">
-          Orders need at least {leadHours}h notice. Slots update with live
-          bakery capacity.
+      {clearedNotice && !error && (
+        <p className="text-xs text-red-700" role="alert">
+          {clearedNotice} Please pick another collection time.
         </p>
+      )}
+      {message && !error && bookable.length === 0 && !clearedNotice && (
+        <p className="text-xs text-on-surface-variant">{message}</p>
       )}
     </div>
   );

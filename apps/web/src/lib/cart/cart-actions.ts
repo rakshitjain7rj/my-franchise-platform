@@ -697,13 +697,131 @@ export async function prepareCartForCheckout(
 }
 
 /**
+ * Client-side collection slot gate (no grace — server keeps the 2-minute grace
+ * on complete only). Used before payment starts and again before complete.
+ */
+export async function assertCartCollectionSlotStillValid(
+  cartId: string
+): Promise<void> {
+  const cart = (await getCart(cartId)) as MedusaCart | null
+  if (!cart) {
+    throw new Error("Your cart could not be loaded. Please refresh and try again.")
+  }
+
+  const meta = (cart.metadata ?? {}) as Record<string, unknown>
+  const lineSlot = getMostRecentLineCollectionSlot(cart.items)
+  const date =
+    (typeof meta.requested_pickup_date === "string" &&
+      meta.requested_pickup_date) ||
+    lineSlot?.date ||
+    ""
+  const rawTime =
+    (typeof meta.requested_pickup_time === "string" &&
+      meta.requested_pickup_time) ||
+    lineSlot?.time ||
+    lineSlot?.label ||
+    ""
+  const time = extractSlotStartTime(rawTime) || rawTime.slice(0, 5)
+  const storeId =
+    (typeof meta.store_location_id === "string" && meta.store_location_id) ||
+    cart.items
+      .map((i) => i.metadata?.store_location_id)
+      .find((id): id is string => typeof id === "string" && id.length > 0) ||
+    getBrowserCookie(STORE_ID_COOKIE) ||
+    ""
+
+  if (!storeId) {
+    throw new Error(
+      "Select a bakery location before placing your order. Return to the cart or product page."
+    )
+  }
+  if (!date || !time || !/^\d{2}:\d{2}$/.test(time)) {
+    throw new Error(
+      "A collection date and time slot are required. Please pick a slot on the product or cart page."
+    )
+  }
+
+  let slotsResponse
+  try {
+    slotsResponse = await fetchStoreSlots(storeId, date)
+  } catch {
+    // If the slots API is briefly unavailable, let the server decide at complete.
+    // Still block obviously missing local data above.
+    return
+  }
+
+  const lead =
+    typeof slotsResponse.lead_time_hours === "number"
+      ? slotsResponse.lead_time_hours
+      : 24
+  const kitchenBusy = Boolean(slotsResponse.kitchen_busy)
+  const match = (slotsResponse.slots ?? []).find((s) => s.time === time)
+
+  if (!match) {
+    throw new Error(
+      "The selected collection time is not available. Please pick another slot on the product or cart page."
+    )
+  }
+
+  if (!match.is_bookable) {
+    if (
+      match.unbookable_reason === "capacity" ||
+      match.available_capacity <= 0
+    ) {
+      throw new Error(
+        "This collection slot is full. Please pick another time on the product or cart page."
+      )
+    }
+    const hoursLabel = lead === 1 ? "1 hour" : `${lead} hours`
+    if (kitchenBusy && lead > 0) {
+      throw new Error(
+        `Kitchen is busy — orders need at least ${hoursLabel} notice. Please pick a later collection slot on the product or cart page.`
+      )
+    }
+    if (lead > 0) {
+      throw new Error(
+        `This bakery needs at least ${hoursLabel} notice. Please pick a later collection slot on the product or cart page.`
+      )
+    }
+    throw new Error(
+      "The selected collection slot is no longer available. Please pick another time on the product or cart page."
+    )
+  }
+
+  // Absolute lead-time check (no grace on the client).
+  const slotStart = new Date(`${date}T${time}:00`).getTime()
+  const cutoff = Date.now() + lead * 60 * 60 * 1000
+  if (!Number.isNaN(slotStart) && slotStart < cutoff) {
+    const hoursLabel = lead === 1 ? "1 hour" : `${lead} hours`
+    if (kitchenBusy && lead > 0) {
+      throw new Error(
+        `Kitchen is busy — orders need at least ${hoursLabel} notice. Please pick a later collection slot on the product or cart page.`
+      )
+    }
+    if (lead > 0) {
+      throw new Error(
+        `This bakery needs at least ${hoursLabel} notice. Please pick a later collection slot on the product or cart page.`
+      )
+    }
+    throw new Error(
+      "The selected collection slot is no longer available. Please pick another time on the product or cart page."
+    )
+  }
+}
+
+/**
  * Checkout step 2 of 4 — creates (or returns the existing) payment collection
  * for the cart. Medusa keys payment collections by cart, so calling this twice
  * for the same cart is safe.
+ *
+ * Validates the collection slot first so shoppers never start PayPal with a
+ * dead busy/lead/full slot.
  */
 export async function createPaymentCollection(
   cartId: string
 ): Promise<{ id: string }> {
+  await assertCartCollectionSlotStillValid(cartId)
+
   const { payment_collection } = await cartFetch<{
     payment_collection: { id: string }
   }>("/store/payment-collections", {
@@ -826,69 +944,13 @@ export function extractPaypalRedirectUrl(session: MedusaPaymentSession): string 
  * (e.g. payment not authorised); callers should surface that to the shopper.
  */
 export async function completeCartOrder(cartId: string): Promise<MedusaOrder> {
-  // Soft pre-check: resolve slot from cart metadata OR line custom_attributes
-  // (PayPal return often has the slot only on lines). Absolute lead-time only —
-  // do not require the time to appear in the live slot grid (TZ false negatives).
+  // Soft pre-check (lead + bookable + capacity). Server still hard-enforces
+  // with a 2-minute lead grace for PayPal redirect latency.
   try {
-    const cart = (await getCart(cartId)) as MedusaCart | null
-    if (cart) {
-      const meta = (cart.metadata ?? {}) as Record<string, unknown>
-      const lineSlot = getMostRecentLineCollectionSlot(cart.items)
-      const date =
-        (typeof meta.requested_pickup_date === "string" &&
-          meta.requested_pickup_date) ||
-        lineSlot?.date ||
-        ""
-      const rawTime =
-        (typeof meta.requested_pickup_time === "string" &&
-          meta.requested_pickup_time) ||
-        lineSlot?.time ||
-        lineSlot?.label ||
-        ""
-      const time = extractSlotStartTime(rawTime) || rawTime.slice(0, 5)
-      const storeId =
-        (typeof meta.store_location_id === "string" &&
-          meta.store_location_id) ||
-        cart.items
-          .map((i) => i.metadata?.store_location_id)
-          .find((id): id is string => typeof id === "string" && id.length > 0) ||
-        getBrowserCookie(STORE_ID_COOKIE) ||
-        ""
-
-      if (date && time && /^\d{2}:\d{2}$/.test(time)) {
-        // Absolute lead-time check when we know the store lead hours from slots API.
-        if (storeId) {
-          try {
-            const slots = await fetchStoreSlots(storeId, date)
-            const lead =
-              typeof slots.lead_time_hours === "number"
-                ? slots.lead_time_hours
-                : 24
-            const slotStart = new Date(`${date}T${time}:00`).getTime()
-            const cutoff = Date.now() + lead * 60 * 60 * 1000 - 2 * 60 * 1000
-            if (!Number.isNaN(slotStart) && slotStart < cutoff && lead > 0) {
-              throw new Error(
-                `This bakery needs at least ${lead} hour${lead === 1 ? "" : "s"} notice. Please pick a later collection slot on the product or cart page.`
-              )
-            }
-          } catch (inner) {
-            if (
-              inner instanceof Error &&
-              /notice|hour/i.test(inner.message)
-            ) {
-              throw inner
-            }
-            // Slot list fetch failures must not block PayPal capture.
-          }
-        }
-      }
-      // Missing date/time: let the server decide (it also reads line attributes).
-    }
+    await assertCartCollectionSlotStillValid(cartId)
   } catch (err) {
-    if (
-      err instanceof Error &&
-      (/notice|hour/i.test(err.message))
-    ) {
+    if (err instanceof Error) {
+      // Re-throw customer-facing validation errors; never swallow them.
       throw err
     }
   }
