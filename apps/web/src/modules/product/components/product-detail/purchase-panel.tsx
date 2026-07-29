@@ -18,7 +18,10 @@ import {
   JamIcon,
   ServingsIcon,
 } from "./icons";
-import type { ProductDetailModel } from "./use-product-detail";
+import {
+  COLLECTION_BAKERY_FIELD_ID,
+  type ProductDetailModel,
+} from "./use-product-detail";
 import type { DietaryTag, MedusaProduct } from "./types";
 
 interface PurchasePanelProps {
@@ -44,8 +47,12 @@ export function PurchasePanel({
     supportsPhotoUpload,
     storeLocationId,
     storeName,
+    storeLocations,
     storesLoading,
     storeSelectionLocked,
+    handleBakeryChange,
+    bakeryGateActive,
+    dismissBakeryGate,
     selectedOptions,
     handleOptionChange,
     metadataFlavour,
@@ -67,13 +74,22 @@ export function PurchasePanel({
     addedToCart,
     cartError,
     isAddingToCart,
-    showLocationModal,
-    setShowLocationModal,
     handleAddToCart,
     inWishlist,
     handleToggleWishlist,
     reviewBadge,
   } = model;
+
+  const mapRoutingHref = `/map-routing?redirect=${encodeURIComponent(
+    `/products/${product.handle}`
+  )}`;
+  const bakeryOptions = storeLocations.map((loc) => ({
+    value: loc.id,
+    label: loc.name,
+    description: loc.address?.trim() || undefined,
+  }));
+  const locationsAvailable = !storesLoading && storeLocations.length > 0;
+  const locationsUnavailable = !storesLoading && storeLocations.length === 0;
 
   return (
     <div className="flex flex-col space-y-6">
@@ -144,7 +160,14 @@ export function PurchasePanel({
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="flex flex-col gap-2 bg-white p-3.5 rounded-2xl border border-outline-variant/30 transition-all duration-300">
+          <div
+            id={COLLECTION_BAKERY_FIELD_ID}
+            className={`flex flex-col gap-2 bg-white p-3.5 rounded-2xl border transition-all duration-300 ${
+              bakeryGateActive && !storeLocationId
+                ? "border-amber-400 ring-2 ring-amber-200/80"
+                : "border-outline-variant/30"
+            }`}
+          >
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-vibrant-magenta">
                 <MapPin className="h-4 w-4 shrink-0" strokeWidth={2.5} />
@@ -160,43 +183,48 @@ export function PurchasePanel({
             </div>
             {storesLoading ? (
               <div className="h-10 w-full animate-pulse rounded-full bg-lavender-bg/80" />
-            ) : storeLocationId || storeName ? (
+            ) : storeSelectionLocked ? (
               <>
                 <p className="text-sm text-deep-plum font-semibold leading-snug">
-                  Collecting from{" "}
-                  <span className="text-vibrant-magenta">
-                    {storeName ?? "your selected bakery"}
-                  </span>
+                  {storeName ?? "your selected bakery"}
                 </p>
+                <p className="text-[11px] text-on-surface-variant leading-relaxed">
+                  Bakery is fixed while your cart has items. Empty the cart to
+                  switch branch.
+                </p>
+              </>
+            ) : locationsAvailable ? (
+              <>
+                <PremiumSelect
+                  label="Collection bakery"
+                  value={storeLocationId ?? ""}
+                  placeholder="Select bakery"
+                  options={bakeryOptions}
+                  onChange={handleBakeryChange}
+                  active={Boolean(storeLocationId)}
+                  fullWidth
+                />
                 <p className="text-[11px] text-on-surface-variant leading-relaxed">
                   One bakery for the whole order. Collection slots and stock
                   apply to this branch.
                 </p>
-                {!storeSelectionLocked && (
-                  <Link
-                    href={`/map-routing?redirect=${encodeURIComponent(
-                      `/products/${product.handle}`
-                    )}`}
-                    className="inline-flex h-9 w-fit items-center justify-center gap-1.5 rounded-full border border-deep-plum/15 bg-lavender-bg/60 px-3.5 text-xs font-semibold text-deep-plum transition-all hover:border-vibrant-magenta/40 hover:text-vibrant-magenta"
-                  >
-                    Change bakery
-                  </Link>
-                )}
               </>
             ) : (
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-on-surface-variant">
-                  No bakery selected yet.
+              <>
+                <p className="text-sm text-on-surface-variant leading-snug">
+                  {storeLocationId || storeName
+                    ? `Collecting from ${storeName ?? "your selected bakery"}. Bakeries could not be listed here.`
+                    : "Bakeries could not be listed here right now."}
                 </p>
                 <Link
-                  href={`/map-routing?redirect=${encodeURIComponent(
-                    `/products/${product.handle}`
-                  )}`}
-                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-deep-plum/20 bg-deep-plum px-3.5 text-xs font-semibold text-white shadow-[0_4px_14px_-4px_rgba(74,21,75,0.45)] transition-all hover:bg-vibrant-magenta"
+                  href={mapRoutingHref}
+                  className="inline-flex h-9 w-fit items-center justify-center gap-1.5 rounded-full border border-deep-plum/20 bg-deep-plum px-3.5 text-xs font-semibold text-white shadow-[0_4px_14px_-4px_rgba(74,21,75,0.45)] transition-all hover:bg-vibrant-magenta"
                 >
-                  Choose bakery
+                  {storeLocationId || storeName
+                    ? "Change bakery on map"
+                    : "Choose bakery on map"}
                 </Link>
-              </div>
+              </>
             )}
           </div>
 
@@ -418,7 +446,7 @@ export function PurchasePanel({
         )}
       </div>
 
-      {showLocationModal && (
+      {bakeryGateActive && !storeLocationId && (
         <div className="relative rounded-2xl bg-amber-50 border border-amber-200 p-5 flex items-start gap-4">
           <span className="material-symbols-outlined text-amber-500 !text-[24px] mt-0.5 shrink-0">
             location_off
@@ -428,30 +456,27 @@ export function PurchasePanel({
               Select a bakery location first
             </p>
             <p className="text-xs text-amber-700 mt-1 leading-relaxed">
-              Choose your local Cake Break boutique first — bakery is fixed for
-              the whole order once items are in the cart.
+              {locationsAvailable
+                ? "Pick your collection bakery in the field above — bakery is fixed for the whole order once items are in the cart."
+                : "Choose your local Cake Break boutique first — bakery is fixed for the whole order once items are in the cart."}
             </p>
-            <button
-              type="button"
-              onClick={() =>
-                router.push(
-                  `/map-routing?redirect=${encodeURIComponent(
-                    `/products/${product.handle}`
-                  )}`
-                )
-              }
-              className="mt-3 inline-flex items-center gap-2 px-5 py-2 rounded-full bg-deep-plum text-white text-xs font-label-bold uppercase tracking-widest hover:bg-vibrant-magenta transition-colors"
-              id="choose-location-btn"
-            >
-              <span className="material-symbols-outlined !text-[14px]">
-                store
-              </span>
-              Choose Location
-            </button>
+            {locationsUnavailable && (
+              <button
+                type="button"
+                onClick={() => router.push(mapRoutingHref)}
+                className="mt-3 inline-flex items-center gap-2 px-5 py-2 rounded-full bg-deep-plum text-white text-xs font-label-bold uppercase tracking-widest hover:bg-vibrant-magenta transition-colors"
+                id="choose-location-btn"
+              >
+                <span className="material-symbols-outlined !text-[14px]">
+                  store
+                </span>
+                Choose Location
+              </button>
+            )}
           </div>
           <button
             type="button"
-            onClick={() => setShowLocationModal(false)}
+            onClick={dismissBakeryGate}
             aria-label="Dismiss"
             className="shrink-0 text-amber-400 hover:text-amber-700 transition-colors"
           >

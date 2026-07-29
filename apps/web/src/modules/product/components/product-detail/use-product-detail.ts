@@ -12,13 +12,20 @@ import { useRouter } from "next/navigation";
 import type { SlotSelection } from "@/components/time-slot-picker";
 import { useCart } from "@/lib/cart/cart-context";
 import { medusaFetch } from "@/lib/medusa";
-import { useSelectedStore } from "@/lib/store-selection";
+import {
+  STORE_SELECTION_LOCKED_MESSAGE,
+  trySelectStore,
+  useSelectedStore,
+} from "@/lib/store-selection";
 import {
   addToWishlist,
   removeFromWishlist,
   isInWishlist,
 } from "@/lib/wishlist";
 import { defaultMinCollectionDate } from "@/lib/data/logistics";
+
+/** Scroll target for ATC bakery gate (purchase panel Collection bakery card). */
+export const COLLECTION_BAKERY_FIELD_ID = "collection-bakery-field";
 import {
   DEFAULT_JAM_OPTION,
   buildCustomAttributes,
@@ -110,7 +117,8 @@ export function useProductDetail(product: MedusaProduct) {
   const [addedToCart, setAddedToCart] = useState(false);
   const [cartError, setCartError] = useState<string | null>(null);
   const [isAddingToCart, setIsAddingToCart] = useState(false);
-  const [showLocationModal, setShowLocationModal] = useState(false);
+  /** ATC pressed with no bakery — highlight in-page select (or map fallback). */
+  const [bakeryGateActive, setBakeryGateActive] = useState(false);
   const [inWishlist, setInWishlist] = useState(false);
   const [reviewBadge, setReviewBadge] = useState<ReactNode>(null);
   const [storeLocations, setStoreLocations] = useState<StoreLocationOption[]>(
@@ -142,16 +150,15 @@ export function useProductDetail(product: MedusaProduct) {
       window.removeEventListener("wishlist-updated", handleWishlistUpdate);
   }, [product.id]);
 
-  // Load franchise store locations for the in-page switcher
+  // Load franchise store locations for the in-page switcher.
+  // When franchiseId is still null, keep loading — cookie hydrate in
+  // useSelectedStore runs in the same commit; flipping loading off early
+  // flashes the map-routing fallback.
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       if (!franchiseId) {
-        if (!cancelled) {
-          setStoreLocations([]);
-          setStoresLoading(false);
-        }
         return;
       }
 
@@ -198,8 +205,68 @@ export function useProductDetail(product: MedusaProduct) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [franchiseId]);
 
-  // Bakery is session-wide and locked while the cart has items. PDP only
-  // hydrates the display name; intentional switches go via /map-routing.
+  // No franchise cookie after selection hydrate → stop loading and show map fallback.
+  useEffect(() => {
+    if (franchiseId) return;
+    const t = window.setTimeout(() => {
+      setStoreLocations([]);
+      setStoresLoading(false);
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [franchiseId]);
+
+  // Bakery is session-wide and locked while the cart has items. Unlocked
+  // switches happen in-page via handleBakeryChange (PremiumSelect).
+
+  const clearCollectionSlot = useCallback(() => {
+    setCollectionTime("");
+    setCollectionTimeLabel("");
+    setCollectionDate(defaultMinCollectionDate());
+  }, []);
+
+  const handleBakeryChange = useCallback(
+    (nextStoreLocationId: string) => {
+      const id = nextStoreLocationId?.trim();
+      if (!id) return;
+
+      const match = storeLocations.find((l) => l.id === id);
+      const previousId = storeLocationIdRef.current;
+      const result = trySelectStore(
+        {
+          storeLocationId: id,
+          storeName: match?.name ?? storeName ?? undefined,
+          franchiseId: franchiseId ?? undefined,
+        },
+        {
+          cartItemCount: totalItems,
+          source: PRODUCT_DETAIL_SOURCE,
+        }
+      );
+
+      if (!result.ok) {
+        setCartError(STORE_SELECTION_LOCKED_MESSAGE);
+        return;
+      }
+
+      // Local selects use ignoreSource, so onExternalChange will not run —
+      // clear bakery-scoped slot state here when the branch actually changes.
+      if (id !== previousId) {
+        clearCollectionSlot();
+        storeLocationIdRef.current = id;
+      }
+
+      setBakeryGateActive(false);
+      setCartError(null);
+      setAddedToCart(false);
+    },
+    [
+      storeLocations,
+      storeName,
+      franchiseId,
+      totalItems,
+      clearCollectionSlot,
+    ]
+  );
 
   const handleSlotChange = useCallback((slot: SlotSelection | null) => {
     if (!slot) {
@@ -302,7 +369,17 @@ export function useProductDetail(product: MedusaProduct) {
     if (!activeVariant) return;
 
     if (!storeLocationId) {
-      setShowLocationModal(true);
+      setBakeryGateActive(true);
+      setCartError(
+        storeLocations.length > 0
+          ? "Please select a collection bakery above."
+          : "Please choose a bakery location first."
+      );
+      if (typeof document !== "undefined") {
+        document
+          .getElementById(COLLECTION_BAKERY_FIELD_ID)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
       return;
     }
 
@@ -313,6 +390,7 @@ export function useProductDetail(product: MedusaProduct) {
 
     setIsAddingToCart(true);
     setCartError(null);
+    setBakeryGateActive(false);
     try {
       const extraOptions: Record<string, string> = {};
       for (const [title, value] of Object.entries(selectedOptions)) {
@@ -370,6 +448,7 @@ export function useProductDetail(product: MedusaProduct) {
     servingsLabel,
     supportsInscription,
     storeLocationId,
+    storeLocations.length,
     addToCart,
   ]);
 
@@ -402,6 +481,11 @@ export function useProductDetail(product: MedusaProduct) {
     setCartError(null);
   }, []);
 
+  const dismissBakeryGate = useCallback(() => {
+    setBakeryGateActive(false);
+    setCartError(null);
+  }, []);
+
   return {
     router,
     // product-derived
@@ -424,6 +508,9 @@ export function useProductDetail(product: MedusaProduct) {
     storeLocations,
     storesLoading,
     storeSelectionLocked,
+    handleBakeryChange,
+    bakeryGateActive,
+    dismissBakeryGate,
     // configure
     selectedOptions,
     handleOptionChange,
@@ -451,8 +538,6 @@ export function useProductDetail(product: MedusaProduct) {
     addedToCart,
     cartError,
     isAddingToCart,
-    showLocationModal,
-    setShowLocationModal,
     handleAddToCart,
     inWishlist,
     handleToggleWishlist,
