@@ -41,6 +41,8 @@ export interface CustomerProfile {
 export interface AuthResponse {
   success: boolean;
   error?: string | null;
+  /** Present on successful register (and useful for client-side wishlist transfer). */
+  customerId?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -419,7 +421,7 @@ export async function registerCustomer(
     }
     // ─────────────────────────────────────────────────────────────────────
 
-    return { success: true };
+    return { success: true, customerId: profile.id };
   } catch (err: unknown) {
     console.error("[registerCustomer] Error during registration:", err);
     return {

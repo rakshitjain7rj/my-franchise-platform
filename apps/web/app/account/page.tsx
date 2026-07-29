@@ -22,13 +22,20 @@ export default async function AccountPage({
 }: {
   searchParams: Promise<{ tab?: string }>;
 }) {
-  const customer = await getCurrentCustomer();
   const resolvedParams = await searchParams;
   const tab = resolvedParams.tab;
 
+  // Wishlist lives only at /wishlist (public). Old deep links redirect here
+  // before the auth gate so guests are not forced through login.
+  if (tab === "wishlist") {
+    redirect("/wishlist");
+  }
+
+  const customer = await getCurrentCustomer();
+
   if (!customer) {
     // Preserve the destination tab so post-login lands on the right panel
-    // (e.g. wishlist / orders) instead of a bare /account overview.
+    // (e.g. orders) instead of a bare /account overview.
     const destination = tab
       ? `/account?tab=${encodeURIComponent(tab)}`
       : "/account";

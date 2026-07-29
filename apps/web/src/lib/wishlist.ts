@@ -14,6 +14,12 @@ export interface WishlistItem {
  */
 const CUSTOMER_ID_KEY = "cake_customer_id";
 
+/** Guest wishlist slot — independent of the active customer pointer. */
+const GUEST_KEY = "cake_wishlist_guest";
+
+/** sessionStorage key used to hand a post-signup transfer toast to /wishlist. */
+export const WISHLIST_TRANSFER_TOAST_KEY = "cake_wishlist_transfer_toast";
+
 /**
  * Returns the storage key scoped to the currently active user.
  * - Authenticated: "cake_wishlist_<customerId>"
@@ -25,21 +31,44 @@ const CUSTOMER_ID_KEY = "cake_customer_id";
 function getWishlistKey(): string {
   try {
     const customerId = localStorage.getItem(CUSTOMER_ID_KEY);
-    return customerId ? `cake_wishlist_${customerId}` : "cake_wishlist_guest";
+    return customerId ? `cake_wishlist_${customerId}` : GUEST_KEY;
   } catch {
-    return "cake_wishlist_guest";
+    return GUEST_KEY;
+  }
+}
+
+function customerWishlistKey(customerId: string): string {
+  return `cake_wishlist_${customerId}`;
+}
+
+function readKey(key: string): WishlistItem[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const stored = localStorage.getItem(key);
+    return stored ? (JSON.parse(stored) as WishlistItem[]) : [];
+  } catch (e) {
+    console.error("Error reading wishlist:", e);
+    return [];
+  }
+}
+
+function writeKey(key: string, items: WishlistItem[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (items.length === 0) {
+      localStorage.removeItem(key);
+    } else {
+      localStorage.setItem(key, JSON.stringify(items));
+    }
+    window.dispatchEvent(new Event("wishlist-updated"));
+  } catch (e) {
+    console.error("Error writing wishlist:", e);
   }
 }
 
 export function getWishlist(): WishlistItem[] {
   if (typeof window === "undefined") return [];
-  try {
-    const stored = localStorage.getItem(getWishlistKey());
-    return stored ? JSON.parse(stored) : [];
-  } catch (e) {
-    console.error("Error reading wishlist:", e);
-    return [];
-  }
+  return readKey(getWishlistKey());
 }
 
 export function addToWishlist(item: WishlistItem): void {
@@ -92,3 +121,57 @@ export function setWishlistCustomerId(customerId: string | null): void {
   }
 }
 
+/**
+ * Signup-only: copy guest wishlist into the new customer's slot (union by product id),
+ * clear the guest slot, and point the active customer id at this account.
+ *
+ * Uses absolute storage keys so it is safe even if Header has not yet flipped
+ * `cake_customer_id` (or already has).
+ *
+ * @returns Number of guest items that were present (for toast copy).
+ */
+export function transferGuestWishlistToCustomer(customerId: string): number {
+  if (typeof window === "undefined" || !customerId) return 0;
+
+  try {
+    const guestItems = readKey(GUEST_KEY);
+    const guestCount = guestItems.length;
+    const accountKey = customerWishlistKey(customerId);
+    const accountItems = readKey(accountKey);
+
+    // Guest order first, then any account-only ids (usually empty on signup).
+    const seen = new Set<string>();
+    const merged: WishlistItem[] = [];
+    for (const item of [...guestItems, ...accountItems]) {
+      if (seen.has(item.id)) continue;
+      seen.add(item.id);
+      merged.push(item);
+    }
+
+    writeKey(accountKey, merged);
+    localStorage.removeItem(GUEST_KEY);
+    setWishlistCustomerId(customerId);
+    window.dispatchEvent(new Event("wishlist-updated"));
+
+    return guestCount;
+  } catch (e) {
+    console.error("Error transferring guest wishlist:", e);
+    return 0;
+  }
+}
+
+/**
+ * Login path: drop guest hearts so they never reappear after logout and never
+ * bleed into another account. Does not copy into the account slot.
+ */
+export function discardGuestWishlist(): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (localStorage.getItem(GUEST_KEY) !== null) {
+      localStorage.removeItem(GUEST_KEY);
+      window.dispatchEvent(new Event("wishlist-updated"));
+    }
+  } catch (e) {
+    console.error("Error discarding guest wishlist:", e);
+  }
+}

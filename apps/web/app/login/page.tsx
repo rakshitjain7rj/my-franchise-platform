@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
 import { loginCustomer } from "@/lib/auth/auth-actions";
 import { useCart } from "@/lib/cart/cart-context";
+import { discardGuestWishlist } from "@/lib/wishlist";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 
@@ -47,6 +48,9 @@ export default function LoginPage() {
         // Reconcile the cart with the new session: adopt a guest cart into
         // this account, or discard one left behind by a different customer.
         await syncCartWithSession();
+        // Existing account wins: drop guest hearts (no merge) so they never
+        // reappear on logout or bleed into another account on this browser.
+        discardGuestWishlist();
         // Tell Header (and any other listeners) the session is live before we
         // navigate — otherwise soft nav can leave the UI stuck on "Sign In".
         window.dispatchEvent(new Event("auth-changed"));

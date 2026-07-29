@@ -148,7 +148,7 @@ export default function Header() {
     },
     {
       label: `My Wishlist (${wishlistCount})`,
-      href: "/account?tab=wishlist",
+      href: "/wishlist",
       icon: Heart,
     },
     {
@@ -266,13 +266,9 @@ export default function Header() {
               </span>
             </Link>
 
-            {/* Wishlist lives on the protected account page */}
+            {/* Public wishlist — guests and signed-in customers share /wishlist */}
             <Link
-              href={
-                customer
-                  ? "/account?tab=wishlist"
-                  : `/login?redirect=${encodeURIComponent("/account?tab=wishlist")}`
-              }
+              href="/wishlist"
               className="relative p-2.5 text-purple-700 hover:text-purple-900 hover:bg-purple-50 rounded-full transition-all duration-300"
               aria-label="Wishlist"
             >

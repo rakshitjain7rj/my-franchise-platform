@@ -6,11 +6,10 @@ import Link from "next/link";
 import {
   User, Package, MapPin, LogOut, ChevronRight,
   Edit3, Plus, Trash2, Check, X, AlertCircle,
-  ShoppingBag, Home, Phone, Mail, Calendar, CreditCard, Heart
+  ShoppingBag, Home, Phone, Mail, Calendar, CreditCard
 } from "lucide-react";
 import { logoutCustomer } from "@/lib/auth/auth-actions";
 import { useCart } from "@/lib/cart/cart-context";
-import { getWishlist, removeFromWishlist, type WishlistItem } from "@/lib/wishlist";
 import {
   updateCustomerProfile,
   addCustomerAddress,
@@ -20,7 +19,7 @@ import {
 } from "@/lib/auth/account-actions";
 import type { CustomerProfile } from "@/lib/auth/auth-actions";
 
-type Tab = "overview" | "profile" | "addresses" | "orders" | "wishlist";
+type Tab = "overview" | "profile" | "addresses" | "orders";
 
 interface Props {
   customer: CustomerProfile;
@@ -68,7 +67,6 @@ function Sidebar({
     { id: "profile",   label: "My Profile",   icon: <User className="h-4 w-4" /> },
     { id: "addresses", label: "Address Book", icon: <MapPin className="h-4 w-4" /> },
     { id: "orders",    label: "My Orders",    icon: <Package className="h-4 w-4" /> },
-    { id: "wishlist",  label: "My Wishlist",  icon: <Heart className="h-4 w-4" /> },
   ];
 
   return (
@@ -675,90 +673,13 @@ function OrdersTab({ orders }: { orders: Order[] }) {
   );
 }
 
-// ─── Wishlist Tab ─────────────────────────────────────────────────────────────
-
-function WishlistTab() {
-  const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
-
-  useEffect(() => {
-    setWishlist(getWishlist());
-    const handleUpdate = () => {
-      setWishlist(getWishlist());
-    };
-    window.addEventListener("wishlist-updated", handleUpdate);
-    return () => window.removeEventListener("wishlist-updated", handleUpdate);
-  }, []);
-
-  const handleRemove = (id: string) => {
-    removeFromWishlist(id);
-  };
-
-  return (
-    <div>
-      <div className="mb-5">
-        <h2 className="font-bold text-deep-plum text-lg">My Wishlist</h2>
-        <p className="text-xs text-on-surface-variant">Your favorite cakes saved for later.</p>
-      </div>
-
-      {wishlist.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-2xl border border-purple-100 text-on-surface-variant">
-          <Heart className="h-12 w-12 mx-auto mb-4 text-outline-variant text-purple-200" />
-          <p className="font-medium">Your wishlist is empty.</p>
-          <p className="text-sm mt-1">Explore our cakes and save your favorites!</p>
-          <Link
-            href="/cake-catalogue"
-            className="mt-4 inline-flex items-center justify-center h-10 px-5 rounded-xl bg-deep-plum text-white text-xs font-semibold hover:bg-deep-plum/90 transition-all"
-          >
-            Browse Cakes
-          </Link>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {wishlist.map((item) => (
-            <div key={item.id} className="bg-white border border-purple-100 rounded-2xl p-4 shadow-sm flex gap-4 items-center">
-              {item.thumbnail ? (
-                <img
-                  src={item.thumbnail}
-                  alt={item.title}
-                  className="h-20 w-20 rounded-xl object-cover shrink-0 border border-purple-50"
-                />
-              ) : (
-                <div className="h-20 w-20 rounded-xl bg-lavender-bg shrink-0 flex items-center justify-center text-secondary text-2xl">
-                  🎂
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-bold text-deep-plum truncate">{item.title}</h3>
-                <p className="text-sm font-bold text-secondary mt-1">{item.price}</p>
-                <div className="flex gap-2 mt-3">
-                  <Link
-                    href={`/products/${item.handle}`}
-                    className="flex-1 flex items-center justify-center h-8 rounded-lg bg-deep-plum text-white text-xs font-semibold hover:bg-vibrant-magenta transition-all"
-                  >
-                    View Cake
-                  </Link>
-                  <button
-                    onClick={() => handleRemove(item.id)}
-                    className="p-1.5 text-red-500 hover:bg-red-50 border border-red-100 rounded-lg transition"
-                    title="Remove from Wishlist"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Root Component ───────────────────────────────────────────────────────────
+
+const VALID_TABS: Tab[] = ["overview", "profile", "addresses", "orders"];
 
 export default function AccountDashboard({ customer, addresses, orders, initialTab }: Props) {
   const [tab, setTab] = useState<Tab>(() => {
-    if (initialTab && ["overview", "profile", "addresses", "orders", "wishlist"].includes(initialTab)) {
+    if (initialTab && VALID_TABS.includes(initialTab as Tab)) {
       return initialTab as Tab;
     }
     return "overview";
@@ -768,7 +689,7 @@ export default function AccountDashboard({ customer, addresses, orders, initialT
   const { clearCart } = useCart();
 
   useEffect(() => {
-    if (initialTab && ["overview", "profile", "addresses", "orders", "wishlist"].includes(initialTab)) {
+    if (initialTab && VALID_TABS.includes(initialTab as Tab)) {
       setTab(initialTab as Tab);
     }
   }, [initialTab]);
@@ -811,7 +732,6 @@ export default function AccountDashboard({ customer, addresses, orders, initialT
             <AddressesTab addresses={addresses} customer={customer} />
           )}
           {tab === "orders"    && <OrdersTab    orders={orders} />}
-          {tab === "wishlist"  && <WishlistTab />}
         </div>
       </div>
     </div>

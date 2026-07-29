@@ -16,6 +16,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
 import { registerCustomer } from "@/lib/auth/auth-actions";
 import { useCart } from "@/lib/cart/cart-context";
+import {
+  transferGuestWishlistToCustomer,
+  WISHLIST_TRANSFER_TOAST_KEY,
+} from "@/lib/wishlist";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 
@@ -54,6 +58,23 @@ export default function SignupPage() {
         // Reconcile the cart with the new session: adopt a guest cart into
         // this account, or discard one left behind by a different customer.
         await syncCartWithSession();
+
+        // Signup-only: move guest hearts into this new account's wishlist slot.
+        // Uses absolute localStorage keys so it is race-safe with Header auth sync.
+        if (result.customerId) {
+          const transferred = transferGuestWishlistToCustomer(result.customerId);
+          if (transferred > 0) {
+            try {
+              sessionStorage.setItem(
+                WISHLIST_TRANSFER_TOAST_KEY,
+                String(transferred)
+              );
+            } catch {
+              // sessionStorage unavailable — toast is best-effort.
+            }
+          }
+        }
+
         // Tell Header the session is live before soft-navigating away so the
         // signed-in avatar renders instead of the "Sign In" CTA.
         window.dispatchEvent(new Event("auth-changed"));
