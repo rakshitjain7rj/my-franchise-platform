@@ -5,6 +5,10 @@ import {
   filterProductIdsBySponge,
   filterProductIdsByPrice,
   searchTokensFor,
+  isProductCodeToken,
+  classifyCatalogueSearch,
+  productCodeFromTitle,
+  filterProductIdsBySearch,
 } from "../catalogue-product-filters"
 
 describe("spongeNeedlesFor", () => {
@@ -58,6 +62,178 @@ describe("searchTokensFor", () => {
   it("splits multi-word queries", () => {
     expect(searchTokensFor("Chocolate Drip")).toEqual(["chocolate", "drip"])
     expect(searchTokensFor("  R1  ")).toEqual(["r1"])
+  })
+
+  it("strips parentheses so (R1) tokenises as a code", () => {
+    expect(searchTokensFor("(R1)")).toEqual(["r1"])
+  })
+})
+
+describe("isProductCodeToken", () => {
+  it("accepts Magento-style product codes", () => {
+    expect(isProductCodeToken("r1")).toBe(true)
+    expect(isProductCodeToken("r1x")).toBe(true)
+    expect(isProductCodeToken("x2")).toBe(true)
+    expect(isProductCodeToken("sq12")).toBe(true)
+  })
+
+  it("rejects free-text and non-code shapes", () => {
+    expect(isProductCodeToken("cake")).toBe(false)
+    expect(isProductCodeToken("12")).toBe(false)
+    expect(isProductCodeToken("8inch")).toBe(false)
+    expect(isProductCodeToken("r-1")).toBe(false)
+    expect(isProductCodeToken("chocolate")).toBe(false)
+  })
+})
+
+describe("classifyCatalogueSearch", () => {
+  it("classifies a single code token as code mode", () => {
+    expect(classifyCatalogueSearch(["r1"])).toEqual({
+      mode: "code",
+      code: "r1",
+    })
+  })
+
+  it("classifies one code + free-text as hybrid", () => {
+    expect(classifyCatalogueSearch(["r1", "cake"])).toEqual({
+      mode: "hybrid",
+      code: "r1",
+      freeTextTokens: ["cake"],
+    })
+  })
+
+  it("disables code mode when two+ code tokens are present", () => {
+    expect(classifyCatalogueSearch(["r1", "r1x"])).toEqual({
+      mode: "free_text",
+      tokens: ["r1", "r1x"],
+    })
+  })
+
+  it("uses free-text when no code tokens", () => {
+    expect(classifyCatalogueSearch(["chocolate", "drip"])).toEqual({
+      mode: "free_text",
+      tokens: ["chocolate", "drip"],
+    })
+  })
+})
+
+describe("productCodeFromTitle", () => {
+  it("extracts leading (CODE) from Magento-style titles", () => {
+    expect(productCodeFromTitle("(R1) Simple Fresh Cream Cake")).toBe("r1")
+    expect(productCodeFromTitle("(R1X) Something Cake")).toBe("r1x")
+    expect(productCodeFromTitle("(X2) Christmas Themed Cake")).toBe("x2")
+  })
+
+  it("returns null when code is missing or not at the start", () => {
+    expect(productCodeFromTitle("No code cake")).toBeNull()
+    expect(productCodeFromTitle("Cake (approx 10 servings)")).toBeNull()
+    expect(productCodeFromTitle(null)).toBeNull()
+    expect(productCodeFromTitle(undefined)).toBeNull()
+    expect(productCodeFromTitle("  ")).toBeNull()
+  })
+})
+
+describe("filterProductIdsBySearch modes", () => {
+  function mockKnex(handler: (sql: string, bindings: unknown[]) => string[]) {
+    return {
+      raw: jest.fn(async (sql: string, bindings?: unknown[]) => ({
+        rows: handler(sql, bindings ?? []).map((id) => ({ product_id: id })),
+      })),
+    }
+  }
+
+  it("uses exact title-code SQL for a single code query (not LIKE %r1%)", async () => {
+    const knex = mockKnex((sql, bindings) => {
+      expect(sql).toMatch(/SUBSTRING\(p\.title FROM/)
+      expect(sql).not.toMatch(/LIKE/)
+      expect(bindings[1]).toBe("r1")
+      return ["prod_r1"]
+    })
+
+    const ids = await filterProductIdsBySearch(
+      knex as any,
+      ["prod_r1", "prod_r1x"],
+      "R1"
+    )
+    expect(ids).toEqual(["prod_r1"])
+    expect(knex.raw).toHaveBeenCalledTimes(1)
+  })
+
+  it("hybrid: exact code first, then free-text AND only (no second OR pass)", async () => {
+    const knex = mockKnex((sql, bindings) => {
+      if (sql.includes("SUBSTRING")) {
+        expect(bindings[1]).toBe("r1")
+        return ["prod_r1"]
+      }
+      // free-text for remaining tokens only (field-level OR is expected)
+      expect(sql).toMatch(/LIKE/)
+      expect(sql).not.toMatch(/SUBSTRING/)
+      const likes = (bindings as unknown[]).slice(1)
+      expect(likes).toEqual(["%cake%", "%cake%", "%cake%"])
+      return ["prod_r1"]
+    })
+
+    const ids = await filterProductIdsBySearch(
+      knex as any,
+      ["prod_r1", "prod_r1x"],
+      "R1 cake"
+    )
+    expect(ids).toEqual(["prod_r1"])
+    // code query + one free-text AND pass only (no OR fallback call)
+    expect(knex.raw).toHaveBeenCalledTimes(2)
+  })
+
+  it("hybrid returns empty when exact code misses (no free-text fallback)", async () => {
+    const knex = mockKnex((sql) => {
+      expect(sql).toMatch(/SUBSTRING/)
+      return []
+    })
+
+    const ids = await filterProductIdsBySearch(
+      knex as any,
+      ["prod_r1", "prod_r1x"],
+      "R99 cake"
+    )
+    expect(ids).toEqual([])
+    expect(knex.raw).toHaveBeenCalledTimes(1)
+  })
+
+  it("two code tokens stay on free-text LIKE path", async () => {
+    const knex = mockKnex((sql, bindings) => {
+      expect(sql).toMatch(/LIKE/)
+      expect(sql).not.toMatch(/SUBSTRING/)
+      const likes = (bindings as unknown[]).slice(1)
+      expect(likes).toContain("%r1%")
+      expect(likes).toContain("%r1x%")
+      return ["prod_r1", "prod_r1x"]
+    })
+
+    const ids = await filterProductIdsBySearch(
+      knex as any,
+      ["prod_r1", "prod_r1x"],
+      "R1 R1X"
+    )
+    expect(ids).toEqual(["prod_r1", "prod_r1x"])
+  })
+
+  it("pure free-text still uses partial LIKE", async () => {
+    const knex = mockKnex((sql, bindings) => {
+      expect(sql).toMatch(/LIKE/)
+      expect(sql).not.toMatch(/SUBSTRING/)
+      expect((bindings as unknown[]).slice(1)).toEqual([
+        "%chocolate%",
+        "%chocolate%",
+        "%chocolate%",
+      ])
+      return ["prod_choc"]
+    })
+
+    const ids = await filterProductIdsBySearch(
+      knex as any,
+      ["prod_choc", "prod_other"],
+      "chocolate"
+    )
+    expect(ids).toEqual(["prod_choc"])
   })
 })
 

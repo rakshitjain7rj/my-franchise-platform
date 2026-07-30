@@ -6,13 +6,19 @@
  * storefront scanning hundreds of products in JS.
  *
  * Query params (stripped / rewritten before Medusa's product handler):
- *   q                           → friendly SQL search (title/handle/description)
+ *   q                           → catalogue search (see modes below)
  *   sponge | flavour | flavor  → sponge option / title match
  *   min_price | minPrice        → cheapest base GBP price ≥ N
  *   max_price | maxPrice        → cheapest base GBP price ≤ N
  *   order=variants.calculated_price… → rewritten to SQL price sort
  *     (Medusa cannot ORDER BY calculated_price — it is not a DB column and
  *      crashes with 500 / empty storefront results)
+ *
+ * Search modes for `q` (see classifyCatalogueSearch):
+ *   - code:    single product-code token (e.g. R1) → exact leading (CODE) in title
+ *   - hybrid:  exactly one code token + free-text → exact code AND free-text tokens
+ *   - free_text: name/flavour search (partial LIKE; multi-word AND then OR)
+ * Product codes live in titles as "(R1) …" — never substring-match codes so R1 ≠ R1X.
  */
 
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
@@ -267,6 +273,66 @@ export function searchTokensFor(raw: string | undefined): string[] {
     .filter((t) => t.length >= 1)
 }
 
+/**
+ * Product-code shape after tokenisation: letters + digits + optional trailing letters.
+ * e.g. r1, r1x, x2, sq12 — not cake, 12, 8inch, r-1.
+ */
+const PRODUCT_CODE_TOKEN_RE = /^[a-z]+\d+[a-z]*$/
+
+export function isProductCodeToken(token: string): boolean {
+  return PRODUCT_CODE_TOKEN_RE.test(token)
+}
+
+export type CatalogueSearchClassification =
+  | { mode: "code"; code: string }
+  | { mode: "hybrid"; code: string; freeTextTokens: string[] }
+  | { mode: "free_text"; tokens: string[] }
+
+/**
+ * Decide how `filterProductIdsBySearch` should treat tokenised query tokens.
+ * - code: single code-shaped token → exact title (CODE) only
+ * - hybrid: exactly one code-shaped among multiple → exact code + free-text AND
+ * - free_text: zero codes, or two+ codes → partial match (legacy path)
+ */
+export function classifyCatalogueSearch(
+  tokens: string[]
+): CatalogueSearchClassification {
+  if (!tokens.length) {
+    return { mode: "free_text", tokens }
+  }
+
+  const codeTokens = tokens.filter(isProductCodeToken)
+  const freeTextTokens = tokens.filter((t) => !isProductCodeToken(t))
+
+  if (tokens.length === 1 && codeTokens.length === 1) {
+    return { mode: "code", code: codeTokens[0] }
+  }
+
+  if (codeTokens.length === 1 && freeTextTokens.length >= 1) {
+    return {
+      mode: "hybrid",
+      code: codeTokens[0],
+      freeTextTokens,
+    }
+  }
+
+  return { mode: "free_text", tokens }
+}
+
+/**
+ * Leading Magento-style product code from title: "(R1) Simple Fresh Cream Cake".
+ * Mid-title parentheses (e.g. servings) are ignored.
+ */
+export function productCodeFromTitle(
+  title: string | null | undefined
+): string | null {
+  if (!title?.trim()) return null
+  const m = title.trim().match(/^\(([^)]+)\)\s*/)
+  if (!m?.[1]) return null
+  const code = m[1].trim().toLowerCase()
+  return code.length ? code : null
+}
+
 // ---------------------------------------------------------------------------
 // SQL filters (knex / PG_CONNECTION)
 // ---------------------------------------------------------------------------
@@ -419,10 +485,12 @@ export async function filterProductIdsByPrice(
 }
 
 /**
- * Friendly free-text search over title, handle, and description.
- * - Partial matches (ILIKE %token%)
- * - Multi-word: all tokens must match (AND); if that yields nothing, fall
- *   back to any-token match (OR) so explorers still see related cakes
+ * Catalogue search over franchise/store candidate product IDs.
+ *
+ * Modes (classifyCatalogueSearch):
+ * - code: exact leading title (CODE) — R1 does not match R1X; miss → empty
+ * - hybrid: exact code, then free-text AND on remaining tokens (no OR fallback)
+ * - free_text: partial LIKE on title/handle/description; multi-word AND then OR
  */
 export async function filterProductIdsBySearch(
   knex: KnexLike,
@@ -433,50 +501,122 @@ export async function filterProductIdsBySearch(
   const tokens = searchTokensFor(searchRaw)
   if (!tokens.length) return productIds
 
-  const run = async (mode: "and" | "or"): Promise<string[]> => {
-    const joiner = mode === "and" ? " AND " : " OR "
-    const tokenClause = tokens
-      .map(
-        () =>
-          `(
+  const classified = classifyCatalogueSearch(tokens)
+
+  if (classified.mode === "code") {
+    return filterProductIdsByExactTitleCode(knex, productIds, classified.code)
+  }
+
+  if (classified.mode === "hybrid") {
+    const byCode = await filterProductIdsByExactTitleCode(
+      knex,
+      productIds,
+      classified.code
+    )
+    if (!byCode.length) return []
+    return filterProductIdsByFreeTextTokens(
+      knex,
+      byCode,
+      classified.freeTextTokens,
+      "and"
+    )
+  }
+
+  // free_text: AND first; if multi-token AND is empty, OR fallback
+  const andHits = await filterProductIdsByFreeTextTokens(
+    knex,
+    productIds,
+    classified.tokens,
+    "and"
+  )
+  if (andHits.length || classified.tokens.length === 1) return andHits
+  return filterProductIdsByFreeTextTokens(
+    knex,
+    productIds,
+    classified.tokens,
+    "or"
+  )
+}
+
+/**
+ * Products whose leading title code equals `code` (case-insensitive).
+ * Title pattern: "(R1) …" — mid-title parentheses are not used.
+ */
+async function filterProductIdsByExactTitleCode(
+  knex: KnexLike,
+  productIds: string[],
+  code: string
+): Promise<string[]> {
+  if (!productIds.length || !code) return []
+
+  const sql = `
+    WITH candidates AS (
+      SELECT UNNEST(?::text[]) AS product_id
+    )
+    SELECT p.id AS product_id
+    FROM product p
+    INNER JOIN candidates c ON c.product_id = p.id
+    WHERE p.deleted_at IS NULL
+      AND LOWER(SUBSTRING(p.title FROM '^\\(([^)]+)\\)')) = ?
+  `
+
+  const result = await knex.raw(sql, [productIds, code.toLowerCase()])
+  const rows = extractRows(
+    result as { rows?: Array<Record<string, unknown>> }
+  )
+  return rows
+    .map((r) => r.product_id as string)
+    .filter((id): id is string => Boolean(id))
+}
+
+/** Partial match on title / handle / description for free-text tokens. */
+async function filterProductIdsByFreeTextTokens(
+  knex: KnexLike,
+  productIds: string[],
+  tokens: string[],
+  mode: "and" | "or"
+): Promise<string[]> {
+  if (!productIds.length) return []
+  if (!tokens.length) return productIds
+
+  const joiner = mode === "and" ? " AND " : " OR "
+  const tokenClause = tokens
+    .map(
+      () =>
+        `(
             LOWER(p.title) LIKE ?
             OR LOWER(COALESCE(p.handle, '')) LIKE ?
             OR LOWER(COALESCE(p.description, '')) LIKE ?
           )`
-      )
-      .join(joiner)
-
-    const sql = `
-      WITH candidates AS (
-        SELECT UNNEST(?::text[]) AS product_id
-      )
-      SELECT p.id AS product_id
-      FROM product p
-      INNER JOIN candidates c ON c.product_id = p.id
-      WHERE p.deleted_at IS NULL
-        AND (${tokenClause})
-    `
-
-    const bindings: unknown[] = [
-      productIds,
-      ...tokens.flatMap((t) => {
-        const like = `%${t}%`
-        return [like, like, like]
-      }),
-    ]
-
-    const result = await knex.raw(sql, bindings)
-    const rows = extractRows(
-      result as { rows?: Array<Record<string, unknown>> }
     )
-    return rows
-      .map((r) => r.product_id as string)
-      .filter((id): id is string => Boolean(id))
-  }
+    .join(joiner)
 
-  const andHits = await run("and")
-  if (andHits.length || tokens.length === 1) return andHits
-  return run("or")
+  const sql = `
+    WITH candidates AS (
+      SELECT UNNEST(?::text[]) AS product_id
+    )
+    SELECT p.id AS product_id
+    FROM product p
+    INNER JOIN candidates c ON c.product_id = p.id
+    WHERE p.deleted_at IS NULL
+      AND (${tokenClause})
+  `
+
+  const bindings: unknown[] = [
+    productIds,
+    ...tokens.flatMap((t) => {
+      const like = `%${t}%`
+      return [like, like, like]
+    }),
+  ]
+
+  const result = await knex.raw(sql, bindings)
+  const rows = extractRows(
+    result as { rows?: Array<Record<string, unknown>> }
+  )
+  return rows
+    .map((r) => r.product_id as string)
+    .filter((id): id is string => Boolean(id))
 }
 
 /**
