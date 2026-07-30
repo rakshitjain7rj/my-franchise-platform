@@ -75,7 +75,7 @@ const SOCIAL_LINKS: {
   },
   {
     label: "Instagram",
-    href: "https://www.instagram.com/eggfreecakebreak/",
+    href: "https://www.instagram.com/eggfree_cakebreak?utm_source=qr",
     icon: InstagramIcon,
   },
   {
