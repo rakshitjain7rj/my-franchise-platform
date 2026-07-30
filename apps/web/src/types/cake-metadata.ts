@@ -245,9 +245,17 @@ export function toCanonicalAttrKey(key: string): string {
 
 /**
  * Whether a product option title represents sponge flavour.
+ * Catalogue products use "Sponge" / "Sponge Flavour"; seeds may use "Flavor".
+ * Matching all of these prevents a second metadata-driven flavour picker
+ * when the product already has a sponge option (and maps ATC → flavour).
  */
 export function isFlavourOptionTitle(title: string): boolean {
-  return /^flavou?r$/i.test(title.trim())
+  const t = title.trim()
+  return (
+    /^flavou?r$/i.test(t) ||
+    /^sponge(\s+flavou?r)?$/i.test(t) ||
+    /^sponge\s+type$/i.test(t)
+  )
 }
 
 /**

@@ -7,8 +7,10 @@ import {
   collectionSlotToCartMetadata,
   extractSlotStartTime,
   getLineCollectionSlot,
+  isFlavourOptionTitle,
   isFulfillmentOptionTitle,
   productLooksLikeCupcake,
+  resolveSupportedFlavours,
   supportsJamFilling,
 } from "./cake-metadata"
 
@@ -19,6 +21,29 @@ function assert(cond: unknown, msg: string) {
 assert(isFulfillmentOptionTitle("Delivery Method"), "Delivery Method is fulfillment option")
 assert(isFulfillmentOptionTitle("fulfillment"), "fulfillment is fulfillment option")
 assert(!isFulfillmentOptionTitle("Size"), "Size is not fulfillment option")
+
+assert(isFlavourOptionTitle("Flavour"), "Flavour is flavour option")
+assert(isFlavourOptionTitle("Flavor"), "Flavor is flavour option")
+assert(isFlavourOptionTitle("Sponge"), "Sponge is flavour option")
+assert(isFlavourOptionTitle("Sponge Flavour"), "Sponge Flavour is flavour option")
+assert(!isFlavourOptionTitle("Size"), "Size is not flavour option")
+assert(
+  resolveSupportedFlavours({
+    options: [
+      {
+        title: "Sponge",
+        values: [
+          { value: "Victoria Sponge" },
+          { value: "Chocolate Sponge" },
+        ],
+      },
+    ],
+    metadata: {
+      supported_flavours: JSON.stringify(["Should not win"]),
+    },
+  }).join(",") === "Victoria Sponge,Chocolate Sponge",
+  "Sponge product option wins over supported_flavours metadata"
+)
 
 assert(
   productLooksLikeCupcake({ title: "Chocolate Cupcakes" }),
