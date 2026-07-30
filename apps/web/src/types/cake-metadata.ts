@@ -8,7 +8,8 @@
  *
  * Backend order decorator (`/admin/cake-orders`) reads these keys (plus
  * legacy capitalized aliases) via case-insensitive matching, including `jam`
- * ("Mixed Jam" | "No Jam") for the product-detail jam-filling selector.
+ * ("Mixed Jam" | "No Jam") when the storefront offers jam filling.
+ * Cupcakes omit `jam` (see `supportsJamFilling`).
  */
 
 // ---------------------------------------------------------------------------
@@ -81,6 +82,13 @@ export type LineItemCakeMetadata = {
 export type ProductCakeMetadata = {
   supports_inscription?: boolean | string
   supports_photo_upload?: boolean | string
+  /**
+   * Whether the product-detail page offers Mixed Jam / No Jam.
+   * Explicit `true` / `false` (or string equivalents) override the
+   * title/handle cupcake heuristic; omit → infer at runtime.
+   * Storefront-only — not enforced on the backend.
+   */
+  supports_jam_filling?: boolean | string
   /**
    * Flavours offered when the product has no Flavor/Flavour option.
    * May be a JSON array string or a comma-separated list.
@@ -353,6 +361,42 @@ export function parseProductCakeMetadata(
 
 export function isTruthyMetaFlag(value: unknown): boolean {
   return value === true || value === "true" || value === "1" || value === 1
+}
+
+export function isFalsyMetaFlag(value: unknown): boolean {
+  return value === false || value === "false" || value === "0" || value === 0
+}
+
+/**
+ * Title/handle heuristic for cupcake products (case-insensitive "cupcake").
+ */
+export function productLooksLikeCupcake(product: {
+  title?: string | null
+  handle?: string | null
+}): boolean {
+  return (
+    /cupcake/i.test(product.title ?? "") ||
+    /cupcake/i.test(product.handle ?? "")
+  )
+}
+
+/**
+ * Whether the storefront should offer jam filling and write `jam` on ATC.
+ *
+ * Resolution order:
+ *  1. Explicit `metadata.supports_jam_filling` truthy → true
+ *  2. Explicit falsy → false
+ *  3. Omit → false when title/handle looks like a cupcake, else true
+ */
+export function supportsJamFilling(product: {
+  title?: string | null
+  handle?: string | null
+  metadata?: Record<string, unknown> | null
+}): boolean {
+  const raw = product.metadata?.supports_jam_filling
+  if (isTruthyMetaFlag(raw)) return true
+  if (isFalsyMetaFlag(raw)) return false
+  return !productLooksLikeCupcake(product)
 }
 
 /**

@@ -61,6 +61,7 @@ export function PurchasePanel({
     handleOptionChange,
     metadataFlavour,
     setMetadataFlavour,
+    supportsJamFilling,
     jamOption,
     setJamOption,
     collectionDate,
@@ -236,61 +237,65 @@ export function PurchasePanel({
             )}
           </div>
 
-          <div className="flex flex-col gap-2 bg-white p-3.5 rounded-2xl border border-outline-variant/30 transition-all duration-300">
-            <div className="flex items-center gap-2 text-vibrant-magenta">
-              <JamIcon />
-              <span className="text-xs font-bold text-on-surface-variant/90 uppercase tracking-wider">
-                Jam Filling
-              </span>
-            </div>
-            <div
-              className="grid grid-cols-2 gap-2"
-              role="radiogroup"
-              aria-label="Jam filling"
-            >
-              {JAM_OPTIONS.map((opt) => {
-                const selected = jamOption === opt;
-                return (
-                  <button
-                    key={opt}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    onClick={() => setJamOption(opt)}
-                    className={`w-full rounded-xl border-2 px-3 py-3 text-left transition-all ${
-                      selected
-                        ? "border-vibrant-magenta bg-vibrant-magenta/10 shadow-sm"
-                        : "border-outline-variant/40 bg-lavender-bg/20 hover:border-vibrant-magenta/40"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span
-                        className={`text-sm font-semibold leading-snug ${
-                          selected ? "text-deep-plum" : "text-on-surface-variant"
-                        }`}
-                      >
-                        {opt}
-                      </span>
-                      <span
-                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-                          selected
-                            ? "border-vibrant-magenta"
-                            : "border-outline-variant"
-                        }`}
-                        aria-hidden
-                      >
+          {supportsJamFilling && (
+            <div className="flex flex-col gap-2 bg-white p-3.5 rounded-2xl border border-outline-variant/30 transition-all duration-300">
+              <div className="flex items-center gap-2 text-vibrant-magenta">
+                <JamIcon />
+                <span className="text-xs font-bold text-on-surface-variant/90 uppercase tracking-wider">
+                  Jam Filling
+                </span>
+              </div>
+              <div
+                className="grid grid-cols-2 gap-2"
+                role="radiogroup"
+                aria-label="Jam filling"
+              >
+                {JAM_OPTIONS.map((opt) => {
+                  const selected = jamOption === opt;
+                  return (
+                    <button
+                      key={opt}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      onClick={() => setJamOption(opt)}
+                      className={`w-full rounded-xl border-2 px-3 py-3 text-left transition-all ${
+                        selected
+                          ? "border-vibrant-magenta bg-vibrant-magenta/10 shadow-sm"
+                          : "border-outline-variant/40 bg-lavender-bg/20 hover:border-vibrant-magenta/40"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
                         <span
-                          className={`h-2 w-2 rounded-full bg-vibrant-magenta transition-transform duration-150 ${
-                            selected ? "scale-100" : "scale-0"
+                          className={`text-sm font-semibold leading-snug ${
+                            selected
+                              ? "text-deep-plum"
+                              : "text-on-surface-variant"
                           }`}
-                        />
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
+                        >
+                          {opt}
+                        </span>
+                        <span
+                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                            selected
+                              ? "border-vibrant-magenta"
+                              : "border-outline-variant"
+                          }`}
+                          aria-hidden
+                        >
+                          <span
+                            className={`h-2 w-2 rounded-full bg-vibrant-magenta transition-transform duration-150 ${
+                              selected ? "scale-100" : "scale-0"
+                            }`}
+                          />
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {selectableOptions.length > 0 && (

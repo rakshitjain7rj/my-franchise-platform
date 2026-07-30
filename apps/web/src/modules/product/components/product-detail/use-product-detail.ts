@@ -36,6 +36,7 @@ import {
   resolveServingsForVariant,
   resolveStorageServingText,
   resolveSupportedFlavours,
+  supportsJamFilling as resolveSupportsJamFilling,
   type JamOption,
 } from "@/types/cake-metadata";
 import { getVariantPrice } from "./price";
@@ -133,6 +134,8 @@ export function useProductDetail(product: MedusaProduct) {
   const supportsInscription = isTruthyMetaFlag(
     product.metadata?.supports_inscription
   );
+
+  const supportsJamFilling = resolveSupportsJamFilling(product);
 
   const supportsPhotoUpload =
     isTruthyMetaFlag(product.metadata?.supports_photo_upload) ||
@@ -401,7 +404,7 @@ export function useProductDetail(product: MedusaProduct) {
       const customAttributes = buildCustomAttributes({
         flavour: resolvedFlavour || undefined,
         servings: servingsLabel || undefined,
-        jam: jamOption,
+        jam: supportsJamFilling ? jamOption : undefined,
         date: collectionDate,
         time: collectionTimeLabel || collectionTime,
         message: specialMessage.trim() || undefined,
@@ -447,6 +450,7 @@ export function useProductDetail(product: MedusaProduct) {
     resolvedFlavour,
     servingsLabel,
     supportsInscription,
+    supportsJamFilling,
     storeLocationId,
     storeLocations.length,
     addToCart,
@@ -501,6 +505,7 @@ export function useProductDetail(product: MedusaProduct) {
     ingredientsText,
     storageText,
     supportsInscription,
+    supportsJamFilling,
     supportsPhotoUpload,
     // store
     storeLocationId,

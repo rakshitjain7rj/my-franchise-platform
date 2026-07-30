@@ -8,6 +8,8 @@ import {
   extractSlotStartTime,
   getLineCollectionSlot,
   isFulfillmentOptionTitle,
+  productLooksLikeCupcake,
+  supportsJamFilling,
 } from "./cake-metadata"
 
 function assert(cond: unknown, msg: string) {
@@ -17,6 +19,53 @@ function assert(cond: unknown, msg: string) {
 assert(isFulfillmentOptionTitle("Delivery Method"), "Delivery Method is fulfillment option")
 assert(isFulfillmentOptionTitle("fulfillment"), "fulfillment is fulfillment option")
 assert(!isFulfillmentOptionTitle("Size"), "Size is not fulfillment option")
+
+assert(
+  productLooksLikeCupcake({ title: "Chocolate Cupcakes" }),
+  "title cupcake heuristic"
+)
+assert(
+  productLooksLikeCupcake({ handle: "vanilla-cupcake-box" }),
+  "handle cupcake heuristic"
+)
+assert(
+  !productLooksLikeCupcake({ title: "Birthday Cake", handle: "birthday-cake" }),
+  "full cake is not cupcake"
+)
+
+assert(
+  !supportsJamFilling({ title: "Chocolate Cupcakes" }),
+  "cupcake title → no jam"
+)
+assert(
+  !supportsJamFilling({ handle: "vanilla-cupcake-box" }),
+  "cupcake handle → no jam"
+)
+assert(
+  supportsJamFilling({ title: "Birthday Cake", handle: "birthday-cake" }),
+  "full cake → jam by default"
+)
+assert(
+  supportsJamFilling({
+    title: "Chocolate Cupcakes",
+    metadata: { supports_jam_filling: true },
+  }),
+  "explicit true overrides cupcake heuristic"
+)
+assert(
+  !supportsJamFilling({
+    title: "Birthday Cake",
+    metadata: { supports_jam_filling: false },
+  }),
+  "explicit false overrides cake"
+)
+assert(
+  !supportsJamFilling({
+    title: "Birthday Cake",
+    metadata: { supports_jam_filling: "false" },
+  }),
+  "string false overrides cake"
+)
 
 const attrs = buildCustomAttributes({
   jam: "Mixed Jam",
@@ -30,6 +79,13 @@ const attrs = buildCustomAttributes({
 assert(!("Delivery Method" in attrs), "must not write Delivery Method option")
 assert(attrs.Size?.includes("8"), "Size option kept")
 assert(attrs.time === "12:30 – 13:00", "time label kept on line attrs")
+
+const attrsNoJam = buildCustomAttributes({
+  date: "2026-07-20",
+  time: "12:30 – 13:00",
+  jam: undefined,
+})
+assert(!("jam" in attrsNoJam), "omit jam when undefined")
 
 const slot = collectionSlotToCartMetadata({
   date: "2026-07-20",
