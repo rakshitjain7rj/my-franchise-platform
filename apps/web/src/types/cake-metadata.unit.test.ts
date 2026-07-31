@@ -9,7 +9,10 @@ import {
   getLineCollectionSlot,
   isFlavourOptionTitle,
   isFulfillmentOptionTitle,
+  productHasCakeCategory,
+  productHasCakeWord,
   productLooksLikeCupcake,
+  productMatchesJamDenyPattern,
   resolveSupportedFlavours,
   supportsJamFilling,
 } from "./cake-metadata"
@@ -45,6 +48,8 @@ assert(
   "Sponge product option wins over supported_flavours metadata"
 )
 
+// --- Jam: cake-word / deny / category helpers ---
+
 assert(
   productLooksLikeCupcake({ title: "Chocolate Cupcakes" }),
   "title cupcake heuristic"
@@ -59,6 +64,45 @@ assert(
 )
 
 assert(
+  productHasCakeWord({ title: "Birthday Cake", handle: "birthday-cake" }),
+  "cake word on title/handle"
+)
+assert(
+  !productHasCakeWord({ title: "Chocolate Cupcakes" }),
+  "cupcakes is not cake word boundary"
+)
+assert(
+  productHasCakeCategory([{ handle: "round-cakes" }]),
+  "round-cakes is cake category"
+)
+assert(
+  productHasCakeCategory([{ handle: "photo-cake" }]),
+  "photo-cake is cake category"
+)
+assert(
+  !productHasCakeCategory([{ handle: "cupcakes-slices-and-extras" }]),
+  "extras category excluded"
+)
+assert(
+  !productHasCakeCategory([{ handle: "christmas" }]),
+  "seasonal without cake does not grant"
+)
+assert(
+  productMatchesJamDenyPattern({ title: "Cake Slice" }),
+  "slice deny"
+)
+assert(
+  productMatchesJamDenyPattern({ title: "Lemon Drizzle Loaf" }),
+  "loaf deny"
+)
+
+// --- supportsJamFilling (opt-in cakes only) ---
+
+assert(
+  supportsJamFilling({ title: "Birthday Cake", handle: "birthday-cake" }),
+  "full cake → jam"
+)
+assert(
   !supportsJamFilling({ title: "Chocolate Cupcakes" }),
   "cupcake title → no jam"
 )
@@ -67,15 +111,63 @@ assert(
   "cupcake handle → no jam"
 )
 assert(
-  supportsJamFilling({ title: "Birthday Cake", handle: "birthday-cake" }),
-  "full cake → jam by default"
+  !supportsJamFilling({ title: "Cake Slice", handle: "cake-slice" }),
+  "cake slice → no jam (deny wins)"
+)
+assert(
+  !supportsJamFilling({ title: "Something Cake Slice" }),
+  "cake + slice → deny wins over cake word"
+)
+assert(
+  !supportsJamFilling({ title: "Giant Cookie" }),
+  "cookie → no jam"
+)
+assert(
+  !supportsJamFilling({ title: "Chocolate Bouquet" }),
+  "bouquet → no jam"
+)
+assert(
+  !supportsJamFilling({ title: "Lemon Drizzle Loaf" }),
+  "loaf → no jam"
+)
+assert(
+  supportsJamFilling({
+    title: "Red Velvet Symphony",
+    categories: [{ handle: "round-cakes" }],
+  }),
+  "no cake word but cake category → jam"
+)
+assert(
+  !supportsJamFilling({ title: "Red Velvet Symphony" }),
+  "no cake word, no categories → no jam"
+)
+assert(
+  !supportsJamFilling({
+    title: "Festive Treat",
+    categories: [{ handle: "christmas" }],
+  }),
+  "seasonal category alone → no jam"
+)
+assert(
+  supportsJamFilling({
+    title: "Photo Print",
+    categories: [{ handle: "photo-cake" }],
+  }),
+  "photo-cake category → jam"
+)
+assert(
+  !supportsJamFilling({
+    title: "Vanilla Box",
+    categories: [{ handle: "cupcakes-slices-and-extras" }],
+  }),
+  "extras category alone → no jam"
 )
 assert(
   supportsJamFilling({
     title: "Chocolate Cupcakes",
     metadata: { supports_jam_filling: true },
   }),
-  "explicit true overrides cupcake heuristic"
+  "explicit true overrides deny"
 )
 assert(
   !supportsJamFilling({

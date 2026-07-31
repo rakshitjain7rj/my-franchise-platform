@@ -109,6 +109,9 @@ const PRODUCT_DETAIL_FIELDS = [
   "+metadata",
   "tags.id",
   "tags.value",
+  "categories.id",
+  "categories.name",
+  "categories.handle",
   "collection.id",
   "collection.title",
   "collection.handle",
@@ -163,7 +166,8 @@ const getCachedProductByHandle = unstable_cache(
       return null;
     }
   },
-  ["product-detail-cache"],
+  // v2: includes product categories for jam-filling cake detection
+  ["product-detail-cache-v2"],
   {
     revalidate: 60,
     tags: ["products"],

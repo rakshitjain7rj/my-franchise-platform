@@ -74,6 +74,7 @@ export interface MedusaProduct {
   material?: string | null;
   metadata?: Record<string, unknown> | null;
   tags?: Array<{ id: string; value: string }>;
+  categories?: Array<{ id: string; name: string; handle: string }> | null;
   collection?: { id: string; title: string; handle: string } | null;
   type?: { id: string; value: string } | null;
 }

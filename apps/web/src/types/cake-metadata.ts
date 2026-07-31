@@ -9,7 +9,7 @@
  * Backend order decorator (`/admin/cake-orders`) reads these keys (plus
  * legacy capitalized aliases) via case-insensitive matching, including `jam`
  * ("Mixed Jam" | "No Jam") when the storefront offers jam filling.
- * Cupcakes omit `jam` (see `supportsJamFilling`).
+ * Jam is opt-in for celebration cakes only (see `supportsJamFilling`).
  */
 
 // ---------------------------------------------------------------------------
@@ -84,9 +84,9 @@ export type ProductCakeMetadata = {
   supports_photo_upload?: boolean | string
   /**
    * Whether the product-detail page offers Mixed Jam / No Jam.
-   * Explicit `true` / `false` (or string equivalents) override the
-   * title/handle cupcake heuristic; omit → infer at runtime.
-   * Storefront-only — not enforced on the backend.
+   * Explicit `true` / `false` (or string equivalents) override cake
+   * detection; omit → opt-in only for celebration cakes (see
+   * `supportsJamFilling`). Storefront-only — not enforced on the backend.
    */
   supports_jam_filling?: boolean | string
   /**
@@ -375,36 +375,89 @@ export function isFalsyMetaFlag(value: unknown): boolean {
   return value === false || value === "false" || value === "0" || value === 0
 }
 
+/** Category handle that mixes cupcakes/slices/extras — never grants jam alone. */
+export const JAM_EXCLUDED_CATEGORY_HANDLE = "cupcakes-slices-and-extras"
+
+const JAM_DENY_PATTERN =
+  /cupcake|\bslices?\b|\bcookies?\b|bouquet|\bloaf\b/i
+
+const CAKE_WORD_PATTERN = /\bcakes?\b/i
+
+function productTextBlob(product: {
+  title?: string | null
+  handle?: string | null
+}): string {
+  return `${product.title ?? ""} ${product.handle ?? ""}`
+}
+
 /**
- * Title/handle heuristic for cupcake products (case-insensitive "cupcake").
+ * Non-cake product signals that always suppress jam (unless metadata forces on).
+ */
+export function productMatchesJamDenyPattern(product: {
+  title?: string | null
+  handle?: string | null
+}): boolean {
+  return JAM_DENY_PATTERN.test(productTextBlob(product))
+}
+
+/**
+ * Title/handle contains the word cake / cakes (not a mere substring of cupcake).
+ */
+export function productHasCakeWord(product: {
+  title?: string | null
+  handle?: string | null
+}): boolean {
+  return CAKE_WORD_PATTERN.test(productTextBlob(product))
+}
+
+/**
+ * Product is in a cake category (handle contains "cake"), excluding
+ * cupcakes-slices-and-extras. Seasonal handles without "cake" do not qualify.
+ */
+export function productHasCakeCategory(
+  categories?: Array<{ handle?: string | null }> | null
+): boolean {
+  if (!categories?.length) return false
+  return categories.some((cat) => {
+    const handle = (cat.handle ?? "").trim()
+    if (!handle) return false
+    if (handle === JAM_EXCLUDED_CATEGORY_HANDLE) return false
+    return /cake/i.test(handle)
+  })
+}
+
+/**
+ * @deprecated Prefer `productMatchesJamDenyPattern` / `supportsJamFilling`.
+ * Kept as a thin alias for cupcake title/handle checks.
  */
 export function productLooksLikeCupcake(product: {
   title?: string | null
   handle?: string | null
 }): boolean {
-  return (
-    /cupcake/i.test(product.title ?? "") ||
-    /cupcake/i.test(product.handle ?? "")
-  )
+  return /cupcake/i.test(productTextBlob(product))
 }
 
 /**
  * Whether the storefront should offer jam filling and write `jam` on ATC.
  *
- * Resolution order:
+ * Opt-in for celebration cakes only. Resolution order:
  *  1. Explicit `metadata.supports_jam_filling` truthy → true
  *  2. Explicit falsy → false
- *  3. Omit → false when title/handle looks like a cupcake, else true
+ *  3. Deny patterns (cupcake, slice(s), cookie(s), bouquet, loaf) → false
+ *  4. Cake word on title/handle OR cake category → true
+ *  5. Else → false
  */
 export function supportsJamFilling(product: {
   title?: string | null
   handle?: string | null
   metadata?: Record<string, unknown> | null
+  categories?: Array<{ handle?: string | null }> | null
 }): boolean {
   const raw = product.metadata?.supports_jam_filling
   if (isTruthyMetaFlag(raw)) return true
   if (isFalsyMetaFlag(raw)) return false
-  return !productLooksLikeCupcake(product)
+  if (productMatchesJamDenyPattern(product)) return false
+  return productHasCakeWord(product) || productHasCakeCategory(product.categories)
 }
 
 /**
