@@ -273,7 +273,7 @@ export default function CatalogueFilters({
   availableCategories,
   totalCount,
 }: CatalogueFiltersProps) {
-  const { searchParams, isPending, updateParams, clearAll } =
+  const { searchParams, isPending, updateParams, clearAll, pathname } =
     useCatalogueParams();
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
