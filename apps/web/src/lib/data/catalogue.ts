@@ -409,9 +409,12 @@ async function resolveFilterIds(
   }
 
   let categoryIds = filters.categoryIds;
-  if (filters.categories?.length && !categoryIds?.length) {
+  const requestedCategoryHandles = filters.categories?.length
+    ? filters.categories
+    : null;
+  if (requestedCategoryHandles?.length && !categoryIds?.length) {
     const allCats = await fetchCatalogueCategories();
-    categoryIds = filters.categories
+    categoryIds = requestedCategoryHandles
       .map((handleOrId) => {
         if (handleOrId.startsWith("pcat_")) return handleOrId;
         return (
@@ -421,6 +424,24 @@ async function resolveFilterIds(
         );
       })
       .filter((id): id is string => !!id);
+  }
+
+  // If the user selected categories but none resolved to IDs, do NOT drop the
+  // filter (that would return the full franchise catalogue). Signal empty set.
+  if (requestedCategoryHandles?.length && !categoryIds?.length) {
+    console.warn(
+      "[catalogue] category handles did not resolve; returning empty product set:",
+      requestedCategoryHandles
+    );
+    return {
+      ...filters,
+      tags: undefined,
+      categories: undefined,
+      tagIds,
+      categoryIds: undefined,
+      // Impossible allow-list → Medusa returns zero products.
+      productIds: ["__no_such_product__"],
+    };
   }
 
   return {
