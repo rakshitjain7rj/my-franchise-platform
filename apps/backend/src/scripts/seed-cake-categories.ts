@@ -286,24 +286,31 @@ const PREFIX_TO_HANDLES: Record<string, string[]> = {
   cb: ["chocolate-bouquets"],
   um: ["umrah-and-hajj-mubarak-cake"],
   uhm: ["umrah-and-hajj-mubarak-cake"],
+  // Designer / themed SKU lines used on live catalogue (DH / DT)
+  dh: ["novelty-kids-cakes"],
+  dt: ["novelty-kids-cakes"],
 }
 
 /** Title/handle keyword overrides that always add categories. */
 const KEYWORD_RULES: Array<{ pattern: RegExp; handles: string[] }> = [
   { pattern: /vegan|dairy[\s-]*free/i, handles: ["vegan-cakes-dairy-free"] },
-  { pattern: /cupcake/i, handles: ["cupcakes-slices-and-extras"] },
+  // "Cup Cakes", "cupcakes", "(C13) Cup Cakes"
+  { pattern: /cup\s*cakes?/i, handles: ["cupcakes-slices-and-extras"] },
   { pattern: /cookie/i, handles: ["giant-cookies"] },
   { pattern: /bouquet/i, handles: ["chocolate-bouquets"] },
   { pattern: /photo/i, handles: ["photo-cake"] },
   { pattern: /double[\s-]*tall/i, handles: ["double-tall-cakes"] },
   { pattern: /double[\s-]*high/i, handles: ["double-tall-cakes"] },
+  // Standalone tall wording (prefix "tall" also maps via extractPrefix)
+  { pattern: /\btall\b/i, handles: ["tall-cakes"] },
+  { pattern: /\bicing\b|fondant/i, handles: ["icing-cakes"] },
   { pattern: /wedding/i, handles: ["wedding-cakes"] },
   { pattern: /graduation|grad\b/i, handles: ["graduation-cakes"] },
   { pattern: /christening|baptism|communion|baby\s*shower|gender\s*reveal/i, handles: ["baby-shower-cakes"] },
   { pattern: /christmas|xmas|santa|reindeer|holly/i, handles: ["christmas"] },
   { pattern: /diwali/i, handles: ["diwali-cakes"] },
   { pattern: /\beid\b|mubarak/i, handles: ["eid-cakes"] },
-  { pattern: /umrah|hajj/i, handles: ["umrah-and-hajj-mubarak-cake"] },
+  { pattern: /umrah|hajj|\buhm\b|\bum\b/i, handles: ["umrah-and-hajj-mubarak-cake"] },
   { pattern: /lohri/i, handles: ["lohri-cakes"] },
   { pattern: /raksha|rakhri|rakhi/i, handles: ["raksha-bandhan"] },
   { pattern: /valentine|heart/i, handles: ["valentines", "heart-cake"] },
@@ -313,23 +320,42 @@ const KEYWORD_RULES: Array<{ pattern: RegExp; handles: string[] }> = [
   { pattern: /vaisakhi|baisakhi/i, handles: ["vaisakhi-cakes"] },
   { pattern: /doll|barbie|elsa|princess\s*doll/i, handles: ["doll-cakes"] },
   { pattern: /number[\s-]?\d|digit/i, handles: ["number-cakes"] },
+  { pattern: /\btier(ed)?\b|\b2\s*tier\b/i, handles: ["tiered-cakes"] },
   {
     pattern:
-      /spiderman|batman|avengers|unicorn|dinosaur|teddy|bluey|encanto|minnie|harry\s*potter|frozen|paw\s*patrol/i,
+      /spiderman|batman|avengers|unicorn|dinosaur|teddy|bluey|encanto|minnie|harry\s*potter|frozen|paw\s*patrol|lilo|stitch|masha|lego|deadpool|wolverine|astronaut|rolex|train\s*cake|k-?pop|boss\s*baby|jungle|lion|omar\s*&\s*hana|friends\s*cake|rainbow\s*birthday|versace|character\s*themed/i,
     handles: ["novelty-kids-cakes"],
   },
 ]
 
+// Letters we recognise as product-code prefixes (longest first for handle matching).
+const PREFIX_TOKEN =
+  "tall|uhm|wfc|nk|td|ic|ex|gc|cb|di|lo|rb|um|dh|dt|r|s|h|n|b|w|x|t|d|v|c|e"
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+/**
+ * Extract catalogue SKU prefix from title/handle.
+ * Tolerates messy live titles: "( R161 )", "(Tall 81)", "(UM-2)", "(DH12)", "( nk126)".
+ */
 function extractPrefix(title: string, handle: string): string | null {
-  const fromTitle = title?.match(/\(([A-Za-z]+)\d+\)/)
+  // ( PREFIX 123 ) or (PREFIX-123) with optional inner spaces
+  const fromTitle = title?.match(
+    new RegExp(`\\(\\s*(${PREFIX_TOKEN})[\\s\\-]*(\\d+)\\s*\\)`, "i")
+  )
   if (fromTitle) return fromTitle[1].toLowerCase()
 
-  const fromHandle = handle?.match(
-    /(?:^|-)(r|s|nk|td|ic|wfc|w|x|h|n|d|t|tall|b|lo|rb|ex|v|uhm|um|di|gc|cb|c|e)\d+$/i
+  // Handle leading code: r150-…, dh12-…, tall-81-…, c13-…
+  const fromHandleLead = handle?.match(
+    new RegExp(`^(${PREFIX_TOKEN})[\\-]?(\\d+)`, "i")
   )
-  if (fromHandle) return fromHandle[1].toLowerCase()
+  if (fromHandleLead) return fromHandleLead[1].toLowerCase()
+
+  // Handle trailing code: …-r1, …-nk126
+  const fromHandleTail = handle?.match(
+    new RegExp(`(?:^|-)(${PREFIX_TOKEN})(\\d+)$`, "i")
+  )
+  if (fromHandleTail) return fromHandleTail[1].toLowerCase()
 
   return null
 }
@@ -347,6 +373,11 @@ function heuristicHandles(title: string, handle: string): string[] {
     if (rule.pattern.test(blob)) {
       for (const h of rule.handles) handles.add(h)
     }
+  }
+
+  // "double tall" should not also force the plain tall-cakes bucket from the tall keyword
+  if (/double[\s-]*(tall|high)/i.test(blob)) {
+    handles.delete("tall-cakes")
   }
 
   return Array.from(handles)
