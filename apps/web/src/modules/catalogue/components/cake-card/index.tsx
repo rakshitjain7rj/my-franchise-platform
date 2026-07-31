@@ -9,6 +9,7 @@ import {
   getCheapestVariant,
   isProductAvailable,
 } from "@/lib/data/catalogue";
+import { displayCategoryBadge } from "@/modules/home/lib/category-display";
 
 interface CakeCardProps {
   product: CatalogueProduct;
@@ -20,7 +21,10 @@ export default function CakeCard({ product }: CakeCardProps) {
   const activeVariant = getCheapestVariant(product.variants);
   const priceStr = activeVariant ? formatVariantPrice(activeVariant) : null;
   const imageUrl = product.thumbnail ?? product.images?.[0]?.url;
-  const categoryLabel = product.categories?.[0]?.name ?? null;
+  const primaryCat = product.categories?.[0] ?? null;
+  const categoryLabel = primaryCat
+    ? displayCategoryBadge(primaryCat)
+    : null;
 
   // Clean product codes like "(R1) Simple Fresh Cream Cake" → title + code badge
   const codeMatch = product.title.match(/^\(([^)]+)\)\s*(.*)$/);
@@ -52,7 +56,7 @@ export default function CakeCard({ product }: CakeCardProps) {
 
         {categoryLabel && (
           <span className="absolute left-2 top-2 rounded-full bg-white/95 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-deep-plum shadow-sm backdrop-blur">
-            {categoryLabel.replace(/ Cakes?$/i, "")}
+            {categoryLabel}
           </span>
         )}
 

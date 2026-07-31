@@ -20,6 +20,10 @@ import {
   type CatalogueCategory,
   type SortKey,
 } from "@/lib/data/catalogue";
+import {
+  displayCategoryBadge,
+  displayCategoryName,
+} from "@/modules/home/lib/category-display";
 import { PremiumSelect } from "@/components/ui/premium-select";
 
 // ---------------------------------------------------------------------------
@@ -351,7 +355,9 @@ export default function CatalogueFilters({
                 Collection
               </p>
               <h1 className="truncate font-headline text-base font-extrabold tracking-tight text-deep-plum md:text-lg">
-                {activeCategory ? activeCategory.name : "Cake catalogue"}
+                {activeCategory
+                  ? displayCategoryName(activeCategory)
+                  : "Cake catalogue"}
               </h1>
             </div>
             <p className="shrink-0 text-xs font-semibold tabular-nums text-on-surface-variant sm:hidden">
@@ -418,7 +424,7 @@ export default function CatalogueFilters({
             <div className="flex min-w-0 flex-wrap items-center gap-1.5 sm:ml-auto">
               {currentCat && activeCategory && (
                 <FilterChip
-                  label={activeCategory.name}
+                  label={displayCategoryName(activeCategory)}
                   onRemove={() => updateParams({ cats: "" })}
                 />
               )}
@@ -486,7 +492,7 @@ export default function CatalogueFilters({
                       cats: currentCat === cat.handle ? "" : cat.handle,
                     })
                   }
-                  label={cat.name.replace(/ Cakes?$/i, "")}
+                  label={displayCategoryBadge(cat)}
                 />
               ))}
             </div>
@@ -578,7 +584,7 @@ export function CatalogueCategorySidebar({
                             : "text-on-surface-variant hover:bg-lavender-bg hover:text-deep-plum"
                         }`}
                       >
-                        {cat.name}
+                        {displayCategoryName(cat)}
                       </button>
                     </li>
                   );

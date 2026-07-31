@@ -16,6 +16,40 @@ export type CategoryItem = {
 };
 
 /**
+ * Customer-facing category label.
+ * Client prefers "Double High" over legacy DB name "Double Tall".
+ */
+export function displayCategoryName(
+  cat: { name?: string | null; handle?: string | null } | null | undefined
+): string {
+  const handle = (cat?.handle ?? "").trim().toLowerCase()
+  const name = (cat?.name ?? "").trim()
+  if (
+    handle === "double-tall-cakes" ||
+    /double[\s-]*tall/i.test(name) ||
+    /double[\s-]*high/i.test(name)
+  ) {
+    return "Double High Cakes"
+  }
+  return name
+}
+
+/** Short badge label (drops trailing "Cakes" / "Cake"). */
+export function displayCategoryBadge(
+  cat: { name?: string | null; handle?: string | null } | null | undefined
+): string {
+  const full = displayCategoryName(cat)
+  if (!full) return ""
+  if (
+    (cat?.handle ?? "").toLowerCase() === "double-tall-cakes" ||
+    /double[\s-]*(tall|high)/i.test(cat?.name ?? "")
+  ) {
+    return "Double High"
+  }
+  return full.replace(/ Cakes?$/i, "")
+}
+
+/**
  * Deterministic local placeholders when a category has no metadata image.
  * Reuses the three sponge studio shots (not flavour-accurate for arbitrary
  * categories — prefer setting metadata.image_url on each category).
