@@ -22,6 +22,7 @@ import { useCart } from "@/lib/cart/cart-context";
 import { useSelectedStore } from "@/lib/store-selection";
 import { setWishlistCustomerId } from "@/lib/wishlist";
 import MegaMenu from "./MegaMenu";
+import HeaderSearch from "./HeaderSearch";
 
 export default function Header() {
   const router = useRouter();
@@ -237,6 +238,11 @@ export default function Header() {
 
           {/* Right Section */}
           <div className="flex items-center gap-2 md:gap-4 lg:gap-5">
+            {/* Search → cake catalogue search bar */}
+            <div className="hidden sm:block">
+              <HeaderSearch />
+            </div>
+
             {/* Store Locator / Map Routing - Desktop only */}
             <Link
               href="/map-routing"
@@ -390,6 +396,14 @@ export default function Header() {
         {isMobileMenuOpen && (
           <div className="md:hidden absolute top-full left-0 w-full bg-white/95 backdrop-blur-md border-b border-purple-100 shadow-lg py-4 sm:py-5 px-4 sm:px-5 z-40 animate-in slide-in-from-top-4 duration-300 flex flex-col gap-4 max-h-[85vh] overflow-y-auto">
             
+            {/* Mobile search → catalogue */}
+            <div className="pb-3 border-b border-purple-50">
+              <HeaderSearch
+                className="w-full"
+                onNavigate={() => setIsMobileMenuOpen(false)}
+              />
+            </div>
+
             {/* Mobile User Profile Section */}
             <div className="pb-4 border-b border-purple-50">
               {customer ? (

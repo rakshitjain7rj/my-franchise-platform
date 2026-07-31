@@ -295,6 +295,30 @@ export default function CatalogueFilters({
     setSearchDraft(currentQ);
   }, [currentQ]);
 
+  // Header / deep-link: ?focus=search focuses the catalogue search field
+  useEffect(() => {
+    if (searchParams.get("focus") !== "search") return;
+    const el = document.getElementById(
+      "catalogue-search"
+    ) as HTMLInputElement | null;
+    if (!el) return;
+    // Defer so layout is ready after navigation
+    const id = window.requestAnimationFrame(() => {
+      el.focus({ preventScroll: false });
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    // Drop focus param from URL without a full navigation loop
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("focus");
+    const qs = params.toString();
+    window.history.replaceState(
+      null,
+      "",
+      qs ? `${pathname}?${qs}` : pathname
+    );
+    return () => window.cancelAnimationFrame(id);
+  }, [searchParams, pathname]);
+
   // Debounced live search — skip mid-typing noise under 2 chars (except clear)
   useEffect(() => {
     if (searchDraft === currentQ) return;
