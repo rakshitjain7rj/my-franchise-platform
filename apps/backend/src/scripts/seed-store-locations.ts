@@ -1,10 +1,7 @@
 import { ExecArgs } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import FranchiseProductLink from "../links/franchise-product"
-import {
-  DEFAULT_OPENING_HOURS,
-  expandDailyHours,
-} from "../utils/logistics"
+import { DEFAULT_OPENING_HOURS } from "../utils/logistics"
 
 const REALISTIC_LOCATIONS = [
   // Amritsar
@@ -96,10 +93,10 @@ export default async function seedStoreLocations({ container }: ExecArgs) {
     })
 
     // ── Normalize opening hours for every store location.
-    // Platform standard is DEFAULT_OPENING_HOURS (09:00–18:00).
+    // Platform standard is DEFAULT_OPENING_HOURS (10:00 Tue–Sat / 11:00 Mon+Sun).
     // Also heals older seeds that only wrote metadata.store_hours and left
     // opening_hours null (which made GET /store/stores/:id/slots return []).
-    const standardDayHours = { open: "09:00", close: "18:00" }
+    const standardDayHours = { open: "10:00", close: "18:00" }
     const standardHours = DEFAULT_OPENING_HOURS
 
     if (existingLocations.length > 0) {
@@ -119,7 +116,7 @@ export default async function seedStoreLocations({ container }: ExecArgs) {
       }
       totalBackfilled += existingLocations.length
       logger.info(
-        `  🔧 Set opening_hours to 09:00–18:00 on ${existingLocations.length} location(s) for ${franchise.name || franchise.id}`
+        `  🔧 Set opening_hours to collection policy (10:00 / Mon+Sun 11:00)–18:00 on ${existingLocations.length} location(s) for ${franchise.name || franchise.id}`
       )
     }
 
@@ -155,7 +152,7 @@ export default async function seedStoreLocations({ container }: ExecArgs) {
       if (locationsToCreate.length >= needed) break
       if (existingNames.has(geo.name)) continue
         
-      const dayHours = { open: "09:00", close: "18:00" }
+      const dayHours = { open: "10:00", close: "18:00" }
       // Keep capacity fields consistent: daily_order_capacity is the native
       // "orders per 30-min slot" column (see StoreLocation model). Do not
       // leave a conflicting max_orders_per_slot in metadata.
@@ -173,7 +170,8 @@ export default async function seedStoreLocations({ container }: ExecArgs) {
         daily_order_capacity: capacityPerSlot,
         // Native column used by GET /store/stores/:id/slots — must be set.
         // metadata.store_hours alone is not enough (historical bug).
-        opening_hours: expandDailyHours(dayHours.open, dayHours.close),
+        // DEFAULT_OPENING_HOURS applies Mon/Sun 11:00 open.
+        opening_hours: DEFAULT_OPENING_HOURS,
         metadata: {
           store_hours: dayHours,
           max_orders_per_slot: capacityPerSlot,

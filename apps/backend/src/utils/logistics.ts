@@ -37,15 +37,35 @@ const WEEKDAYS = [
   "saturday",
 ] as const
 
-/** Default bakery hours used when a store has no opening_hours configured. */
+/**
+ * Default bakery hours when a store has no opening_hours configured.
+ * Open times match Cake Break collection policy (see collectionEarliestOpen).
+ */
 export const DEFAULT_OPENING_HOURS: OpeningHours = {
-  monday: { open: "09:00", close: "18:00" },
-  tuesday: { open: "09:00", close: "18:00" },
-  wednesday: { open: "09:00", close: "18:00" },
-  thursday: { open: "09:00", close: "18:00" },
-  friday: { open: "09:00", close: "18:00" },
-  saturday: { open: "09:00", close: "18:00" },
-  sunday: { open: "09:00", close: "18:00" },
+  monday: { open: "11:00", close: "18:00" },
+  tuesday: { open: "10:00", close: "18:00" },
+  wednesday: { open: "10:00", close: "18:00" },
+  thursday: { open: "10:00", close: "18:00" },
+  friday: { open: "10:00", close: "18:00" },
+  saturday: { open: "10:00", close: "18:00" },
+  sunday: { open: "11:00", close: "18:00" },
+}
+
+/**
+ * Earliest collection slot customers may book (policy), even if the shop
+ * open time in admin is earlier.
+ * - Monday & Sunday → 11:00
+ * - Tuesday–Saturday → 10:00
+ */
+export const COLLECTION_EARLIEST_WEEKDAY = "10:00"
+export const COLLECTION_EARLIEST_MONDAY_SUNDAY = "11:00"
+
+export function collectionEarliestOpen(weekday: string): string {
+  const d = weekday.trim().toLowerCase()
+  if (d === "monday" || d === "sunday") {
+    return COLLECTION_EARLIEST_MONDAY_SUNDAY
+  }
+  return COLLECTION_EARLIEST_WEEKDAY
 }
 
 /**
@@ -180,11 +200,17 @@ export function buildDaySlots(input: {
   const closeMin = parseHHMM(hours.close)
   if (openMin == null || closeMin == null || closeMin <= openMin) return []
 
+  // Cake Break policy: no collection before 10:00 (11:00 Mon/Sun), even if
+  // the store open time is earlier in admin (e.g. 08:00).
+  const policyMin = parseHHMM(collectionEarliestOpen(weekday)) ?? openMin
+  const effectiveOpen = Math.max(openMin, policyMin)
+  if (closeMin <= effectiveOpen) return []
+
   const capacity = Math.max(0, Math.floor(capacityPerSlot) || 0)
   const cutoffMs = now.getTime() + Math.max(0, leadTimeHours) * 60 * 60 * 1000
 
   const slots: TimeSlot[] = []
-  for (let cursor = openMin; cursor + 30 <= closeMin; cursor += 30) {
+  for (let cursor = effectiveOpen; cursor + 30 <= closeMin; cursor += 30) {
     const time = formatHHMM(cursor)
     const end = formatHHMM(cursor + 30)
     const slotStart = new Date(`${date}T${time}:00`)

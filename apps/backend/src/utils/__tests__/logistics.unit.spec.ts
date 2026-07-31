@@ -5,9 +5,12 @@
  */
 
 import {
+  COLLECTION_EARLIEST_MONDAY_SUNDAY,
+  COLLECTION_EARLIEST_WEEKDAY,
   DEFAULT_OPENING_HOURS,
   applySlotUsage,
   buildDaySlots,
+  collectionEarliestOpen,
   computeDeliveryFee,
   expandDailyHours,
   extractSlotStart,
@@ -91,13 +94,29 @@ describe("resolveOpeningHours — root cause of empty slots", () => {
   })
 })
 
+describe("collectionEarliestOpen", () => {
+  it("is 11:00 on Monday and Sunday, 10:00 otherwise", () => {
+    expect(collectionEarliestOpen("monday")).toBe(
+      COLLECTION_EARLIEST_MONDAY_SUNDAY
+    )
+    expect(collectionEarliestOpen("Sunday")).toBe(
+      COLLECTION_EARLIEST_MONDAY_SUNDAY
+    )
+    expect(collectionEarliestOpen("tuesday")).toBe(COLLECTION_EARLIEST_WEEKDAY)
+    expect(collectionEarliestOpen("friday")).toBe(COLLECTION_EARLIEST_WEEKDAY)
+  })
+})
+
 describe("buildDaySlots", () => {
   // Fixed "now": 2026-07-10 08:00 local — lead time 0 so all open-window slots bookable
   const now = new Date("2026-07-10T08:00:00")
   // 2026-07-10 is a Friday
   const friday = "2026-07-10"
+  // 2026-07-12 is a Sunday; 2026-07-13 is a Monday
+  const sunday = "2026-07-12"
+  const monday = "2026-07-13"
 
-  it("generates 30-min slots from opening hours", () => {
+  it("generates 30-min slots from opening hours (policy earliest 10:00 on Fri)", () => {
     const slots = buildDaySlots({
       date: friday,
       openingHours: expandDailyHours("09:00", "11:00"),
@@ -105,9 +124,45 @@ describe("buildDaySlots", () => {
       leadTimeHours: 0,
       now,
     })
-    expect(slots.map((s) => s.time)).toEqual(["09:00", "09:30", "10:00", "10:30"])
+    // Store opens 09:00 but Fri policy earliest is 10:00 → only 10:00, 10:30
+    expect(slots.map((s) => s.time)).toEqual(["10:00", "10:30"])
     expect(slots.every((s) => s.available_capacity === 5)).toBe(true)
     expect(slots.every((s) => s.is_bookable)).toBe(true)
+  })
+
+  it("starts Monday/Sunday collection at 11:00 even if store opens at 08:00", () => {
+    const hours = expandDailyHours("08:00", "14:00")
+    const sunSlots = buildDaySlots({
+      date: sunday,
+      openingHours: hours,
+      capacityPerSlot: 5,
+      leadTimeHours: 0,
+      now: new Date("2026-07-12T07:00:00"),
+    })
+    const monSlots = buildDaySlots({
+      date: monday,
+      openingHours: hours,
+      capacityPerSlot: 5,
+      leadTimeHours: 0,
+      now: new Date("2026-07-13T07:00:00"),
+    })
+    expect(sunSlots[0]?.time).toBe("11:00")
+    expect(monSlots[0]?.time).toBe("11:00")
+    expect(sunSlots.some((s) => s.time === "10:00")).toBe(false)
+    expect(monSlots.some((s) => s.time === "08:00")).toBe(false)
+  })
+
+  it("starts Tue–Sat collection at 10:00 even if store opens at 08:00", () => {
+    const slots = buildDaySlots({
+      date: friday,
+      openingHours: expandDailyHours("08:00", "12:00"),
+      capacityPerSlot: 5,
+      leadTimeHours: 0,
+      now,
+    })
+    expect(slots[0]?.time).toBe("10:00")
+    expect(slots.map((s) => s.time)).not.toContain("08:00")
+    expect(slots.map((s) => s.time)).not.toContain("09:30")
   })
 
   it("still generates slots when openingHours is null (legacy seed bug)", () => {
@@ -131,9 +186,9 @@ describe("buildDaySlots", () => {
       leadTimeHours: 0,
       now,
     })
-    // 09:00–18:00 → 18 half-hour slots
-    expect(slots.length).toBe(18)
-    expect(slots[0].time).toBe("09:00")
+    // Fri default 10:00–18:00 → 16 half-hour slots
+    expect(slots.length).toBe(16)
+    expect(slots[0].time).toBe("10:00")
     expect(slots[slots.length - 1].time).toBe("17:30")
   })
 
@@ -147,11 +202,13 @@ describe("buildDaySlots", () => {
       leadTimeHours: 2,
       now: lateMorning,
     })
-    const nine = slots.find((s) => s.time === "09:00")
+    // 09:00 is before policy earliest — not generated
+    expect(slots.find((s) => s.time === "09:00")).toBeUndefined()
+    const ten = slots.find((s) => s.time === "10:00")
     const elevenThirty = slots.find((s) => s.time === "11:30")
     const noon = slots.find((s) => s.time === "12:00")
     const one = slots.find((s) => s.time === "13:00")
-    expect(nine?.is_bookable).toBe(false)
+    expect(ten?.is_bookable).toBe(false)
     expect(elevenThirty?.is_bookable).toBe(false) // before cutoff (now+2h = 12:00)
     // slotStart < cutoffMs → equality is still bookable
     expect(noon?.is_bookable).toBe(true)
@@ -170,7 +227,7 @@ describe("buildDaySlots", () => {
     ).toEqual([])
   })
 
-  it("24h default lead blocks all same-day slots after morning", () => {
+  it("24h lead blocks all same-day slots after morning", () => {
     const late = new Date("2026-07-10T10:00:00")
     const slots = buildDaySlots({
       date: friday,
@@ -190,22 +247,22 @@ describe("applySlotUsage — capacity consumed by bookings", () => {
   it("reduces available_capacity and marks full slots unbookable", () => {
     const slots = buildDaySlots({
       date: friday,
-      openingHours: expandDailyHours("09:00", "11:00"),
+      openingHours: expandDailyHours("10:00", "12:00"),
       capacityPerSlot: 10,
       leadTimeHours: 0,
       now,
     })
-    applySlotUsage(slots, new Map([["09:00", 10], ["09:30", 1]]))
+    applySlotUsage(slots, new Map([["10:00", 10], ["10:30", 1]]))
 
-    const nine = slots.find((s) => s.time === "09:00")
-    const nineThirty = slots.find((s) => s.time === "09:30")
     const ten = slots.find((s) => s.time === "10:00")
+    const tenThirty = slots.find((s) => s.time === "10:30")
+    const eleven = slots.find((s) => s.time === "11:00")
 
-    expect(nine?.available_capacity).toBe(0)
-    expect(nine?.is_bookable).toBe(false)
-    expect(nineThirty?.available_capacity).toBe(9)
-    expect(nineThirty?.is_bookable).toBe(true)
-    expect(ten?.available_capacity).toBe(10)
+    expect(ten?.available_capacity).toBe(0)
+    expect(ten?.is_bookable).toBe(false)
+    expect(tenThirty?.available_capacity).toBe(9)
+    expect(tenThirty?.is_bookable).toBe(true)
+    expect(eleven?.available_capacity).toBe(10)
   })
 })
 

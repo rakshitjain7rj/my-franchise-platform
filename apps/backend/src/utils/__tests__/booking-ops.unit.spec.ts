@@ -25,7 +25,8 @@ import {
 
 // Shared calendar: Friday 2026-07-10
 const FRIDAY = "2026-07-10"
-const OPEN = expandDailyHours("09:00", "14:00")
+// Opens early in admin; collection policy still starts Fri slots at 10:00
+const OPEN = expandDailyHours("08:00", "14:00")
 
 function slotMap(slots: TimeSlot[]): Map<string, TimeSlot> {
   return new Map(slots.map((s) => [s.time, s]))
@@ -64,8 +65,8 @@ describe("Lead time — minimum advance booking window", () => {
       now,
     })
     const map = slotMap(slots)
-    // 09:00 Sat is before cutoff (Sat 10:00) → unbookable
-    expect(map.get("09:00")?.is_bookable).toBe(false)
+    // Policy earliest Sat is 10:00 — no 09:00 slot generated
+    expect(map.has("09:00")).toBe(false)
     // 10:00 Sat equals cutoff → bookable (slotStart < cutoff is the block rule)
     expect(map.get("10:00")?.is_bookable).toBe(true)
     expect(map.get("11:00")?.is_bookable).toBe(true)
@@ -81,7 +82,8 @@ describe("Lead time — minimum advance booking window", () => {
       now,
     })
     const map = slotMap(slots)
-    expect(map.get("09:00")?.is_bookable).toBe(false)
+    expect(map.has("09:00")).toBe(false) // before collection policy earliest
+    expect(map.get("10:00")?.is_bookable).toBe(false)
     expect(map.get("11:30")?.is_bookable).toBe(false) // before 12:00
     expect(map.get("12:00")?.is_bookable).toBe(true)
     expect(map.get("13:00")?.is_bookable).toBe(true)
@@ -140,7 +142,9 @@ describe("Slot capacity — orders per 30-minute window", () => {
       leadTimeHours: 0,
       now,
     })
-    expect(slots.length).toBe(10) // 09:00–14:00 → 10 half-hours
+    // Fri collection policy 10:00–14:00 → 8 half-hours (store may open earlier)
+    expect(slots.length).toBe(8)
+    expect(slots[0].time).toBe("10:00")
     expect(slots.every((s) => s.available_capacity === 10)).toBe(true)
     expect(slots.every((s) => s.is_bookable)).toBe(true)
   })
@@ -172,9 +176,6 @@ describe("Slot capacity — orders per 30-minute window", () => {
     })
 
     const map = slotMap(slots)
-    expect(map.get("09:00")?.available_capacity).toBe(10)
-    expect(map.get("09:00")?.is_bookable).toBe(true)
-
     expect(map.get("10:00")?.available_capacity).toBe(7)
     expect(map.get("10:00")?.is_bookable).toBe(true)
 
@@ -196,21 +197,21 @@ describe("Slot capacity — orders per 30-minute window", () => {
       leadTimeHours: 2, // cutoff 13:00
       now: late,
     })
-    applySlotUsage(slots, { "09:00": 10 })
+    applySlotUsage(slots, { "10:00": 10 })
     const map = slotMap(slots)
-    expect(map.get("09:00")?.is_bookable).toBe(false)
-    expect(map.get("09:00")?.unbookable_reason).toBe("lead_time")
+    expect(map.get("10:00")?.is_bookable).toBe(false)
+    expect(map.get("10:00")?.unbookable_reason).toBe("lead_time")
   })
 
   it("over-booking usage never makes capacity negative", () => {
     const slots = buildDaySlots({
       date: FRIDAY,
-      openingHours: expandDailyHours("09:00", "10:00"),
+      openingHours: expandDailyHours("10:00", "11:00"),
       capacityPerSlot: 5,
       leadTimeHours: 0,
       now,
     })
-    applySlotUsage(slots, { "09:00": 99 })
+    applySlotUsage(slots, { "10:00": 99 })
     expect(slots[0].available_capacity).toBe(0)
     expect(slots[0].is_bookable).toBe(false)
   })
@@ -219,7 +220,7 @@ describe("Slot capacity — orders per 30-minute window", () => {
     // User misconception guard: capacity is NOT "10 orders per day"
     const slots = buildDaySlots({
       date: FRIDAY,
-      openingHours: expandDailyHours("09:00", "12:00"),
+      openingHours: expandDailyHours("10:00", "13:00"),
       capacityPerSlot: 10,
       leadTimeHours: 0,
       now,
@@ -228,7 +229,7 @@ describe("Slot capacity — orders per 30-minute window", () => {
       (sum, s) => sum + s.available_capacity,
       0
     )
-    expect(slots.length).toBe(6) // 09:00, 09:30, 10:00, 10:30, 11:00, 11:30
+    expect(slots.length).toBe(6) // 10:00, 10:30, 11:00, 11:30, 12:00, 12:30
     expect(theoreticalDayMax).toBe(60)
   })
 
@@ -241,11 +242,11 @@ describe("Slot capacity — orders per 30-minute window", () => {
       leadTimeHours: 2, // cutoff 13:00
       now: late,
     })
-    // No bookings applied — 09:00 still blocked by lead time
+    // No bookings applied — 10:00 still blocked by lead time
     applySlotUsage(slots, {})
     const map = slotMap(slots)
-    expect(map.get("09:00")?.available_capacity).toBe(10)
-    expect(map.get("09:00")?.is_bookable).toBe(false)
+    expect(map.get("10:00")?.available_capacity).toBe(10)
+    expect(map.get("10:00")?.is_bookable).toBe(false)
     expect(map.get("13:00")?.is_bookable).toBe(true)
   })
 })
@@ -400,14 +401,14 @@ describe("Consistency — stock, slots, and lead time are independent gates", ()
 
     const slots = buildDaySlots({
       date: FRIDAY,
-      openingHours: expandDailyHours("09:00", "10:00"),
+      openingHours: expandDailyHours("10:00", "11:00"),
       capacityPerSlot: 10,
       leadTimeHours: 0,
       now,
     })
-    applySlotUsage(slots, { "09:00": 10 })
+    applySlotUsage(slots, { "10:00": 10 })
 
-    // User still sees cake as available, but 09:00 is not bookable
+    // User still sees cake as available, but 10:00 is not bookable
     expect(slots[0].is_bookable).toBe(false)
     expect(slots[0].available_capacity).toBe(0)
   })
@@ -415,7 +416,7 @@ describe("Consistency — stock, slots, and lead time are independent gates", ()
   it("empty slot still cannot sell OOS SKU", () => {
     const slots = buildDaySlots({
       date: FRIDAY,
-      openingHours: expandDailyHours("09:00", "10:00"),
+      openingHours: expandDailyHours("10:00", "11:00"),
       capacityPerSlot: 10,
       leadTimeHours: 0,
       now,
@@ -461,7 +462,7 @@ describe("Consistency — stock, slots, and lead time are independent gates", ()
       leadTimeHours: 0,
       now: nowEarly,
     })
-    applySlotUsage(slots, { "09:00": 2 })
+    applySlotUsage(slots, { "10:00": 2 })
 
     const cart = evaluateCartInventory([
       {
@@ -471,9 +472,9 @@ describe("Consistency — stock, slots, and lead time are independent gates", ()
       },
     ])
 
-    const nine = slotMap(slots).get("09:00")
+    const ten = slotMap(slots).get("10:00")
     expect(cart.all_sufficient).toBe(true)
-    expect(nine?.is_bookable).toBe(true)
-    expect(nine?.available_capacity).toBe(8)
+    expect(ten?.is_bookable).toBe(true)
+    expect(ten?.available_capacity).toBe(8)
   })
 })
