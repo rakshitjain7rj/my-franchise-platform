@@ -26,33 +26,17 @@ export function ProductInfoCards({
   return (
     <div className="space-y-4 pt-10 border-t border-outline-variant/20">
     {careNotices.length > 0 && (
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3">
         {careNotices.map((notice) => (
           <div
             key={notice.kind}
-            className={
-              notice.kind === "photo"
-                ? "rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3.5 shadow-sm"
-                : "rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 shadow-sm"
-            }
+            className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3.5 shadow-sm"
             role="note"
           >
-            <p
-              className={
-                notice.kind === "photo"
-                  ? "font-headline text-sm font-extrabold uppercase tracking-wider text-rose-900"
-                  : "font-headline text-sm font-extrabold uppercase tracking-wider text-amber-950"
-              }
-            >
+            <p className="font-headline text-sm font-extrabold uppercase tracking-wider text-rose-900">
               {notice.title}
             </p>
-            <p
-              className={
-                notice.kind === "photo"
-                  ? "mt-1.5 text-sm leading-relaxed text-rose-950/90"
-                  : "mt-1.5 text-sm leading-relaxed text-amber-950/90"
-              }
-            >
+            <p className="mt-1.5 text-sm leading-relaxed text-rose-950/90">
               {notice.body}
             </p>
           </div>

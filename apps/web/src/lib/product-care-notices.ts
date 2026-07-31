@@ -1,9 +1,11 @@
 /**
- * Product care / disclaimer notices for photo cakes, chocolate decoration, etc.
+ * Product care / disclaimer notices (photo cakes, etc.).
  * Prefer explicit metadata flags; fall back to title/handle/category heuristics.
+ *
+ * Accessories disclaimer is shown under every product image (not via this list).
  */
 
-export type ProductCareKind = "photo" | "chocolate"
+export type ProductCareKind = "photo"
 
 export type ProductCareNotice = {
   kind: ProductCareKind
@@ -17,11 +19,12 @@ export const PHOTO_CAKE_CARE: ProductCareNotice = {
   body: "The printed photo is best enjoyed the same day. It can soften or dissolve if left longer, so please collect before your event and serve soon after.",
 }
 
-export const CHOCOLATE_CAKE_CARE: ProductCareNotice = {
-  kind: "chocolate",
-  title: "Chocolate care",
-  body: "Chocolate drips, shards, and decorations can soften or melt in warmth. Keep cool in transit and out of direct sun; refrigerate if not serving soon.",
-}
+/**
+ * Shown under the product gallery on every cake PDP.
+ * Accessories / props in photos are for presentation and may vary.
+ */
+export const PRODUCT_ACCESSORIES_NOTE =
+  "Accessories shown in the picture are for presentation only and may differ from those supplied with your cake."
 
 export type ProductCareInput = {
   title?: string | null
@@ -37,15 +40,6 @@ function isTruthyMetaFlag(value: unknown): boolean {
   if (typeof value === "string") {
     const v = value.trim().toLowerCase()
     return v === "true" || v === "1" || v === "yes"
-  }
-  return false
-}
-
-function isFalsyMetaFlag(value: unknown): boolean {
-  if (value === false || value === 0) return true
-  if (typeof value === "string") {
-    const v = value.trim().toLowerCase()
-    return v === "false" || v === "0" || v === "no"
   }
   return false
 }
@@ -77,30 +71,11 @@ export function isPhotoCakeProduct(input: ProductCareInput): boolean {
   )
 }
 
-const CHOCOLATE_HEURISTIC =
-  /\b(chocolate|choc\b|ganache|cocoa|truffle|drip\s*cake|chocolate\s*drip|choco)\b/i
-
-/** Chocolate decoration / sponge care candidates. */
-export function isChocolateCareProduct(input: ProductCareInput): boolean {
-  const meta = input.metadata ?? {}
-  if (isTruthyMetaFlag(meta.has_chocolate)) return true
-  if (isFalsyMetaFlag(meta.has_chocolate)) return false
-
-  const flags = meta.care_flags
-  if (Array.isArray(flags) && flags.map(String).some((f) => /chocolate/i.test(f))) {
-    return true
-  }
-  if (typeof flags === "string" && /chocolate/i.test(flags)) return true
-
-  return CHOCOLATE_HEURISTIC.test(blobFromProduct(input))
-}
-
-/** Ordered care notices for product detail / cart. */
+/** Ordered care notices for product detail (photo only; accessories are separate). */
 export function getProductCareNotices(
   input: ProductCareInput
 ): ProductCareNotice[] {
   const notices: ProductCareNotice[] = []
   if (isPhotoCakeProduct(input)) notices.push(PHOTO_CAKE_CARE)
-  if (isChocolateCareProduct(input)) notices.push(CHOCOLATE_CAKE_CARE)
   return notices
 }

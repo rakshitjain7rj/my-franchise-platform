@@ -5,10 +5,9 @@
 
 import {
   getProductCareNotices,
-  isChocolateCareProduct,
   isPhotoCakeProduct,
   PHOTO_CAKE_CARE,
-  CHOCOLATE_CAKE_CARE,
+  PRODUCT_ACCESSORIES_NOTE,
 } from "./product-care-notices"
 
 function assert(cond: unknown, msg: string) {
@@ -44,35 +43,23 @@ assert(
   "plain cake is not photo"
 )
 
-assert(
-  isChocolateCareProduct({ title: "Chocolate Drip Celebration" }),
-  "chocolate drip title"
-)
-
-assert(
-  isChocolateCareProduct({ metadata: { has_chocolate: "true" }, title: "Plain" }),
-  "has_chocolate flag"
-)
-
-assert(
-  !isChocolateCareProduct({
-    metadata: { has_chocolate: false },
-    title: "Chocolate Looking Name",
-  }),
-  "explicit false wins over title"
-)
-
-assert(
-  !isChocolateCareProduct({ title: "Lemon Sunshine Cake", handle: "lemon" }),
-  "lemon is not chocolate"
-)
-
-const both = getProductCareNotices({
+const photoOnly = getProductCareNotices({
   title: "Chocolate Photo Cake",
   collection: { handle: "photo-cake" },
 })
-assert(both.length === 2, "photo + chocolate")
-assert(both[0].kind === PHOTO_CAKE_CARE.kind, "photo first")
-assert(both[1].kind === CHOCOLATE_CAKE_CARE.kind, "chocolate second")
+assert(photoOnly.length === 1, "photo only — no chocolate care")
+assert(photoOnly[0].kind === PHOTO_CAKE_CARE.kind, "photo notice")
+
+const plain = getProductCareNotices({
+  title: "Chocolate Drip Celebration",
+  handle: "choc-drip",
+})
+assert(plain.length === 0, "chocolate cakes get no special care card")
+
+assert(
+  /accessories/i.test(PRODUCT_ACCESSORIES_NOTE) &&
+    /differ|different|may/i.test(PRODUCT_ACCESSORIES_NOTE),
+  "accessories note present for all cakes"
+)
 
 console.log("product-care-notices.unit.test.ts: all passed")

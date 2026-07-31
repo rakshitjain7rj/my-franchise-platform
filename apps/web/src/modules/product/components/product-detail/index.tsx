@@ -10,7 +10,10 @@ import { ProductInfoCards } from "./product-info-cards";
 import { PurchasePanel } from "./purchase-panel";
 import { useProductDetail } from "./use-product-detail";
 import type { DietaryTag, MedusaProduct, ProductDetailProps } from "./types";
-import { getProductCareNotices } from "@/lib/product-care-notices";
+import {
+  getProductCareNotices,
+  PRODUCT_ACCESSORIES_NOTE,
+} from "@/lib/product-care-notices";
 
 export type { DietaryTag, MedusaProduct, ProductDetailProps };
 
@@ -64,7 +67,15 @@ export default function ProductDetail({
 
       <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-10 lg:gap-16">
         <div className="space-y-6">
-          <ImageGallery images={galleryImages} productTitle={product.title} />
+          <div className="space-y-2.5">
+            <ImageGallery images={galleryImages} productTitle={product.title} />
+            <p
+              className="px-0.5 text-xs leading-relaxed text-on-surface-variant sm:text-[13px]"
+              role="note"
+            >
+              {PRODUCT_ACCESSORIES_NOTE}
+            </p>
+          </div>
 
           {fullDescription && (
             <ProductDescription
