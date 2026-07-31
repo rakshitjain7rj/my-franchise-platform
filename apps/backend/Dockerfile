@@ -20,17 +20,20 @@ FROM node:20-slim AS base
 RUN apt-get update \
  && apt-get install -y --no-install-recommends openssl ca-certificates \
  && rm -rf /var/lib/apt/lists/*
-# Make npm resilient to slow/stalled registry fetches instead of hanging:
+# Make npm resilient to slow/stalled registry fetches and rate limits (E429):
 #   - disable audit/fund network round-trips
 #   - retry transient failures with bounded backoff
 #   - cap a single socket stall so it retries rather than freezing the build
+# npm's own fetch_retries help for per-package GETs; Dockerfile steps below
+# also wrap full `npm install`/`npm ci` in shell retries for whole-command 429s.
 ENV npm_config_audit=false \
     npm_config_fund=false \
-    npm_config_fetch_retries=5 \
-    npm_config_fetch_retry_factor=2 \
-    npm_config_fetch_retry_mintimeout=2000 \
-    npm_config_fetch_retry_maxtimeout=60000 \
-    npm_config_fetch_timeout=120000
+    npm_config_fetch_retries=10 \
+    npm_config_fetch_retry_factor=3 \
+    npm_config_fetch_retry_mintimeout=5000 \
+    npm_config_fetch_retry_maxtimeout=120000 \
+    npm_config_fetch_timeout=300000 \
+    npm_config_maxsockets=5
 RUN npm install -g turbo@^2.0.14
 WORKDIR /app
 
@@ -59,8 +62,17 @@ WORKDIR /app
 #    already-downloaded tarballs instead of re-fetching the world.
 COPY --from=pruner /app/out/json/ ./
 COPY --from=pruner /app/out/package-lock.json ./package-lock.json
+# Retry whole-command failures (registry E429 is common on shared CI IPs).
 RUN --mount=type=cache,target=/root/.npm \
-    npm ci --no-audit --no-fund
+    set -eux; \
+    attempt=1; max=8; \
+    while [ "$attempt" -le "$max" ]; do \
+      if npm ci --no-audit --no-fund --prefer-offline; then exit 0; fi; \
+      echo "npm ci failed (attempt ${attempt}/${max}); backing off…"; \
+      sleep $((attempt * 30)); \
+      attempt=$((attempt + 1)); \
+    done; \
+    echo "npm ci failed after ${max} attempts"; exit 1
 
 # 2) Bring in the pruned source and build.
 COPY --from=pruner /app/out/full/ ./
@@ -69,9 +81,21 @@ RUN turbo run build --filter=@dtc/backend
 # 3) `medusa build` emits a fully self-contained server in
 #    apps/backend/.medusa/server (it has its OWN package.json). Install its
 #    production-only dependencies so the runner stage can stay lean.
+#    This step is the usual E429 failure point (~1100 packages); prefer-offline
+#    reuses the BuildKit npm cache, and the loop retries after registry cool-down.
 WORKDIR /app/apps/backend/.medusa/server
 RUN --mount=type=cache,target=/root/.npm \
-    npm install --omit=dev --no-audit --no-fund --legacy-peer-deps
+    set -eux; \
+    attempt=1; max=10; \
+    while [ "$attempt" -le "$max" ]; do \
+      if npm install --omit=dev --no-audit --no-fund --legacy-peer-deps --prefer-offline; then \
+        exit 0; \
+      fi; \
+      echo "npm install (.medusa/server) failed (attempt ${attempt}/${max}); backing off…"; \
+      sleep $((attempt * 45)); \
+      attempt=$((attempt + 1)); \
+    done; \
+    echo "npm install (.medusa/server) failed after ${max} attempts"; exit 1
 
 
 ###############################################################################

@@ -99,6 +99,10 @@ export default async function backfillInventoryItemTitles({
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
   const inventoryService = container.resolve(Modules.INVENTORY) as {
+    listInventoryItems: (
+      filters?: Record<string, unknown>,
+      config?: Record<string, unknown>
+    ) => Promise<Array<{ id: string; sku?: string | null; title?: string | null }>>
     updateInventoryItems: (
       input:
         | { id: string; title?: string | null }
@@ -118,9 +122,9 @@ export default async function backfillInventoryItemTitles({
   logger.info(`  DRY_RUN=${DRY_RUN}  UPDATE_VARIANT_TITLES=${UPDATE_VARIANT_TITLES}`)
   logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-  // Load variants with product + linked inventory items.
-  // Query graph may return product as nested object depending on link config;
-  // fall back to a second product lookup if needed.
+  // Load variants with product titles. Do NOT trust query.graph
+  // `inventory_items.id` — Medusa often returns product_variant_inventory_item
+  // *link* ids (pvitem_…) there, not real inventory_item ids (iitem_…).
   const { data: variants } = await query.graph({
     entity: "product_variant",
     fields: [
@@ -130,9 +134,6 @@ export default async function backfillInventoryItemTitles({
       "product_id",
       "product.id",
       "product.title",
-      "inventory_items.id",
-      "inventory_items.title",
-      "inventory_items.sku",
     ],
   })
 
@@ -159,6 +160,58 @@ export default async function backfillInventoryItemTitles({
     }
   }
 
+  // Source of truth for inventory item ids/titles: inventory module (iitem_…).
+  const inventoryItems = await inventoryService.listInventoryItems(
+    {},
+    { select: ["id", "sku", "title"], take: 200_000 }
+  )
+  const invBySku = new Map<
+    string,
+    { id: string; sku?: string | null; title?: string | null }
+  >()
+  for (const item of inventoryItems) {
+    const sku = (item.sku ?? "").trim()
+    if (sku) invBySku.set(sku, item)
+  }
+  logger.info(
+    `Loaded ${inventoryItems.length} inventory item(s) (${invBySku.size} with SKU).`
+  )
+
+  // Fallback map: variant_id → inventory_item_id via link table graph, only
+  // when SKU match fails. Prefer fields that expose inventory_item_id.
+  const invIdByVariantId = new Map<string, string>()
+  try {
+    const { data: links } = await query.graph({
+      entity: "product_variant_inventory_item",
+      fields: ["variant_id", "inventory_item_id", "id"],
+    })
+    for (const link of (links ?? []) as Array<{
+      variant_id?: string
+      inventory_item_id?: string
+      id?: string
+    }>) {
+      const variantId = link.variant_id
+      // Prefer explicit inventory_item_id; never use pvitem_ link id as item id.
+      const itemId =
+        link.inventory_item_id &&
+        !String(link.inventory_item_id).startsWith("pvitem_")
+          ? link.inventory_item_id
+          : null
+      if (variantId && itemId) invIdByVariantId.set(variantId, itemId)
+    }
+    logger.info(
+      `Link fallback map: ${invIdByVariantId.size} variant → inventory_item pair(s).`
+    )
+  } catch (err) {
+    logger.warn(
+      `Could not load product_variant_inventory_item links (SKU match only): ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    )
+  }
+
+  const invById = new Map(inventoryItems.map((i) => [i.id, i]))
+
   type InventoryUpdate = {
     id: string
     title: string
@@ -175,6 +228,7 @@ export default async function backfillInventoryItemTitles({
   const inventoryUpdates: InventoryUpdate[] = []
   const variantUpdates: VariantUpdate[] = []
   const seenInventoryIds = new Set<string>()
+  let skippedNoInv = 0
 
   for (const variant of rows) {
     const productTitle =
@@ -189,19 +243,28 @@ export default async function backfillInventoryItemTitles({
 
     const desired = buildInventoryItemTitle(productTitle, variant.title)
 
-    for (const item of variant.inventory_items ?? []) {
-      if (!item?.id || seenInventoryIds.has(item.id)) continue
+    // Resolve real inventory item (iitem_…), never pvitem_ link ids.
+    const sku = (variant.sku ?? "").trim()
+    let item =
+      (sku ? invBySku.get(sku) : undefined) ??
+      (() => {
+        const linkedId = invIdByVariantId.get(variant.id)
+        return linkedId ? invById.get(linkedId) : undefined
+      })()
+
+    if (!item?.id || String(item.id).startsWith("pvitem_")) {
+      skippedNoInv++
+    } else if (!seenInventoryIds.has(item.id)) {
       seenInventoryIds.add(item.id)
-
-      if (!inventoryTitleNeedsUpdate(item.title, desired)) continue
-
-      inventoryUpdates.push({
-        id: item.id,
-        title: desired,
-        from: (item.title ?? "").trim() || "(empty)",
-        sku: item.sku ?? variant.sku,
-        productTitle,
-      })
+      if (inventoryTitleNeedsUpdate(item.title, desired)) {
+        inventoryUpdates.push({
+          id: item.id,
+          title: desired,
+          from: (item.title ?? "").trim() || "(empty)",
+          sku: item.sku ?? variant.sku,
+          productTitle,
+        })
+      }
     }
 
     if (UPDATE_VARIANT_TITLES) {
@@ -213,6 +276,12 @@ export default async function backfillInventoryItemTitles({
         })
       }
     }
+  }
+
+  if (skippedNoInv) {
+    logger.info(
+      `Skipped ${skippedNoInv} variant(s) with no resolvable inventory item.`
+    )
   }
 
   const invToApply =
