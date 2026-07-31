@@ -22,7 +22,7 @@ import {
 } from "../logistics"
 
 describe("resolveLeadTimeHours", () => {
-  it("treats 0 as immediate (not falsy fallback to 24)", () => {
+  it("treats 0 as immediate (not falsy fallback)", () => {
     expect(resolveLeadTimeHours({ custom_lead_time_hours: 0 })).toBe(0)
   })
 
@@ -30,9 +30,9 @@ describe("resolveLeadTimeHours", () => {
     expect(resolveLeadTimeHours({ custom_lead_time_hours: 24 })).toBe(24)
   })
 
-  it("falls back to metadata then 24", () => {
+  it("falls back to metadata then 0 (same-day default)", () => {
     expect(resolveLeadTimeHours({ metadata: { lead_time_hours: 6 } })).toBe(6)
-    expect(resolveLeadTimeHours({})).toBe(24)
+    expect(resolveLeadTimeHours({})).toBe(0)
   })
 })
 

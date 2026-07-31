@@ -166,9 +166,9 @@ const FEATURED_CATEGORIES: CakeCategoryDef[] = [
     rank: 145,
   },
   {
-    name: "Double Tall Cakes",
+    name: "Double High Cakes",
     handle: "double-tall-cakes",
-    description: "Extra height double-tall celebration cakes.",
+    description: "Extra height double-high celebration cakes.",
     rank: 35,
   },
 ]
@@ -296,6 +296,7 @@ const KEYWORD_RULES: Array<{ pattern: RegExp; handles: string[] }> = [
   { pattern: /bouquet/i, handles: ["chocolate-bouquets"] },
   { pattern: /photo/i, handles: ["photo-cake"] },
   { pattern: /double[\s-]*tall/i, handles: ["double-tall-cakes"] },
+  { pattern: /double[\s-]*high/i, handles: ["double-tall-cakes"] },
   { pattern: /wedding/i, handles: ["wedding-cakes"] },
   { pattern: /graduation|grad\b/i, handles: ["graduation-cakes"] },
   { pattern: /christening|baptism|communion|baby\s*shower|gender\s*reveal/i, handles: ["baby-shower-cakes"] },

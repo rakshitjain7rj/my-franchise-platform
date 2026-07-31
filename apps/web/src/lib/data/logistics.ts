@@ -111,7 +111,7 @@ export function todayCollectionDate(): string {
  * Prefer for messaging / first-bookable hints — the date picker min is today
  * so shoppers can open lead-blocked days and see disabled slots.
  */
-export function defaultMinCollectionDate(leadTimeHours = 24): string {
+export function defaultMinCollectionDate(leadTimeHours = 0): string {
   const hours = Math.max(0, Number(leadTimeHours) || 0)
   const cutoff = new Date(Date.now() + hours * 60 * 60 * 1000)
   const yyyy = cutoff.getFullYear()
@@ -119,6 +119,115 @@ export function defaultMinCollectionDate(leadTimeHours = 24): string {
   const dd = String(cutoff.getDate()).padStart(2, "0")
   return `${yyyy}-${mm}-${dd}`
 }
+
+/** Slots starting before this local time show the early-collection WhatsApp warning. */
+export const EARLY_COLLECTION_WARNING_BEFORE = "10:00"
+
+/** English ordinal for calendar day (1 → 1st, 2 → 2nd, …). */
+export function dayOrdinal(day: number): string {
+  const n = Math.floor(Number(day))
+  if (!Number.isFinite(n) || n < 1) return String(day)
+  const mod100 = n % 100
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`
+  switch (n % 10) {
+    case 1:
+      return `${n}st`
+    case 2:
+      return `${n}nd`
+    case 3:
+      return `${n}rd`
+    default:
+      return `${n}th`
+  }
+}
+
+export type CollectionDateHero = {
+  weekday: string
+  dayOrdinal: string
+  month: string
+  year: string
+  /** e.g. "Sunday 2nd August 2026" */
+  full: string
+  /** Compact cart badge e.g. "Sun 2nd Aug" */
+  short: string
+}
+
+/**
+ * Big bold collection date readout from YYYY-MM-DD.
+ * Uses local calendar interpretation of the ISO date parts (not UTC shift).
+ */
+export function formatCollectionDateHero(
+  isoDate: string
+): CollectionDateHero | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((isoDate || "").trim())
+  if (!m) return null
+  const y = Number(m[1])
+  const mo = Number(m[2])
+  const d = Number(m[3])
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null
+  // Noon local avoids DST edge cases when only calendar day is needed.
+  const date = new Date(y, mo - 1, d, 12, 0, 0)
+  if (
+    date.getFullYear() !== y ||
+    date.getMonth() !== mo - 1 ||
+    date.getDate() !== d
+  ) {
+    return null
+  }
+  const weekday = date.toLocaleDateString("en-GB", { weekday: "long" })
+  const weekdayShort = date.toLocaleDateString("en-GB", { weekday: "short" })
+  const month = date.toLocaleDateString("en-GB", { month: "long" })
+  const monthShort = date.toLocaleDateString("en-GB", { month: "short" })
+  const ord = dayOrdinal(d)
+  const year = String(y)
+  return {
+    weekday,
+    dayOrdinal: ord,
+    month,
+    year,
+    full: `${weekday} ${ord} ${month} ${year}`,
+    short: `${weekdayShort} ${ord} ${monthShort}`,
+  }
+}
+
+/** Parse HH:mm (or range label start) to minutes since midnight. */
+export function parseTimeToMinutes(value: string): number | null {
+  const trimmed = (value || "").trim()
+  const m = /^(\d{1,2}):(\d{2})/.exec(trimmed)
+  if (!m) return null
+  const h = Number(m[1])
+  const min = Number(m[2])
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null
+  return h * 60 + min
+}
+
+/**
+ * True when the selected collection start is before the early-morning threshold
+ * (default 10:00). Soft warning only — does not block booking.
+ */
+export function isEarlyCollectionSlot(
+  timeHHmm: string,
+  threshold: string = EARLY_COLLECTION_WARNING_BEFORE
+): boolean {
+  const start = parseTimeToMinutes(timeHHmm)
+  const limit = parseTimeToMinutes(threshold)
+  if (start == null || limit == null) return false
+  return start < limit
+}
+
+const DEFAULT_WHATSAPP_E164 = "4407305750164"
+
+/** wa.me link for early-collection / general shop contact. */
+export function whatsAppOrderHref(prefill: string): string {
+  const raw =
+    (typeof process !== "undefined" &&
+      process.env.NEXT_PUBLIC_WHATSAPP_NUMBER?.replace(/\D/g, "")) ||
+    DEFAULT_WHATSAPP_E164
+  return `https://wa.me/${raw}?text=${encodeURIComponent(prefill)}`
+}
+
+export const EARLY_COLLECTION_WHATSAPP_TEXT =
+  "Hi Cake Break — I'm placing an order for early morning collection. Can you confirm you can have the cake ready then?"
 
 /** Customer-facing reason for a non-bookable slot. */
 export function slotUnbookableLabel(

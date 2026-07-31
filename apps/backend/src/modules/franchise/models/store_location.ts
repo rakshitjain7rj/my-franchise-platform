@@ -77,10 +77,11 @@ const StoreLocation = model.define("store_location", {
   /**
    * Minimum advance booking window in hours for custom / made-to-order cakes.
    * Overrides the franchise-level default on a per-location basis.
-   * Example: 24 means orders must be placed at least 24 hours before pickup.
+   * 0 = same-day allowed (default). Use kitchen-busy mode when the kitchen
+   * needs extra notice. Example: 24 means at least 24 hours before pickup.
    * Indexed candidate for storefront filter: WHERE custom_lead_time_hours <= :requested_hours
    */
-  custom_lead_time_hours: model.number().default(24),
+  custom_lead_time_hours: model.number().default(0),
 
   // ──────────────────────────────────────────────────────────────────────────
   // CAPACITY & SCHEDULING

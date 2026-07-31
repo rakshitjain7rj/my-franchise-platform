@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import Header from "../components/Header"
 import Footer from "../components/Footer"
 import LocationWarningBanner from "./LocationWarningBanner"
+import { CartAllergyNotice } from "./CartAllergyNotice"
 import { CartEmptyState } from "./CartEmptyState"
 import { CartFulfillmentSection } from "./CartFulfillmentSection"
 import { CartLineItems } from "./CartLineItems"
@@ -63,6 +64,8 @@ export default function CartPageClient({
 
         <div className="flex flex-col lg:flex-row gap-8 lg:gap-12 relative">
           <div className="w-full lg:w-[65%] flex flex-col gap-10">
+            <CartAllergyNotice />
+
             <CartLineItems
               items={items}
               isLoading={model.isLoading}

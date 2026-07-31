@@ -171,7 +171,7 @@ export async function provisionStoreLocation(
     longitude: fields.longitude ?? null,
     is_active: fields.is_active ?? true,
     is_accepting_orders: fields.is_accepting_orders ?? true,
-    custom_lead_time_hours: fields.custom_lead_time_hours ?? 24,
+    custom_lead_time_hours: fields.custom_lead_time_hours ?? 0,
     daily_order_capacity: fields.daily_order_capacity ?? 10,
     // undefined → workflow applies DEFAULT_OPENING_HOURS (never leave null)
     opening_hours: fields.opening_hours ?? undefined,

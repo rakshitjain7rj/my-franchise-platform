@@ -31,7 +31,7 @@ export const FranchiseLocationsManager = () => {
   const [locLng, setLocLng] = useState("")
   const [locActive, setLocActive] = useState(true)
   const [locAccepting, setLocAccepting] = useState(true)
-  const [locLeadTime, setLocLeadTime] = useState("24")
+  const [locLeadTime, setLocLeadTime] = useState("0")
   const [locCapacity, setLocCapacity] = useState("10")
 
   // ── Query: Fetch locations ──────────────────────────────────────────────────
@@ -161,7 +161,7 @@ export const FranchiseLocationsManager = () => {
     setLocLng("")
     setLocActive(true)
     setLocAccepting(true)
-    setLocLeadTime("24")
+    setLocLeadTime("0")
     setLocCapacity("10")
     setModalOpen(true)
   }
@@ -212,7 +212,10 @@ export const FranchiseLocationsManager = () => {
       longitude: locLng ? parseFloat(locLng) : null,
       is_active: locActive,
       is_accepting_orders: locAccepting,
-      custom_lead_time_hours: parseInt(locLeadTime) || 24,
+      custom_lead_time_hours: (() => {
+        const n = parseInt(locLeadTime, 10)
+        return Number.isFinite(n) && n >= 0 ? n : 0
+      })(),
       daily_order_capacity: parseInt(locCapacity) || 10,
     })
   }

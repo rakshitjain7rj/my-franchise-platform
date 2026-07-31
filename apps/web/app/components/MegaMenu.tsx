@@ -30,6 +30,7 @@ const MENU_GROUPS: MenuGroup[] = [
       { label: "Round Cakes", handle: "round-cakes" },
       { label: "Square Cakes", handle: "square-cakes" },
       { label: "Tall Cakes", handle: "tall-cakes" },
+      { label: "Double High", handle: "double-tall-cakes" },
       { label: "Heart Cakes", handle: "heart-cake" },
       { label: "Icing Cakes", handle: "icing-cakes" },
       { label: "Novelty / Kids", handle: "novelty-kids-cakes" },

@@ -135,6 +135,15 @@ export default function PhotoUpload({
         Upload a PNG or JPG of the design you want printed on the cake (max
         5&nbsp;MB).
       </p>
+      <div
+        className="rounded-xl border border-rose-200 bg-rose-50/90 px-3 py-2.5 text-xs leading-relaxed text-rose-950"
+        role="note"
+      >
+        <span className="font-bold">Edible photo note: </span>
+        The printed photo is best enjoyed the same day. It can soften or
+        dissolve if left longer, so please collect before your event and serve
+        soon after.
+      </div>
 
       {preview ? (
         <div className="relative w-full max-w-[200px] aspect-square rounded-xl overflow-hidden border border-outline-variant/40 bg-surface-container">

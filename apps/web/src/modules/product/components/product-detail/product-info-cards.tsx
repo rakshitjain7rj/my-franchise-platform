@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
 import { CheckIcon, getAllergenIcon } from "./icons";
 import type { DietaryTag } from "./types";
+import type { ProductCareNotice } from "@/lib/product-care-notices";
 
 interface ProductInfoCardsProps {
   ingredientsText: string | null;
@@ -10,6 +11,8 @@ interface ProductInfoCardsProps {
   dietaryTags: DietaryTag[];
   /** When set, replaces the default dietary tag rows (streamed RSC slot). */
   dietaryInfoSlot?: ReactNode;
+  /** Photo / chocolate (and future) care disclaimers. */
+  careNotices?: ProductCareNotice[];
 }
 
 export function ProductInfoCards({
@@ -18,9 +21,45 @@ export function ProductInfoCards({
   storageText,
   dietaryTags,
   dietaryInfoSlot,
+  careNotices = [],
 }: ProductInfoCardsProps) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-[35%_30%_35%] gap-4 pt-10 border-t border-outline-variant/20">
+    <div className="space-y-4 pt-10 border-t border-outline-variant/20">
+    {careNotices.length > 0 && (
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {careNotices.map((notice) => (
+          <div
+            key={notice.kind}
+            className={
+              notice.kind === "photo"
+                ? "rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3.5 shadow-sm"
+                : "rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 shadow-sm"
+            }
+            role="note"
+          >
+            <p
+              className={
+                notice.kind === "photo"
+                  ? "font-headline text-sm font-extrabold uppercase tracking-wider text-rose-900"
+                  : "font-headline text-sm font-extrabold uppercase tracking-wider text-amber-950"
+              }
+            >
+              {notice.title}
+            </p>
+            <p
+              className={
+                notice.kind === "photo"
+                  ? "mt-1.5 text-sm leading-relaxed text-rose-950/90"
+                  : "mt-1.5 text-sm leading-relaxed text-amber-950/90"
+              }
+            >
+              {notice.body}
+            </p>
+          </div>
+        ))}
+      </div>
+    )}
+    <div className="grid grid-cols-1 md:grid-cols-[35%_30%_35%] gap-4">
       <div className="bg-[#FBF5FB] border border-outline-variant/20 rounded-3xl p-6 space-y-4 shadow-sm">
         <div className="flex items-center gap-2.5 text-deep-plum font-bold">
           <svg className="w-5 h-5 text-deep-plum" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -122,6 +161,7 @@ export function ProductInfoCards({
             "Keep refrigerated and consume within 24 hours"}
         </p>
       </div>
+    </div>
     </div>
   );
 }

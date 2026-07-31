@@ -10,6 +10,7 @@ import { ProductInfoCards } from "./product-info-cards";
 import { PurchasePanel } from "./purchase-panel";
 import { useProductDetail } from "./use-product-detail";
 import type { DietaryTag, MedusaProduct, ProductDetailProps } from "./types";
+import { getProductCareNotices } from "@/lib/product-care-notices";
 
 export type { DietaryTag, MedusaProduct, ProductDetailProps };
 
@@ -28,6 +29,15 @@ export default function ProductDetail({
     storageText,
     handleReviewBadge,
   } = model;
+
+  const careNotices = getProductCareNotices({
+    title: product.title,
+    handle: product.handle,
+    metadata: product.metadata as Record<string, unknown> | null,
+    collection: product.collection,
+    type: product.type,
+    categories: product.categories,
+  });
 
   return (
     <div className="space-y-12">
@@ -88,6 +98,7 @@ export default function ProductDetail({
         storageText={storageText}
         dietaryTags={dietaryTags}
         dietaryInfoSlot={dietaryInfoSlot}
+        careNotices={careNotices}
       />
 
       <ProductReviewsSection

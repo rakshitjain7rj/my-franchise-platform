@@ -112,7 +112,7 @@ export default async function seedStoreLocations({ container }: ExecArgs) {
             opening_hours: standardHours,
             metadata: meta,
             is_accepting_orders: loc.is_accepting_orders ?? true,
-            custom_lead_time_hours: loc.custom_lead_time_hours ?? 24,
+            custom_lead_time_hours: loc.custom_lead_time_hours ?? 0,
             daily_order_capacity: loc.daily_order_capacity ?? 10,
           },
         ])
@@ -169,7 +169,7 @@ export default async function seedStoreLocations({ container }: ExecArgs) {
         franchise_id: franchise.id,
         is_active: true,
         is_accepting_orders: true,
-        custom_lead_time_hours: 24,
+        custom_lead_time_hours: 0,
         daily_order_capacity: capacityPerSlot,
         // Native column used by GET /store/stores/:id/slots — must be set.
         // metadata.store_hours alone is not enough (historical bug).

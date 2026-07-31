@@ -54,7 +54,9 @@ export const DEFAULT_OPENING_HOURS: OpeningHours = {
  * Important: `0` means immediate / no minimum notice. Do not use `|| 24`
  * because that treats 0 as missing and incorrectly forces a day of lead time.
  *
- * Priority: custom_lead_time_hours → metadata.lead_time_hours → 24 (legacy).
+ * Priority: custom_lead_time_hours → metadata.lead_time_hours → 0 (same-day).
+ * Kitchen-busy mode is the ops lever for temporary longer notice — not a
+ * permanent 24h default that loses same-day customers.
  */
 export function resolveLeadTimeHours(location: {
   custom_lead_time_hours?: number | null
@@ -68,7 +70,7 @@ export function resolveLeadTimeHours(location: {
   if (Number.isFinite(meta)) {
     return Math.max(0, meta)
   }
-  return 24
+  return 0
 }
 
 export function parseHHMM(value: string): number | null {

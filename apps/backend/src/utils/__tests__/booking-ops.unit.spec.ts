@@ -2,7 +2,7 @@
  * Booking ops unit tests — lead time, slot capacity, and SKU inventory.
  *
  * These pin the rules that keep checkout uninterrupted and consistent:
- *   1. Lead time blocks slots that are too soon (default 24h).
+ *   1. Lead time blocks slots that are too soon (when lead > 0; default is 0).
  *   2. Slot capacity (default 10) is per 30-min window, not per day.
  *   3. SKU stock = 0 means out of stock / cart blocked at that branch.
  *

@@ -5,9 +5,18 @@ import {
   isHiddenAttrKey,
   labelForAttrKey,
 } from "@/types/cake-metadata"
+import { formatCollectionDateHero } from "@/lib/data/logistics"
 import type { InventoryCheckResult } from "@/lib/cart/cart-context"
 import type { MedusaCartItem } from "@/lib/cart/cart-actions"
 import { fmt } from "./format"
+
+function formatAttrDisplay(key: string, value: string): string {
+  if (/^date$/i.test(key) || /collection\s*date/i.test(key)) {
+    const hero = formatCollectionDateHero(value)
+    if (hero) return hero.short
+  }
+  return value
+}
 
 interface CartLineItemsProps {
   items: MedusaCartItem[]
@@ -136,7 +145,8 @@ export function CartLineItems({
                                 key={k}
                                 className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badgeClass}`}
                               >
-                                {labelForAttrKey(k)}: {v}
+                                {labelForAttrKey(k)}:{" "}
+                                {formatAttrDisplay(k, String(v))}
                               </span>
                             )
                           })}

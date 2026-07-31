@@ -11,9 +11,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   collectionLeadBanner,
+  EARLY_COLLECTION_WHATSAPP_TEXT,
   fetchStoreSlots,
+  formatCollectionDateHero,
+  isEarlyCollectionSlot,
   slotUnbookableLabel,
   todayCollectionDate,
+  whatsAppOrderHref,
   type StoreTimeSlot,
 } from "@/lib/data/logistics";
 import { PremiumSelect } from "@/components/ui/premium-select";
@@ -174,6 +178,10 @@ export default function TimeSlotPicker({
   const dateActive = Boolean(date);
   const timeDisabled = !storeLocationId || loading || slots.length === 0;
   const banner = collectionLeadBanner({ leadHours, kitchenBusy });
+  const dateHero = date ? formatCollectionDateHero(date) : null;
+  const earlyWarning =
+    Boolean(selectedSlotTime) && isEarlyCollectionSlot(selectedSlotTime);
+  const earlyWhatsAppHref = whatsAppOrderHref(EARLY_COLLECTION_WHATSAPP_TEXT);
 
   return (
     <div className={cn("space-y-3", className)}>
@@ -184,6 +192,30 @@ export default function TimeSlotPicker({
         >
           {banner}
         </p>
+      )}
+
+      {dateHero && (
+        <div
+          className="rounded-2xl border border-deep-plum/10 bg-gradient-to-br from-[#FBF5FB] to-white px-4 py-3 shadow-sm"
+          aria-live="polite"
+        >
+          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant/80">
+            Collection day
+          </p>
+          <p className="mt-1 font-headline text-deep-plum leading-none">
+            <span className="block text-sm font-semibold tracking-wide text-on-surface-variant">
+              {dateHero.weekday}
+            </span>
+            <span className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0">
+              <span className="text-4xl font-extrabold tracking-tight tabular-nums sm:text-5xl">
+                {dateHero.dayOrdinal}
+              </span>
+              <span className="text-lg font-bold text-deep-plum/90 sm:text-xl">
+                {dateHero.month} {dateHero.year}
+              </span>
+            </span>
+          </p>
+        </div>
       )}
 
       <div
@@ -252,6 +284,30 @@ export default function TimeSlotPicker({
           />
         </div>
       </div>
+
+      {earlyWarning && (
+        <div
+          className="rounded-xl border-2 border-amber-400/90 bg-amber-50 px-3.5 py-3 text-sm text-amber-950 shadow-sm"
+          role="status"
+        >
+          <p className="font-headline text-base font-extrabold tracking-tight text-amber-950">
+            Early morning collection?
+          </p>
+          <p className="mt-1.5 text-xs font-semibold leading-relaxed sm:text-sm">
+            If you place the order for early morning, please message us on{" "}
+            <a
+              href={earlyWhatsAppHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-extrabold underline decoration-2 underline-offset-2 text-[#128C7E] hover:text-[#075E54]"
+            >
+              WhatsApp first
+            </a>{" "}
+            — we may not be able to hand over the cake as soon as the shop
+            opens.
+          </p>
+        </div>
+      )}
 
       {!storeLocationId && (
         <p className="text-xs text-amber-700">

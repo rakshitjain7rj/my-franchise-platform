@@ -51,6 +51,7 @@ const SHAPE_HANDLES = [
   "round-cakes",
   "square-cakes",
   "tall-cakes",
+  "double-tall-cakes",
   "heart-cake",
   "icing-cakes",
   "novelty-kids-cakes",

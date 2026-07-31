@@ -143,7 +143,7 @@ const createStoreLocationStep = createStep(
         longitude: input.longitude ?? null,
         is_active: input.is_active ?? true,
         is_accepting_orders: input.is_accepting_orders ?? true,
-        custom_lead_time_hours: input.custom_lead_time_hours ?? 24,
+        custom_lead_time_hours: input.custom_lead_time_hours ?? 0,
         daily_order_capacity: input.daily_order_capacity ?? 10,
         // Single source of truth: utils/logistics DEFAULT_OPENING_HOURS.
         // Never leave this null — slots API used to return [] when null.
