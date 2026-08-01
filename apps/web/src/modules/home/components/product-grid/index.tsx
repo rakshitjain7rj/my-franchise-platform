@@ -25,6 +25,11 @@
 
 import { getMedusaHeaders } from "@/lib/medusa/headers";
 import { unstable_cache } from "next/cache";
+import {
+  formatOfflinePriceLabel,
+  isOfflineOrderProduct,
+  OFFLINE_ORDER_COPY,
+} from "@/lib/product/offline-order";
 
 // ---------------------------------------------------------------------------
 // Types (subset of Medusa's StoreProduct shape)
@@ -49,6 +54,7 @@ interface MedusaProduct {
   images: ProductImage[];
   variants: ProductVariant[];
   handle: string;
+  categories?: Array<{ id?: string; name?: string; handle?: string }> | null;
 }
 
 interface ProductsResponse {
@@ -99,7 +105,7 @@ const getCachedGridProducts = unstable_cache(
   ): Promise<MedusaProduct[]> => {
     try {
       const regionParam = regionId ? `&region_id=${regionId}` : "";
-      const url = `${MEDUSA_BACKEND_URL}/store/products?limit=${limit}&fields=id,title,handle,description,thumbnail,images.id,images.url,variants.id,variants.calculated_price${regionParam}`;
+      const url = `${MEDUSA_BACKEND_URL}/store/products?limit=${limit}&fields=id,title,handle,description,thumbnail,images.id,images.url,variants.id,variants.calculated_price,categories.id,categories.name,categories.handle${regionParam}`;
 
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
@@ -166,14 +172,22 @@ function formatPrice(variant: ProductVariant): string {
   }).format(price.calculated_amount);
 }
 
+function productPriceLabel(product: MedusaProduct): string {
+  if (isOfflineOrderProduct(product)) {
+    return formatOfflinePriceLabel(product.variants) ?? "";
+  }
+  const firstVariant = product.variants?.[0];
+  return firstVariant ? formatPrice(firstVariant) : "";
+}
+
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
 function ProductCard({ product, featured = false }: { product: MedusaProduct; featured?: boolean }) {
   const imageUrl = product.thumbnail ?? product.images?.[0]?.url;
-  const firstVariant = product.variants?.[0];
-  const priceStr = firstVariant ? formatPrice(firstVariant) : "";
+  const priceStr = productPriceLabel(product);
+  const offlineOrder = isOfflineOrderProduct(product);
 
   if (featured) {
     return (
@@ -193,9 +207,16 @@ function ProductCard({ product, featured = false }: { product: MedusaProduct; fe
         <div className="absolute inset-0 bg-gradient-to-t from-deep-plum via-deep-plum/40 to-transparent" />
 
         <div className="relative z-10 p-8 text-white space-y-2">
-          <span className="inline-block px-2 py-0.5 rounded bg-vibrant-magenta text-[10px] font-bold uppercase tracking-widest">
-            Featured
-          </span>
+          <div className="flex flex-wrap gap-2">
+            <span className="inline-block px-2 py-0.5 rounded bg-vibrant-magenta text-[10px] font-bold uppercase tracking-widest">
+              Featured
+            </span>
+            {offlineOrder && (
+              <span className="inline-block px-2 py-0.5 rounded bg-[#25D366] text-[10px] font-bold uppercase tracking-widest">
+                {OFFLINE_ORDER_COPY.badge}
+              </span>
+            )}
+          </div>
           <h3 className="font-headline-lg text-2xl md:text-3xl leading-tight">
             {product.title}
           </h3>
@@ -209,7 +230,7 @@ function ProductCard({ product, featured = false }: { product: MedusaProduct; fe
               <span className="text-lg font-bold">{priceStr}</span>
             )}
             <span className="text-sm font-label-bold border-b border-white/30 hover:border-white transition-colors py-0.5 flex items-center gap-1">
-              Order Now
+              {offlineOrder ? "Enquire" : "Order Now"}
               <span className="material-symbols-outlined !text-[16px] group-hover:translate-x-1 transition-transform">
                 arrow_forward
               </span>
@@ -234,6 +255,11 @@ function ProductCard({ product, featured = false }: { product: MedusaProduct; fe
         />
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-deep-plum/90 via-deep-plum/20 to-transparent" />
+      {offlineOrder && (
+        <span className="absolute left-3 top-3 z-10 rounded-full bg-[#25D366] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white shadow-sm">
+          {OFFLINE_ORDER_COPY.badge}
+        </span>
+      )}
       <div className="relative z-10 p-5 text-white space-y-1">
         <h3 className="font-label-bold text-sm md:text-base leading-tight">
           {product.title}

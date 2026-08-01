@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Plus, Minus, ShoppingBag, Heart, MapPin } from "lucide-react";
+import { Plus, Minus, ShoppingBag, Heart, MapPin, MessageCircle } from "lucide-react";
 import { PremiumSelect } from "@/components/ui/premium-select";
 import PhotoUpload from "../photo-upload";
 import {
@@ -39,6 +39,7 @@ export function PurchasePanel({
 }: PurchasePanelProps) {
   const {
     router,
+    isOfflineOrder,
     priceInfo,
     isInStock,
     servingsLabel,
@@ -74,6 +75,8 @@ export function PurchasePanel({
     cartError,
     isAddingToCart,
     handleAddToCart,
+    handleOfflineWhatsApp,
+    offlineOrderCopy,
     inWishlist,
     handleToggleWishlist,
     reviewBadge,
@@ -157,12 +160,21 @@ export function PurchasePanel({
 
       <div className="w-full h-px bg-outline-variant/30" />
 
+      {/* Bakery selector — shared by online ATC and offline WhatsApp */}
       <div className="space-y-4">
-        <h3 className="font-label-bold text-xl text-deep-plum uppercase tracking-widest">
-          Customize Your Cake
-        </h3>
+        {!isOfflineOrder && (
+          <h3 className="font-label-bold text-xl text-deep-plum uppercase tracking-widest">
+            Customize Your Cake
+          </h3>
+        )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div
+          className={
+            isOfflineOrder
+              ? "grid grid-cols-1 gap-4"
+              : "grid grid-cols-1 sm:grid-cols-2 gap-4"
+          }
+        >
           <div
             id={COLLECTION_BAKERY_FIELD_ID}
             className={`flex flex-col gap-2 bg-white p-3.5 rounded-2xl border transition-all duration-300 ${
@@ -208,8 +220,9 @@ export function PurchasePanel({
                   fullWidth
                 />
                 <p className="text-[11px] text-on-surface-variant leading-relaxed">
-                  One bakery for the whole order. Stock and collection slots on
-                  the cart apply to this branch.
+                  {isOfflineOrder
+                    ? "Tell us which bakery you want for this order — we’ll include it in your WhatsApp message."
+                    : "One bakery for the whole order. Stock and collection slots on the cart apply to this branch."}
                 </p>
               </>
             ) : (
@@ -231,7 +244,7 @@ export function PurchasePanel({
             )}
           </div>
 
-          {supportsJamFilling && (
+          {!isOfflineOrder && supportsJamFilling && (
             <div className="flex flex-col gap-2 bg-white p-3.5 rounded-2xl border border-outline-variant/30 transition-all duration-300">
               <div className="flex items-center gap-2 text-vibrant-magenta">
                 <JamIcon />
@@ -292,7 +305,7 @@ export function PurchasePanel({
           )}
         </div>
 
-        {selectableOptions.length > 0 && (
+        {!isOfflineOrder && selectableOptions.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {selectableOptions.map((option) => (
               <div
@@ -331,8 +344,9 @@ export function PurchasePanel({
           </div>
         )}
 
-        {((!hasFlavourOption && metadataFlavours.length > 0) ||
-          (servingsLabel && selectableOptions.length === 0)) && (
+        {!isOfflineOrder &&
+          ((!hasFlavourOption && metadataFlavours.length > 0) ||
+            (servingsLabel && selectableOptions.length === 0)) && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {!hasFlavourOption && metadataFlavours.length > 0 && (
               <div className="flex flex-col gap-2 bg-white p-3.5 rounded-2xl border border-outline-variant/30 transition-all duration-300">
@@ -371,7 +385,7 @@ export function PurchasePanel({
           </div>
         )}
 
-        {supportsInscription && (
+        {!isOfflineOrder && supportsInscription && (
           <div className="flex flex-col gap-1.5 bg-white p-3.5 rounded-2xl border border-outline-variant/30 transition-all duration-300 focus-within:border-vibrant-magenta focus-within:shadow-sm">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-vibrant-magenta">
@@ -400,31 +414,33 @@ export function PurchasePanel({
           </div>
         )}
 
-        <div className="flex flex-col gap-1.5 bg-white p-3.5 rounded-2xl border border-outline-variant/30 transition-all duration-300 focus-within:border-vibrant-magenta focus-within:shadow-sm">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-vibrant-magenta">
-              <EditIcon />
-              <span className="text-xs font-bold text-on-surface-variant/90 uppercase tracking-wider">
-                Special Instructions (Optional)
+        {!isOfflineOrder && (
+          <div className="flex flex-col gap-1.5 bg-white p-3.5 rounded-2xl border border-outline-variant/30 transition-all duration-300 focus-within:border-vibrant-magenta focus-within:shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-vibrant-magenta">
+                <EditIcon />
+                <span className="text-xs font-bold text-on-surface-variant/90 uppercase tracking-wider">
+                  Special Instructions (Optional)
+                </span>
+              </div>
+              <span className="text-[10px] tabular-nums text-on-surface-variant">
+                {specialMessage.length}/{MESSAGE_MAX_LENGTH}
               </span>
             </div>
-            <span className="text-[10px] tabular-nums text-on-surface-variant">
-              {specialMessage.length}/{MESSAGE_MAX_LENGTH}
-            </span>
+            <textarea
+              value={specialMessage}
+              maxLength={MESSAGE_MAX_LENGTH}
+              onChange={(e) =>
+                setSpecialMessage(e.target.value.slice(0, MESSAGE_MAX_LENGTH))
+              }
+              placeholder="Dietary notes, packaging, or delivery instructions…"
+              rows={3}
+              className="w-full pt-1.5 pb-0.5 px-0 bg-transparent text-sm text-deep-plum focus:outline-none resize-none"
+            />
           </div>
-          <textarea
-            value={specialMessage}
-            maxLength={MESSAGE_MAX_LENGTH}
-            onChange={(e) =>
-              setSpecialMessage(e.target.value.slice(0, MESSAGE_MAX_LENGTH))
-            }
-            placeholder="Dietary notes, packaging, or delivery instructions…"
-            rows={3}
-            className="w-full pt-1.5 pb-0.5 px-0 bg-transparent text-sm text-deep-plum focus:outline-none resize-none"
-          />
-        </div>
+        )}
 
-        {supportsPhotoUpload && (
+        {!isOfflineOrder && supportsPhotoUpload && (
           <PhotoUpload
             value={photoUrl}
             onChange={setPhotoUrl}
@@ -444,7 +460,9 @@ export function PurchasePanel({
             </p>
             <p className="text-xs text-amber-700 mt-1 leading-relaxed">
               {locationsAvailable
-                ? "Pick your collection bakery in the field above — bakery is fixed for the whole order once items are in the cart."
+                ? isOfflineOrder
+                  ? "Pick your collection bakery above so we can include it in your WhatsApp message."
+                  : "Pick your collection bakery in the field above — bakery is fixed for the whole order once items are in the cart."
                 : "Choose your local Cake Break boutique first — bakery is fixed for the whole order once items are in the cart."}
             </p>
             {locationsUnavailable && (
@@ -474,73 +492,116 @@ export function PurchasePanel({
         </div>
       )}
 
-      <div className="flex items-center gap-4 pt-2">
-        <div className="flex items-center border border-outline-variant/30 rounded-md overflow-hidden bg-white shadow-sm h-14 shrink-0">
+      {isOfflineOrder ? (
+        <div className="flex flex-col gap-3 pt-2">
+          <p className="text-sm text-on-surface-variant leading-relaxed">
+            {offlineOrderCopy.helper}
+          </p>
+          <div className="flex flex-col sm:flex-row items-stretch gap-3">
+            <button
+              type="button"
+              onClick={handleOfflineWhatsApp}
+              className="flex-1 flex items-center justify-center gap-3 h-14 rounded-md font-label-bold text-sm uppercase tracking-widest transition-all duration-300 active:scale-[0.98] premium-shadow bg-[#25D366] text-white hover:bg-[#1ebe57]"
+              id="offline-whatsapp-order-button"
+            >
+              <MessageCircle className="w-5 h-5" />
+              {offlineOrderCopy.primaryCta}
+            </button>
+            <button
+              type="button"
+              onClick={handleToggleWishlist}
+              className={`flex items-center justify-center w-14 h-14 rounded-md border transition-all duration-300 active:scale-[0.95] shrink-0 self-center sm:self-auto ${
+                inWishlist
+                  ? "bg-pink-50 border-pink-200 text-pink-600 hover:bg-pink-100"
+                  : "bg-white border-outline-variant/30 text-gray-400 hover:text-pink-600 hover:border-pink-200 hover:bg-pink-50/20"
+              }`}
+              title={inWishlist ? "Remove from Wishlist" : "Add to Wishlist"}
+              aria-label={inWishlist ? "Remove from Wishlist" : "Add to Wishlist"}
+            >
+              <Heart
+                className={`w-6 h-6 transition-all duration-300 ${
+                  inWishlist ? "fill-pink-600 text-pink-600 scale-110" : ""
+                }`}
+              />
+            </button>
+          </div>
+          <Link
+            href="/contact"
+            className="text-center text-sm font-semibold text-deep-plum underline decoration-deep-plum/30 underline-offset-4 hover:text-vibrant-magenta hover:decoration-vibrant-magenta transition-colors"
+            id="offline-visit-bakery-link"
+          >
+            {offlineOrderCopy.secondaryCta}
+          </Link>
+        </div>
+      ) : (
+        <div className="flex items-center gap-4 pt-2">
+          <div className="flex items-center border border-outline-variant/30 rounded-md overflow-hidden bg-white shadow-sm h-14 shrink-0">
+            <button
+              type="button"
+              onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+              className="w-12 h-full flex items-center justify-center text-deep-plum hover:bg-lavender-bg transition-colors"
+              aria-label="Decrease quantity"
+              disabled={quantity <= 1}
+            >
+              <Minus className="w-4 h-4" />
+            </button>
+            <span className="w-6 text-center font-label-bold text-deep-plum text-base tabular-nums">
+              {quantity}
+            </span>
+            <button
+              type="button"
+              onClick={() => setQuantity((q) => q + 1)}
+              className="w-12 h-full flex items-center justify-center text-deep-plum hover:bg-lavender-bg transition-colors"
+              aria-label="Increase quantity"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+
           <button
             type="button"
-            onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-            className="w-12 h-full flex items-center justify-center text-deep-plum hover:bg-lavender-bg transition-colors"
-            aria-label="Decrease quantity"
-            disabled={quantity <= 1}
+            onClick={handleAddToCart}
+            disabled={!isInStock || isAddingToCart}
+            className={`flex-1 flex items-center justify-center gap-3 h-14 rounded-md font-label-bold text-sm uppercase tracking-widest transition-all duration-300 active:scale-[0.98] premium-shadow ${
+              addedToCart
+                ? "bg-green-600 text-white"
+                : isAddingToCart
+                  ? "bg-deep-plum/70 text-white cursor-wait"
+                  : isInStock
+                    ? "bg-deep-plum text-white hover:bg-vibrant-magenta"
+                    : "bg-surface-container text-on-surface-variant cursor-not-allowed opacity-60"
+            }`}
+            id="add-to-cart-button"
           >
-            <Minus className="w-4 h-4" />
+            <ShoppingBag className="w-5 h-5" />
+            {addedToCart
+              ? "Added to Cart!"
+              : isAddingToCart
+                ? "Adding..."
+                : isInStock
+                  ? "Add to Cart"
+                  : "Out of Stock"}
           </button>
-          <span className="w-6 text-center font-label-bold text-deep-plum text-base tabular-nums">
-            {quantity}
-          </span>
+
           <button
             type="button"
-            onClick={() => setQuantity((q) => q + 1)}
-            className="w-12 h-full flex items-center justify-center text-deep-plum hover:bg-lavender-bg transition-colors"
-            aria-label="Increase quantity"
+            onClick={handleToggleWishlist}
+            className={`flex items-center justify-center w-14 h-14 rounded-md border transition-all duration-300 active:scale-[0.95] shrink-0 ${
+              inWishlist
+                ? "bg-pink-50 border-pink-200 text-pink-600 hover:bg-pink-100"
+                : "bg-white border-outline-variant/30 text-gray-400 hover:text-pink-600 hover:border-pink-200 hover:bg-pink-50/20"
+            }`}
+            title={inWishlist ? "Remove from Wishlist" : "Add to Wishlist"}
+            aria-label={inWishlist ? "Remove from Wishlist" : "Add to Wishlist"}
           >
-            <Plus className="w-4 h-4" />
+            <Heart
+              className={`w-6 h-6 transition-all duration-300 ${
+                inWishlist ? "fill-pink-600 text-pink-600 scale-110" : ""
+              }`}
+            />
           </button>
         </div>
-
-        <button
-          type="button"
-          onClick={handleAddToCart}
-          disabled={!isInStock || isAddingToCart}
-          className={`flex-1 flex items-center justify-center gap-3 h-14 rounded-md font-label-bold text-sm uppercase tracking-widest transition-all duration-300 active:scale-[0.98] premium-shadow ${
-            addedToCart
-              ? "bg-green-600 text-white"
-              : isAddingToCart
-                ? "bg-deep-plum/70 text-white cursor-wait"
-                : isInStock
-                  ? "bg-deep-plum text-white hover:bg-vibrant-magenta"
-                  : "bg-surface-container text-on-surface-variant cursor-not-allowed opacity-60"
-          }`}
-          id="add-to-cart-button"
-        >
-          <ShoppingBag className="w-5 h-5" />
-          {addedToCart
-            ? "Added to Cart!"
-            : isAddingToCart
-              ? "Adding..."
-              : isInStock
-                ? "Add to Cart"
-                : "Out of Stock"}
-        </button>
-
-        <button
-          type="button"
-          onClick={handleToggleWishlist}
-          className={`flex items-center justify-center w-14 h-14 rounded-md border transition-all duration-300 active:scale-[0.95] shrink-0 ${
-            inWishlist
-              ? "bg-pink-50 border-pink-200 text-pink-600 hover:bg-pink-100"
-              : "bg-white border-outline-variant/30 text-gray-400 hover:text-pink-600 hover:border-pink-200 hover:bg-pink-50/20"
-          }`}
-          title={inWishlist ? "Remove from Wishlist" : "Add to Wishlist"}
-          aria-label={inWishlist ? "Remove from Wishlist" : "Add to Wishlist"}
-        >
-          <Heart
-            className={`w-6 h-6 transition-all duration-300 ${
-              inWishlist ? "fill-pink-600 text-pink-600 scale-110" : ""
-            }`}
-          />
-        </button>
-      </div>
+      )}
 
       {cartError && (
         <div className="flex items-center gap-3 px-5 py-3 rounded-xl bg-red-50 border border-red-200">

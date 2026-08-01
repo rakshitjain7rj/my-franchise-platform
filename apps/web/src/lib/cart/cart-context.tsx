@@ -49,6 +49,10 @@ import type {
   MedusaCartItem,
 } from "./cart-actions"
 import { collectionSlotToCartMetadata } from "@/types/cake-metadata"
+import {
+  isOfflineOrderProduct,
+  OFFLINE_ORDER_COPY,
+} from "@/lib/product/offline-order"
 
 // Re-export types consumers need
 export type { MedusaCart, MedusaCartItem, CartLineItemMetadata, InventoryCheckResult }
@@ -65,6 +69,13 @@ interface CartContextValue {
   isLoading: boolean
   error: string | null
   totalItems: number
+  /**
+   * Titles of wedding/icing lines auto-removed from the cart (banner on cart).
+   * Cleared via `dismissRemovedOfflineItems`.
+   */
+  removedOfflineItems: string[]
+  removedOfflineBanner: string
+  dismissRemovedOfflineItems: () => void
 
   addToCart: (params: {
     variantId: string
@@ -99,6 +110,11 @@ interface CartContextValue {
    *  - a cart owned by a *different* customer is never shown.
    */
   syncCartWithSession: () => Promise<void>
+  /**
+   * Strip offline-order lines (wedding/icing). Returns titles removed.
+   * Used on cart load and before checkout.
+   */
+  scrubOfflineOrderItems: () => Promise<string[]>
 }
 
 // ---------------------------------------------------------------------------
@@ -134,6 +150,24 @@ function readCookie(name: string): string | null {
 // Provider
 // ---------------------------------------------------------------------------
 
+function offlineLineTitle(item: MedusaCartItem): string {
+  return (
+    item.product?.title?.trim() ||
+    item.title?.trim() ||
+    "Wedding/icing cake"
+  )
+}
+
+function findOfflineLineItems(cart: MedusaCart | null): MedusaCartItem[] {
+  if (!cart?.items?.length) return []
+  return cart.items.filter((item) => {
+    // Prefer expanded product categories; fall back never treats unknown as offline
+    // so we don't wipe legitimate lines when the field expansion fails.
+    if (!item.product?.categories) return false
+    return isOfflineOrderProduct(item.product)
+  })
+}
+
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cart, setCart] = useState<MedusaCart | null>(null)
   const [cartId, setCartIdState] = useState<string | null>(null)
@@ -142,12 +176,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   // cart id was restored).
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [removedOfflineItems, setRemovedOfflineItems] = useState<string[]>([])
   const initialised = useRef(false)
+  const scrubbingRef = useRef(false)
 
   const setCartId = (id: string | null) => {
     setCartIdState(id)
     writeLocalCartId(id)
   }
+
+  const dismissRemovedOfflineItems = useCallback(() => {
+    setRemovedOfflineItems([])
+  }, [])
 
   // ── Restore the account's saved cart ─────────────────────────────────────
   // Fetches the logged-in customer's most recent unfinished cart from the
@@ -418,6 +458,60 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [cartId])
 
+  // ── scrubOfflineOrderItems ───────────────────────────────────────────────
+  // Auto-remove wedding/icing lines that can no longer be checked out online.
+  const scrubOfflineOrderItems = useCallback(async (): Promise<string[]> => {
+    if (scrubbingRef.current) return []
+    const id = cartId ?? readLocalCartId()
+    if (!id) return []
+
+    scrubbingRef.current = true
+    try {
+      let current = cart
+      // Prefer a fresh fetch so categories are present after field expansion.
+      const fetched = await getCart(id).catch(() => null)
+      if (fetched) current = fetched
+      if (!current?.id) return []
+
+      const offlineLines = findOfflineLineItems(current)
+      if (!offlineLines.length) {
+        if (fetched) setCart(fetched)
+        return []
+      }
+
+      const titles = offlineLines.map(offlineLineTitle)
+      let nextCart: MedusaCart = current
+      for (const line of offlineLines) {
+        nextCart = await removeLineItem(nextCart.id, line.id)
+      }
+      // Re-fetch with product fields after removals (remove response may omit them).
+      const refreshed =
+        (await getCart(nextCart.id).catch(() => null)) ?? nextCart
+      setCart(refreshed)
+      setCartId(refreshed.id)
+      setRemovedOfflineItems((prev) => {
+        const merged = [...prev]
+        for (const t of titles) {
+          if (!merged.includes(t)) merged.push(t)
+        }
+        return merged
+      })
+      return titles
+    } catch (err) {
+      console.warn("[cart] Failed to scrub offline-order items:", err)
+      return []
+    } finally {
+      scrubbingRef.current = false
+    }
+  }, [cart, cartId])
+
+  // After hydrate / restore, strip offline lines once cart is present.
+  useEffect(() => {
+    if (isLoading || !cart?.items?.length) return
+    if (!findOfflineLineItems(cart).length) return
+    void scrubOfflineOrderItems()
+  }, [isLoading, cart, scrubOfflineOrderItems])
+
   // ── checkInventory ───────────────────────────────────────────────────────
   const checkInventory = useCallback(
     async (storeLocationId: string) => {
@@ -440,6 +534,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       isLoading,
       error,
       totalItems,
+      removedOfflineItems,
+      removedOfflineBanner: OFFLINE_ORDER_COPY.cartBanner,
+      dismissRemovedOfflineItems,
+      scrubOfflineOrderItems,
       addToCart,
       removeFromCart,
       updateQuantity,
@@ -454,6 +552,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       isLoading,
       error,
       totalItems,
+      removedOfflineItems,
+      dismissRemovedOfflineItems,
+      scrubOfflineOrderItems,
       addToCart,
       removeFromCart,
       updateQuantity,

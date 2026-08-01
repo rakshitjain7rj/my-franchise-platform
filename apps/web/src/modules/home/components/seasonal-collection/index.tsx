@@ -2,6 +2,11 @@ import React from "react";
 import Link from "next/link";
 import { getMedusaHeaders } from "@/lib/medusa/headers";
 import { unstable_cache } from "next/cache";
+import {
+  formatOfflinePriceLabel,
+  isOfflineOrderProduct,
+  OFFLINE_ORDER_COPY,
+} from "@/lib/product/offline-order";
 
 interface ProductImage {
   url: string;
@@ -23,6 +28,7 @@ interface MedusaProduct {
   images: ProductImage[];
   variants: ProductVariant[];
   handle: string;
+  categories?: Array<{ id?: string; name?: string; handle?: string }> | null;
 }
 
 interface ProductsResponse {
@@ -66,7 +72,7 @@ const getCachedSeasonalProducts = unstable_cache(
   ): Promise<MedusaProduct[]> => {
     try {
       const regionParam = regionId ? `&region_id=${regionId}` : "";
-      const url = `${MEDUSA_BACKEND_URL}/store/products?limit=${limit}&fields=id,title,handle,description,thumbnail,images,variants,variants.calculated_price${regionParam}`;
+      const url = `${MEDUSA_BACKEND_URL}/store/products?limit=${limit}&fields=id,title,handle,description,thumbnail,images,variants,variants.calculated_price,categories.id,categories.name,categories.handle${regionParam}`;
 
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
@@ -182,22 +188,30 @@ export default async function SeasonalCollection({
   const displayProducts: DisplayProduct[] =
     dbProducts.length >= 4
       ? dbProducts.map((p) => {
+          const offlineOrder = isOfflineOrderProduct(p);
           const calculatedPrice = p.variants?.[0]?.calculated_price;
           const currency = calculatedPrice?.currency_code?.toUpperCase() ?? "GBP";
           const hasDiscount =
+            !offlineOrder &&
             calculatedPrice?.original_amount != null &&
             calculatedPrice.original_amount > calculatedPrice.calculated_amount;
+
+          const offlinePrice = offlineOrder
+            ? formatOfflinePriceLabel(p.variants)
+            : null;
 
           return {
             id: p.id,
             title: p.title,
             handle: p.handle,
-            price: calculatedPrice
-              ? new Intl.NumberFormat("en-GB", {
-                  style: "currency",
-                  currency,
-                }).format(calculatedPrice.calculated_amount)
-              : "Price unavailable",
+            price:
+              offlinePrice ??
+              (calculatedPrice
+                ? new Intl.NumberFormat("en-GB", {
+                    style: "currency",
+                    currency,
+                  }).format(calculatedPrice.calculated_amount)
+                : "Price unavailable"),
             originalPrice:
               hasDiscount && calculatedPrice
                 ? new Intl.NumberFormat("en-GB", {
@@ -206,6 +220,7 @@ export default async function SeasonalCollection({
                   }).format(calculatedPrice.original_amount!)
                 : undefined,
             imageSrc: p.thumbnail ?? p.images?.[0]?.url ?? "/images/products/placeholder.png",
+            badge: offlineOrder ? OFFLINE_ORDER_COPY.badge : undefined,
           };
         })
       : mockProducts;
@@ -258,7 +273,13 @@ export default async function SeasonalCollection({
 
               {/* Badges on Image */}
               {product.badge && (
-                <span className="absolute top-4 left-4 bg-black/80 backdrop-blur-sm text-white px-3 py-1 rounded-full text-[9px] font-label-bold tracking-widest uppercase shadow-sm">
+                <span
+                  className={`absolute top-4 left-4 backdrop-blur-sm text-white px-3 py-1 rounded-full text-[9px] font-label-bold tracking-widest uppercase shadow-sm ${
+                    product.badge === OFFLINE_ORDER_COPY.badge
+                      ? "bg-[#25D366]"
+                      : "bg-black/80"
+                  }`}
+                >
                   {product.badge}
                 </span>
               )}

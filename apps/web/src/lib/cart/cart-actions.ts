@@ -44,6 +44,17 @@ export interface CartLineItemMetadata extends LineItemCakeMetadata {
   [key: string]: unknown
 }
 
+export interface MedusaCartItemProduct {
+  id?: string
+  handle?: string | null
+  title?: string | null
+  categories?: Array<{
+    id?: string
+    name?: string | null
+    handle?: string | null
+  }> | null
+}
+
 export interface MedusaCartItem {
   id: string
   variant_id: string | null
@@ -56,6 +67,8 @@ export interface MedusaCartItem {
   subtotal: number
   currency_code: string
   metadata?: CartLineItemMetadata | null
+  /** Expanded when getCart requests product + categories (offline scrub). */
+  product?: MedusaCartItemProduct | null
 }
 
 export interface MedusaCartAddress {
@@ -167,6 +180,10 @@ export async function getCart(cartId: string): Promise<MedusaCart | null> {
       "+shipping_total",
       "*shipping_address",
       "*promotions",
+      // Offline-order scrub: need category handles on line products
+      "*items",
+      "*items.product",
+      "*items.product.categories",
     ].join(",")
     const { cart } = await cartFetch<{ cart: MedusaCart }>(
       `/store/carts/${cartId}?fields=${encodeURIComponent(fields)}`

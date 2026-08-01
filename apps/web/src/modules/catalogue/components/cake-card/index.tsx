@@ -10,6 +10,11 @@ import {
   isProductAvailable,
 } from "@/lib/data/catalogue";
 import { displayCategoryBadge } from "@/modules/home/lib/category-display";
+import {
+  formatOfflinePriceLabel,
+  isOfflineOrderProduct,
+  OFFLINE_ORDER_COPY,
+} from "@/lib/product/offline-order";
 
 interface CakeCardProps {
   product: CatalogueProduct;
@@ -17,9 +22,15 @@ interface CakeCardProps {
 }
 
 export default function CakeCard({ product }: CakeCardProps) {
-  const available = isProductAvailable(product);
+  const offlineOrder = isOfflineOrderProduct(product);
+  // Offline cakes are always "orderable" via WhatsApp — never stock-dim.
+  const available = offlineOrder ? true : isProductAvailable(product);
   const activeVariant = getCheapestVariant(product.variants);
-  const priceStr = activeVariant ? formatVariantPrice(activeVariant) : null;
+  const priceStr = offlineOrder
+    ? formatOfflinePriceLabel(product.variants)
+    : activeVariant
+      ? formatVariantPrice(activeVariant)
+      : null;
   const imageUrl = product.thumbnail ?? product.images?.[0]?.url;
   const primaryCat = product.categories?.[0] ?? null;
   const categoryLabel = primaryCat
@@ -54,11 +65,18 @@ export default function CakeCard({ product }: CakeCardProps) {
         {/* Soft gradient for badge readability */}
         <div className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-black/25 to-transparent" />
 
-        {categoryLabel && (
-          <span className="absolute left-2 top-2 rounded-full bg-white/95 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-deep-plum shadow-sm backdrop-blur">
-            {categoryLabel}
-          </span>
-        )}
+        <div className="absolute left-2 top-2 flex flex-col gap-1 items-start">
+          {offlineOrder && (
+            <span className="rounded-full bg-[#25D366] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white shadow-sm">
+              {OFFLINE_ORDER_COPY.badge}
+            </span>
+          )}
+          {categoryLabel && (
+            <span className="rounded-full bg-white/95 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-deep-plum shadow-sm backdrop-blur">
+              {categoryLabel}
+            </span>
+          )}
+        </div>
 
         {!available && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/35">

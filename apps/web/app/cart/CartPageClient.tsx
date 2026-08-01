@@ -10,7 +10,9 @@ import { CartFulfillmentSection } from "./CartFulfillmentSection"
 import { CartLineItems } from "./CartLineItems"
 import { CartOrderSummary } from "./CartOrderSummary"
 import { InventoryConflictBanner } from "./InventoryConflictBanner"
+import { OfflineRemovedBanner } from "./OfflineRemovedBanner"
 import { useCartPage } from "./use-cart-page"
+import { useCart } from "@/lib/cart/cart-context"
 
 interface CartPageClientProps {
   franchiseId: string
@@ -23,8 +25,44 @@ export default function CartPageClient({
 }: CartPageClientProps) {
   const router = useRouter()
   const model = useCartPage(franchiseId, initialLocationId)
+  const {
+    removedOfflineItems,
+    removedOfflineBanner,
+    dismissRemovedOfflineItems,
+  } = useCart()
 
   if (!model.isLoading && (!model.cart?.items || model.cart.items.length === 0)) {
+    // Banner state survives empty cart after scrub so shoppers still see why.
+    if (removedOfflineItems.length > 0) {
+      return (
+        <div className="flex flex-col min-h-screen bg-[#EEDFF5] font-body">
+          <Header />
+          <main className="flex-grow w-full max-w-2xl mx-auto px-4 pt-24 sm:pt-28 pb-16">
+            <OfflineRemovedBanner
+              message={removedOfflineBanner}
+              titles={removedOfflineItems}
+              onDismiss={dismissRemovedOfflineItems}
+            />
+            <div className="text-center space-y-6 mt-4 px-6 py-12 bg-surface-container-lowest rounded-2xl border border-surface-container shadow-sm">
+              <h1 className="font-headline font-bold text-3xl text-primary">
+                Your cart is empty
+              </h1>
+              <p className="text-on-surface-variant text-sm max-w-xs mx-auto leading-relaxed">
+                Order wedding and icing cakes via WhatsApp or visit us — other
+                cakes can be added from the catalogue.
+              </p>
+              <a
+                href="/cake-catalogue"
+                className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-deep-plum text-white font-headline font-bold text-sm uppercase tracking-widest hover:bg-secondary transition-all"
+              >
+                Browse Cakes
+              </a>
+            </div>
+          </main>
+          <Footer />
+        </div>
+      )
+    }
     return <CartEmptyState />
   }
 
@@ -42,6 +80,14 @@ export default function CartPageClient({
             Review your selection before we start baking.
           </p>
         </div>
+
+        {removedOfflineItems.length > 0 && (
+          <OfflineRemovedBanner
+            message={removedOfflineBanner}
+            titles={removedOfflineItems}
+            onDismiss={dismissRemovedOfflineItems}
+          />
+        )}
 
         {model.locationWarning && (
           <LocationWarningBanner

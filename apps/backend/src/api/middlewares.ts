@@ -44,6 +44,10 @@ import {
   customerRegisterRateLimiter,
 } from "./middlewares/rate-limit-auth"
 import { validateCartCollectionSlot } from "./middlewares/validate-cart-collection-slot"
+import {
+  blockOfflineOrderComplete,
+  blockOfflineOrderLineItem,
+} from "./middlewares/block-offline-order-products"
 import FranchiseSalesChannelLink from "../links/franchise-sales-channel"
 import {
   bindCakeFulfillmentQuery,
@@ -363,12 +367,20 @@ export default defineMiddlewares({
       middlewares: [authenticate("customer", ["session", "bearer"])],
     },
 
+    // ── Cart: block wedding/icing (offline-order) products ────────────────────
+    {
+      matcher: "/store/carts/:id/line-items",
+      methods: ["POST"],
+      middlewares: [blockOfflineOrderLineItem],
+    },
+
     // ── Checkout: kitchen lead time / busy mode on collection slot ────────────
     // Must run before completeCart so busy-mode lead hours cannot be bypassed.
+    // Offline-order products are blocked first (fail closed before slot checks).
     {
       matcher: "/store/carts/:id/complete",
       methods: ["POST"],
-      middlewares: [validateCartCollectionSlot],
+      middlewares: [blockOfflineOrderComplete, validateCartCollectionSlot],
     },
 
     // ── Store product scoping ─────────────────────────────────────────────────

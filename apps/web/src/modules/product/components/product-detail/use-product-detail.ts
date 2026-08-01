@@ -40,6 +40,14 @@ import {
 import { getVariantPrice } from "./price";
 import { resolveFullProductDescription } from "./product-description";
 import type { MedusaProduct, StoreLocationOption } from "./types";
+import {
+  buildOfflineWhatsAppPrefill,
+  formatOfflinePriceLabel,
+  isOfflineOrderProduct,
+  offlineOrderCategoryLabels,
+  offlineOrderWhatsAppHref,
+  OFFLINE_ORDER_COPY,
+} from "@/lib/product/offline-order";
 
 const PRODUCT_DETAIL_SOURCE = "product-detail";
 
@@ -47,6 +55,11 @@ export function useProductDetail(product: MedusaProduct) {
   const router = useRouter();
   const { addToCart, totalItems } = useCart();
   const storeSelectionLocked = totalItems > 0;
+
+  const isOfflineOrder = useMemo(
+    () => isOfflineOrderProduct(product),
+    [product]
+  );
 
   const [selectedOptions, setSelectedOptions] = useState<
     Record<string, string>
@@ -267,11 +280,30 @@ export function useProductDetail(product: MedusaProduct) {
     );
   }, [product.variants, product.options, selectedOptions]);
 
-  const priceInfo = activeVariant ? getVariantPrice(activeVariant) : null;
+  const onlinePriceInfo = activeVariant ? getVariantPrice(activeVariant) : null;
 
-  const isInStock =
-    activeVariant?.manage_inventory === false ||
-    (activeVariant?.inventory_quantity ?? 1) > 0;
+  const offlinePriceLabel = useMemo(
+    () => (isOfflineOrder ? formatOfflinePriceLabel(product.variants) : null),
+    [isOfflineOrder, product.variants]
+  );
+
+  /** Offline products use "From £X" across variants; online uses selected variant. */
+  const priceInfo = useMemo(() => {
+    if (isOfflineOrder) {
+      if (!offlinePriceLabel) return null;
+      return {
+        current: offlinePriceLabel,
+        original: null as string | null,
+        hasDiscount: false,
+      };
+    }
+    return onlinePriceInfo;
+  }, [isOfflineOrder, offlinePriceLabel, onlinePriceInfo]);
+
+  const isInStock = isOfflineOrder
+    ? true
+    : activeVariant?.manage_inventory === false ||
+      (activeVariant?.inventory_quantity ?? 1) > 0;
 
   const servingsLabel = useMemo(
     () =>
@@ -334,7 +366,53 @@ export function useProductDetail(product: MedusaProduct) {
     }
   };
 
+  const handleOfflineWhatsApp = useCallback(() => {
+    if (!storeLocationId || !storeName?.trim()) {
+      setBakeryGateActive(true);
+      setCartError(
+        storeLocations.length > 0
+          ? "Please select a collection bakery above."
+          : "Please choose a bakery location first."
+      );
+      if (typeof document !== "undefined") {
+        document
+          .getElementById(COLLECTION_BAKERY_FIELD_ID)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      return;
+    }
+
+    setCartError(null);
+    setBakeryGateActive(false);
+
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : "";
+    const url = `${origin}/products/${product.handle}`;
+    const prefill = buildOfflineWhatsAppPrefill({
+      title: product.title,
+      url,
+      priceLabel: offlinePriceLabel ?? priceInfo?.current,
+      categoryLabels: offlineOrderCategoryLabels(product.categories),
+      storeName: storeName.trim(),
+    });
+    const href = offlineOrderWhatsAppHref(prefill);
+    window.open(href, "_blank", "noopener,noreferrer");
+  }, [
+    storeLocationId,
+    storeName,
+    storeLocations.length,
+    product.handle,
+    product.title,
+    product.categories,
+    offlinePriceLabel,
+    priceInfo?.current,
+  ]);
+
   const handleAddToCart = useCallback(async () => {
+    if (isOfflineOrder) {
+      setCartError(OFFLINE_ORDER_COPY.helper);
+      return;
+    }
     if (!activeVariant) return;
 
     if (!storeLocationId) {
@@ -393,6 +471,7 @@ export function useProductDetail(product: MedusaProduct) {
       setIsAddingToCart(false);
     }
   }, [
+    isOfflineOrder,
     activeVariant,
     quantity,
     selectedOptions,
@@ -448,6 +527,7 @@ export function useProductDetail(product: MedusaProduct) {
     // product-derived
     galleryImages,
     fullDescription,
+    isOfflineOrder,
     priceInfo,
     isInStock,
     servingsLabel,
@@ -492,6 +572,8 @@ export function useProductDetail(product: MedusaProduct) {
     cartError,
     isAddingToCart,
     handleAddToCart,
+    handleOfflineWhatsApp,
+    offlineOrderCopy: OFFLINE_ORDER_COPY,
     inWishlist,
     handleToggleWishlist,
     // reviews

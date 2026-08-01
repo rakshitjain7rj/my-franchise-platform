@@ -90,7 +90,13 @@ function FieldError({ message }: { message: string }) {
 }
 
 export default function CheckoutPage() {
-  const { cart, isLoading, clearCart, checkInventory } = useCart()
+  const {
+    cart,
+    isLoading,
+    clearCart,
+    checkInventory,
+    scrubOfflineOrderItems,
+  } = useCart()
   const router = useRouter()
 
   // Track which fields the user has interacted with so inline errors only
@@ -254,6 +260,22 @@ export default function CheckoutPage() {
 
   const totalItems = cart?.items.reduce((a, i) => a + i.quantity, 0) ?? 0
 
+  // Offline wedding/icing lines cannot checkout — scrub then send to cart.
+  useEffect(() => {
+    if (isLoading || !cart?.items?.length) return
+    let cancelled = false
+    ;(async () => {
+      const removed = await scrubOfflineOrderItems()
+      if (cancelled) return
+      if (removed.length > 0) {
+        router.replace("/cart")
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [isLoading, cart?.id, cart?.items?.length, scrubOfflineOrderItems, router])
+
   // Empty-cart redirect: if loading is done and the cart has no items, send
   // the shopper to the catalogue rather than showing a broken checkout.
   useEffect(() => {
@@ -335,6 +357,13 @@ export default function CheckoutPage() {
     setSubmitting(true)
     setSubmitError(null)
     try {
+      // Belt-and-braces: strip any offline lines before payment / complete.
+      const removed = await scrubOfflineOrderItems()
+      if (removed.length > 0) {
+        router.replace("/cart")
+        return
+      }
+
       if (paymentMethod === "paypal") {
         // One full-page handoff. Do not mount Smart Buttons here: their extra
         // funding-source step and popup bridge were the source of recurring
@@ -351,11 +380,17 @@ export default function CheckoutPage() {
         clearCart()
       }
     } catch (err) {
-      setSubmitError(
+      const msg =
         err instanceof Error
           ? err.message
           : "We could not place your order. Please try again."
-      )
+      // Complete-order race: API rejected offline line — scrub and leave checkout.
+      if (/whatsapp or in store|not online checkout/i.test(msg)) {
+        await scrubOfflineOrderItems().catch(() => [])
+        router.replace("/cart")
+        return
+      }
+      setSubmitError(msg)
     } finally {
       setSubmitting(false)
     }

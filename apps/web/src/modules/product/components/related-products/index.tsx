@@ -4,6 +4,11 @@ import {
   formatVariantPrice,
   getCheapestVariant,
 } from "@/lib/data/catalogue";
+import {
+  formatOfflinePriceLabel,
+  isOfflineOrderProduct,
+  OFFLINE_ORDER_COPY,
+} from "@/lib/product/offline-order";
 
 // ---------------------------------------------------------------------------
 // Server Component — fetches real, franchise-scoped products from Medusa so
@@ -43,11 +48,14 @@ export default async function RelatedProducts({
       {/* Grid containing up to 8 real cakes */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4">
         {otherCakes.map((cake) => {
+          const offlineOrder = isOfflineOrderProduct(cake);
           const imageUrl = cake.thumbnail ?? cake.images?.[0]?.url;
           const cheapestVariant = getCheapestVariant(cake.variants);
-          const priceStr = cheapestVariant
-            ? formatVariantPrice(cheapestVariant)
-            : null;
+          const priceStr = offlineOrder
+            ? formatOfflinePriceLabel(cake.variants)
+            : cheapestVariant
+              ? formatVariantPrice(cheapestVariant)
+              : null;
 
           return (
             <article
@@ -62,6 +70,11 @@ export default async function RelatedProducts({
                     alt={cake.title}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
+                )}
+                {offlineOrder && (
+                  <span className="absolute left-1.5 top-1.5 rounded-full bg-[#25D366] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider text-white shadow-sm">
+                    {OFFLINE_ORDER_COPY.badge}
+                  </span>
                 )}
               </div>
 
