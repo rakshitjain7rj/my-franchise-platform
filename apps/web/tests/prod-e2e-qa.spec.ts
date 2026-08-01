@@ -153,15 +153,43 @@ test.describe("Production QA — real shopper + PayPal sandbox", () => {
     await page.waitForTimeout(2000);
     await shot(page, "04-product");
 
-    // Collection date + time slot
-    log("STEP 4: pick collection slot");
+    // ── 5. Add to cart (collection slot is chosen on cart page) ──────────
+    log("STEP 5: add to cart");
+    const addBtn = page.locator("button#add-to-cart-button, button:has-text('Add to Cart')").first();
+    await expect(addBtn).toBeVisible({ timeout: 15000 });
+    await addBtn.click();
+    await page.waitForTimeout(3000);
+    await shot(page, "05-after-add");
+
+    const addedOk =
+      (await page.locator("button#add-to-cart-button").innerText().catch(() => "")).match(
+        /Added/i
+      ) ||
+      (await page.locator("text=/Added to Cart/i").isVisible().catch(() => false));
+    log(`add-to-cart success indicator=${!!addedOk}`);
+
+    // ── 6. Cart page + collection date/time ──────────────────────────────
+    log("STEP 6: cart + collection slot");
+    await page.goto(BASE_URL + "/cart", { waitUntil: "domcontentloaded" });
+    await clearOverlays(page);
+    await page.waitForTimeout(2000);
+    await shot(page, "06-cart");
+
+    const empty = await page.locator("text=/empty|no items/i").first().isVisible().catch(() => false);
+    if (empty) {
+      log("FAIL: cart appears empty after add");
+      throw new Error("Cart empty after add-to-cart — frontend/backend cart not connecting");
+    }
+
+    // Collection date + time slot (order-level, cart page)
+    log("STEP 6b: pick collection slot on cart");
     const dateInput = page
       .locator('input[aria-label="Collection date"], input[type="date"]')
       .first();
     if (await dateInput.isVisible().catch(() => false)) {
       const minDate = await dateInput.getAttribute("min");
       const val = await dateInput.inputValue();
-      if (!val && minDate) {
+      if (minDate && (!val || val < minDate)) {
         await dateInput.fill(minDate);
         log(`filled collection date=${minDate}`);
       } else {
@@ -186,40 +214,13 @@ test.describe("Production QA — real shopper + PayPal sandbox", () => {
         const t = await firstSlot.innerText();
         log(`picked slot: ${t}`);
         await firstSlot.click();
+        await page.waitForTimeout(1500);
       } else {
         log("WARN: no time slot options in listbox");
         await shot(page, "04b-no-slots");
       }
     } else {
       log("WARN: no time slot control");
-    }
-
-    // ── 5. Add to cart ───────────────────────────────────────────────────
-    log("STEP 5: add to cart");
-    const addBtn = page.locator("button#add-to-cart-button, button:has-text('Add to Cart')").first();
-    await expect(addBtn).toBeVisible({ timeout: 15000 });
-    await addBtn.click();
-    await page.waitForTimeout(3000);
-    await shot(page, "05-after-add");
-
-    const addedOk =
-      (await page.locator("button#add-to-cart-button").innerText().catch(() => "")).match(
-        /Added/i
-      ) ||
-      (await page.locator("text=/Added to Cart/i").isVisible().catch(() => false));
-    log(`add-to-cart success indicator=${!!addedOk}`);
-
-    // ── 6. Cart page ─────────────────────────────────────────────────────
-    log("STEP 6: cart");
-    await page.goto(BASE_URL + "/cart", { waitUntil: "domcontentloaded" });
-    await clearOverlays(page);
-    await page.waitForTimeout(2000);
-    await shot(page, "06-cart");
-
-    const empty = await page.locator("text=/empty|no items/i").first().isVisible().catch(() => false);
-    if (empty) {
-      log("FAIL: cart appears empty after add");
-      throw new Error("Cart empty after add-to-cart — frontend/backend cart not connecting");
     }
 
     // Prefer Store Pickup for simpler checkout (no delivery radius)

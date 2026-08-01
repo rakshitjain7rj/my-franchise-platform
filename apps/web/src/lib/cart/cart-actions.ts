@@ -23,11 +23,13 @@ import {
   STORE_ID_COOKIE,
 } from "@/lib/store-cookies"
 import {
+  CAKE_ATTR,
   collectionSlotToCartMetadata,
   extractSlotStartTime,
   getMostRecentLineCollectionSlot,
   mergeCustomAttributes,
   normalizeCustomAttributes,
+  type CollectionSlot,
   type LineItemCakeMetadata,
 } from "@/types/cake-metadata"
 
@@ -302,6 +304,44 @@ export async function updateLineItemMetadata(
       body: JSON.stringify({ metadata }),
     }
   )
+  return cart
+}
+
+/**
+ * Order-level collection window: write cart.metadata.requested_pickup_* and
+ * stamp every line's custom_attributes.date/time so bakers + checkout agree.
+ */
+export async function applyCollectionSlotToCart(
+  cartId: string,
+  slot: CollectionSlot,
+  existingMetadata?: Record<string, unknown> | null
+): Promise<MedusaCart> {
+  const current = await getCart(cartId)
+  if (!current) {
+    throw new Error("Your cart could not be loaded. Please refresh and try again.")
+  }
+
+  const displayTime = (slot.label?.trim() || slot.time).trim()
+  const lineAttrs = {
+    [CAKE_ATTR.date]: slot.date.trim(),
+    [CAKE_ATTR.time]: displayTime,
+  }
+
+  let cart = current
+  for (const item of current.items) {
+    cart = await updateLineItemMetadata(cartId, item.id, {
+      customAttributes: lineAttrs,
+      existingCustomAttributes:
+        (item.metadata?.custom_attributes as Record<string, string> | undefined) ??
+        null,
+    })
+  }
+
+  cart = await updateCartMetadata(cartId, {
+    ...(existingMetadata ?? cart.metadata ?? {}),
+    ...collectionSlotToCartMetadata(slot),
+  })
+
   return cart
 }
 
@@ -624,11 +664,33 @@ export async function prepareCartForCheckout(
   const fulfillmentMethod: "pickup" | "delivery" =
     rawMethod === "delivery" ? "delivery" : "pickup"
 
-  // Line-item collection slots are the shopper-facing truth (product page).
-  // Re-promote onto cart metadata at checkout so stale cart times (e.g. an
-  // old default 17:00) cannot win over the line's 12:30–13:00 window.
+  // Order-level collection window: prefer cart metadata (set on cart page),
+  // fall back to line stamps. Re-promote so checkout/order routing agree.
   const lineSlot = getMostRecentLineCollectionSlot(current.items)
-  const slotMeta = lineSlot ? collectionSlotToCartMetadata(lineSlot) : {}
+  const metaDate =
+    typeof current.metadata?.requested_pickup_date === "string"
+      ? current.metadata.requested_pickup_date
+      : ""
+  const metaTime =
+    typeof current.metadata?.requested_pickup_time === "string"
+      ? current.metadata.requested_pickup_time
+      : ""
+  const metaLabel =
+    typeof current.metadata?.requested_pickup_label === "string"
+      ? current.metadata.requested_pickup_label
+      : ""
+  const cartSlot =
+    metaDate && metaTime
+      ? {
+          date: metaDate,
+          time: metaTime,
+          label: metaLabel || metaTime,
+        }
+      : null
+  const resolvedSlot = cartSlot ?? lineSlot
+  const slotMeta = resolvedSlot
+    ? collectionSlotToCartMetadata(resolvedSlot)
+    : {}
 
   // Re-validate delivery on the server-side fee API (not client-only metadata).
   let deliveryMeta: Record<string, unknown> = {}

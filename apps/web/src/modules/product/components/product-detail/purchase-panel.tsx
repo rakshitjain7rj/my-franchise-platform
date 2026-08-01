@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { Plus, Minus, ShoppingBag, Heart, MapPin } from "lucide-react";
-import TimeSlotPicker from "@/components/time-slot-picker";
 import { PremiumSelect } from "@/components/ui/premium-select";
 import PhotoUpload from "../photo-upload";
 import {
@@ -12,7 +11,6 @@ import {
   isFlavourOptionTitle,
 } from "@/types/cake-metadata";
 import {
-  CalendarIcon,
   EditIcon,
   FlavorIcon,
   JamIcon,
@@ -64,10 +62,6 @@ export function PurchasePanel({
     supportsJamFilling,
     jamOption,
     setJamOption,
-    collectionDate,
-    setCollectionDate,
-    collectionTime,
-    handleSlotChange,
     specialMessage,
     setSpecialMessage,
     inscription,
@@ -214,8 +208,8 @@ export function PurchasePanel({
                   fullWidth
                 />
                 <p className="text-[11px] text-on-surface-variant leading-relaxed">
-                  One bakery for the whole order. Collection slots and stock
-                  apply to this branch.
+                  One bakery for the whole order. Stock and collection slots on
+                  the cart apply to this branch.
                 </p>
               </>
             ) : (
@@ -336,26 +330,6 @@ export function PurchasePanel({
             ))}
           </div>
         )}
-
-        <div className="bg-white p-3.5 rounded-2xl border border-outline-variant/30 space-y-3">
-          <div className="flex items-center gap-2 text-vibrant-magenta">
-            <CalendarIcon />
-            <span className="text-xs font-bold text-on-surface-variant/90 uppercase tracking-wider">
-              Collection date &amp; time
-            </span>
-          </div>
-          <TimeSlotPicker
-            storeLocationId={storeLocationId}
-            date={collectionDate}
-            selectedTime={collectionTime}
-            onDateChange={(d) => {
-              setCollectionDate(d);
-              handleSlotChange(null);
-            }}
-            onSlotChange={handleSlotChange}
-            compact
-          />
-        </div>
 
         {((!hasFlavourOption && metadataFlavours.length > 0) ||
           (servingsLabel && selectableOptions.length === 0)) && (

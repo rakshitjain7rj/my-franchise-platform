@@ -1,8 +1,10 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
+import type { SlotSelection } from "@/components/time-slot-picker"
 import { useCart, type InventoryCheckResult } from "@/lib/cart/cart-context"
 import {
+  applyCollectionSlotToCart,
   applyPromoCode,
   applyPreferredShippingMethod,
   removePromoCode,
@@ -12,11 +14,14 @@ import {
 import { getCartDeliveryPostcode, resolveCartTotals } from "@/lib/cart/cart-totals"
 import { getCustomerAddresses } from "@/lib/auth/account-actions"
 import { getMedusaHeadersSync } from "@/lib/medusa/headers"
-import { fetchDeliveryFee } from "@/lib/data/logistics"
+import {
+  defaultMinCollectionDate,
+  fetchDeliveryFee,
+} from "@/lib/data/logistics"
 import { useSelectedStore } from "@/lib/store-selection"
 import {
   cartItemsHaveCollectionSlots,
-  collectionSlotToCartMetadata,
+  getCartMetadataCollectionSlot,
   getMostRecentLineCollectionSlot,
 } from "@/types/cake-metadata"
 
@@ -70,6 +75,15 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
   const [adjustingCart, setAdjustingCart] = useState(false)
 
   const [hasHydratedMetadata, setHasHydratedMetadata] = useState(false)
+
+  // Order-level collection window (chosen on cart, stamped onto all lines).
+  const [collectionDate, setCollectionDate] = useState(defaultMinCollectionDate())
+  const [collectionTime, setCollectionTime] = useState("")
+  const [collectionTimeLabel, setCollectionTimeLabel] = useState("")
+  const [collectionSlotSaving, setCollectionSlotSaving] = useState(false)
+  const [collectionSlotError, setCollectionSlotError] = useState<string | null>(
+    null
+  )
 
   // Keep local location in sync with store-selection protocol (replaces 2s poll).
   const prevCookieLoc = useRef(cookieLocationId)
@@ -215,24 +229,23 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
 
     const meta = cart.metadata as Record<string, unknown> | null
 
-    // Prefer the most recent line item's product-page collection window so
-    // checkout can still read cart.metadata.requested_pickup_* if needed.
+    // Prefer cart-level slot (set on this page); fall back to line stamps
+    // from older product-page flows so existing carts still hydrate.
+    const metaSlot = getCartMetadataCollectionSlot(meta)
     const lineSlot = getMostRecentLineCollectionSlot(cart.items)
-    const pickupDate =
-      (typeof meta?.requested_pickup_date === "string" &&
-        meta.requested_pickup_date) ||
-      lineSlot?.date ||
-      undefined
-    const pickupTime =
-      (typeof meta?.requested_pickup_time === "string" &&
-        meta.requested_pickup_time) ||
-      lineSlot?.time ||
-      undefined
-    const pickupLabel =
-      (typeof meta?.requested_pickup_label === "string" &&
-        meta.requested_pickup_label) ||
-      (pickupTime && !/^\d{2}:\d{2}$/.test(pickupTime) ? pickupTime : "") ||
-      ""
+    const resolvedSlot = metaSlot ?? lineSlot
+
+    if (resolvedSlot?.date) {
+      setCollectionDate(resolvedSlot.date)
+    }
+    if (resolvedSlot?.time) {
+      setCollectionTime(resolvedSlot.time)
+      setCollectionTimeLabel(resolvedSlot.label || resolvedSlot.time)
+    }
+
+    const pickupDate = resolvedSlot?.date
+    const pickupTime = resolvedSlot?.time
+    const pickupLabel = resolvedSlot?.label || resolvedSlot?.time || ""
 
     if (meta?.fulfillment_method) {
       setFulfillment(meta.fulfillment_method as "pickup" | "delivery")
@@ -263,31 +276,25 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
       setDeliveryDistanceKm(meta.delivery_distance_km)
     }
 
-    // Promote product-page slot → cart metadata once (no cart UI to re-edit).
-    // Always overwrite when the line slot disagrees with cart metadata so a
-    // stale default (e.g. 17:00) cannot shadow the real collection window.
-    if (lineSlot?.date && lineSlot?.time) {
-      const promoted = collectionSlotToCartMetadata(lineSlot)
-      const cartTime =
-        typeof meta?.requested_pickup_time === "string"
-          ? meta.requested_pickup_time
-          : ""
-      const cartLabel =
-        typeof meta?.requested_pickup_label === "string"
-          ? meta.requested_pickup_label
-          : ""
-      const cartDate =
-        typeof meta?.requested_pickup_date === "string"
-          ? meta.requested_pickup_date
-          : ""
-      const outOfSync =
-        cartDate !== promoted.requested_pickup_date ||
-        cartTime !== promoted.requested_pickup_time ||
-        (promoted.requested_pickup_label &&
-          cartLabel !== promoted.requested_pickup_label)
-      if (outOfSync) {
-        void persistCartMetadata(promoted)
-      }
+    // If lines already have a slot but cart metadata is missing/stale, promote
+    // once so checkout can read requested_pickup_*.
+    if (lineSlot?.date && lineSlot?.time && !metaSlot) {
+      void applyCollectionSlotToCart(cart.id, lineSlot, meta).then(() =>
+        refreshCart().catch(() => {})
+      )
+    }
+
+    // If cart has a slot but some newly added lines are missing date/time,
+    // re-stamp all lines so bakers see a consistent order window.
+    if (
+      metaSlot?.date &&
+      metaSlot?.time &&
+      cart.items.length > 0 &&
+      !cartItemsHaveCollectionSlots(cart.items)
+    ) {
+      void applyCollectionSlotToCart(cart.id, metaSlot, meta).then(() =>
+        refreshCart().catch(() => {})
+      )
     }
 
     const cartStore = meta?.store_location_id as string | undefined
@@ -313,7 +320,7 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
     }
 
     setHasHydratedMetadata(true)
-  }, [cart, hasHydratedMetadata, locationId, persistCartMetadata])
+  }, [cart, hasHydratedMetadata, locationId, persistCartMetadata, refreshCart])
 
   // Load location name/address
   useEffect(() => {
@@ -359,6 +366,102 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
     },
     [persistCartMetadata, cartId, locationId, refreshCart]
   )
+
+  const handleCollectionDateChange = useCallback((date: string) => {
+    setCollectionDate(date)
+    setCollectionTime("")
+    setCollectionTimeLabel("")
+    setCollectionSlotError(null)
+  }, [])
+
+  const handleCollectionSlotChange = useCallback(
+    async (slot: SlotSelection | null) => {
+      if (!slot) {
+        setCollectionTime("")
+        setCollectionTimeLabel("")
+        return
+      }
+
+      setCollectionDate(slot.date)
+      setCollectionTime(slot.time)
+      setCollectionTimeLabel(slot.label || slot.time)
+      setCollectionSlotError(null)
+
+      if (!cartId) return
+
+      setCollectionSlotSaving(true)
+      try {
+        await applyCollectionSlotToCart(
+          cartId,
+          {
+            date: slot.date,
+            time: slot.time,
+            label: slot.label || slot.time,
+          },
+          cart?.metadata ?? null
+        )
+        await refreshCart()
+      } catch (err) {
+        setCollectionSlotError(
+          err instanceof Error
+            ? err.message
+            : "Could not save collection date and time."
+        )
+      } finally {
+        setCollectionSlotSaving(false)
+      }
+    },
+    [cartId, cart?.metadata, refreshCart]
+  )
+
+  // When items are added after a slot is already chosen, stamp them once per
+  // cart-lines signature so every line carries the same order-level window.
+  const stampedItemsSignatureRef = useRef<string>("")
+  useEffect(() => {
+    if (!cartId || !cart?.items?.length || !hasHydratedMetadata) return
+    if (!collectionDate || !collectionTime) return
+    if (cartItemsHaveCollectionSlots(cart.items)) {
+      stampedItemsSignatureRef.current = itemsSignature
+      return
+    }
+    if (stampedItemsSignatureRef.current === itemsSignature) return
+    stampedItemsSignatureRef.current = itemsSignature
+
+    let cancelled = false
+    setCollectionSlotSaving(true)
+    void applyCollectionSlotToCart(
+      cartId,
+      {
+        date: collectionDate,
+        time: collectionTime,
+        label: collectionTimeLabel || collectionTime,
+      },
+      cart.metadata ?? null
+    )
+      .then(() => {
+        if (!cancelled) return refreshCart()
+      })
+      .catch(() => {
+        // Allow a later items change to retry; do not tight-loop on failure.
+      })
+      .finally(() => {
+        if (!cancelled) setCollectionSlotSaving(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    cartId,
+    cart?.items,
+    cart?.metadata,
+    hasHydratedMetadata,
+    collectionDate,
+    collectionTime,
+    collectionTimeLabel,
+    itemsSignature,
+    refreshCart,
+  ])
 
   const quoteDeliveryFee = useCallback(async () => {
     if (fulfillment !== "delivery" || !locationId || !deliveryPostcode.trim()) {
@@ -479,13 +582,19 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
   const deliveryOk =
     fulfillment === "pickup" ||
     ((deliveryFee > 0 || totals.shipping > 0) && !deliveryFeeError)
-  // Collection window is set per cake on the product page (line custom_attributes).
-  const itemsHaveCollectionSlot = cartItemsHaveCollectionSlots(cart?.items)
+  // Collection window is set once on the cart (order-level) and stamped on lines.
+  // Gate on persisted data (lines or cart metadata), not local draft state.
+  const itemsHaveCollectionSlot =
+    cartItemsHaveCollectionSlots(cart?.items) ||
+    getCartMetadataCollectionSlot(
+      (cart?.metadata as Record<string, unknown> | null) ?? null
+    ) != null
   const canCheckout =
     itemsHaveCollectionSlot &&
     (cart?.items?.length ?? 0) > 0 &&
     isInventorySufficient &&
-    deliveryOk
+    deliveryOk &&
+    !collectionSlotSaving
 
   const subtotalVal = totals.subtotal
   const taxVal = totals.tax
@@ -515,6 +624,12 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
     fulfillment,
     setFulfillment,
     persistFulfillment,
+    collectionDate,
+    collectionTime,
+    handleCollectionDateChange,
+    handleCollectionSlotChange,
+    collectionSlotSaving,
+    collectionSlotError,
     deliveryPostcode,
     setDeliveryPostcode,
     deliveryFee,

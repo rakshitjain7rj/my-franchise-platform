@@ -54,7 +54,39 @@ async function registerUser(page, firstName = "Alex", lastName = "Baker", phone 
   return { email, password };
 }
 
-// Helper to select location, pick product, pick slot, and add to cart
+/** Order-level collection window lives on the cart page (not product). */
+async function pickCollectionSlotOnCart(page) {
+  if (!page.url().includes("/cart")) {
+    await page.goto(`${BASE_URL}/cart`);
+  }
+  await clearOverlays(page);
+
+  const dateInput = page
+    .locator('input[aria-label="Collection date"], input[type="date"]')
+    .first();
+  await expect(dateInput).toBeVisible({ timeout: 15000 });
+  const minDate = await dateInput.getAttribute("min");
+  const val = await dateInput.inputValue();
+  if (minDate && (!val || val < minDate)) {
+    await dateInput.fill(minDate);
+  }
+
+  const timeSlotBtn = page.locator('button[aria-label="Time slot"]');
+  await expect(timeSlotBtn).toBeVisible({ timeout: 15000 });
+  await expect(timeSlotBtn).toBeEnabled({ timeout: 20000 });
+  await expect(timeSlotBtn).not.toContainText(/Loading|No slots available/i);
+
+  await timeSlotBtn.click();
+  const firstSlot = page
+    .locator('[role="listbox"][aria-label="Time slot"] [role="option"]')
+    .first();
+  await expect(firstSlot).toBeVisible({ timeout: 10000 });
+  await firstSlot.click();
+  // Allow cart metadata + line stamps to persist
+  await page.waitForTimeout(1500);
+}
+
+// Helper to select location, pick product, and add to cart
 async function addCakeToCart(page) {
   await page.goto(`${BASE_URL}/map-routing`);
   await clearOverlays(page);
@@ -80,34 +112,14 @@ async function addCakeToCart(page) {
   await page.waitForURL(/.*\/products\/.*/, { timeout: 45000 });
   await clearOverlays(page);
   
-  // Collection date (TimeSlotPicker)
-  const dateInput = page.locator('input[aria-label="Collection date"], input[type="date"]').first();
-  await expect(dateInput).toBeVisible();
-  const minDate = await dateInput.getAttribute("min");
-  const val = await dateInput.inputValue();
-  if (!val && minDate) {
-    await dateInput.fill(minDate);
-  }
-
-  // Time slots use PremiumSelect (button + listbox), not a native <select>.
-  const timeSlotBtn = page.locator('button[aria-label="Time slot"]');
-  await expect(timeSlotBtn).toBeVisible({ timeout: 15000 });
-  // Wait for slots API: button enables once bookable options exist.
-  await expect(timeSlotBtn).toBeEnabled({ timeout: 20000 });
-  await expect(timeSlotBtn).not.toContainText(/Loading|No slots available/i);
-
-  await timeSlotBtn.click();
-  const firstSlot = page
-    .locator('[role="listbox"][aria-label="Time slot"] [role="option"]')
-    .first();
-  await expect(firstSlot).toBeVisible({ timeout: 10000 });
-  await firstSlot.click();
-  
   const addToCartBtn = page.locator("button#add-to-cart-button");
   await expect(addToCartBtn).toBeVisible();
   await addToCartBtn.click();
   
   await expect(page.locator("button#add-to-cart-button")).toHaveText("Added to Cart!", { timeout: 15000 });
+
+  // Collection date/time is required on cart before checkout.
+  await pickCollectionSlotOnCart(page);
 }
 
 // Add a default address book entry

@@ -1,5 +1,8 @@
 "use client"
 
+import TimeSlotPicker, {
+  type SlotSelection,
+} from "@/components/time-slot-picker"
 import { fmt } from "./format"
 
 interface CartFulfillmentSectionProps {
@@ -7,6 +10,13 @@ interface CartFulfillmentSectionProps {
   onFulfillmentChange: (method: "pickup" | "delivery") => void
   locationName: string | null
   locationAddress: string | null
+  storeLocationId: string | null
+  collectionDate: string
+  collectionTime: string
+  onCollectionDateChange: (date: string) => void
+  onCollectionSlotChange: (slot: SlotSelection | null) => void
+  collectionSlotSaving?: boolean
+  collectionSlotError?: string | null
   deliveryPostcode: string
   onDeliveryPostcodeChange: (value: string) => void
   deliveryFee: number
@@ -18,15 +28,21 @@ interface CartFulfillmentSectionProps {
 }
 
 /**
- * Cart-level fulfillment: pickup vs delivery + delivery postcode quote.
- * Collection date/time is chosen per cake on the product page and shown on
- * each line item — not re-edited here (avoids cart→checkout drift).
+ * Cart-level fulfillment: collection date/time (order-wide), pickup vs
+ * delivery, and delivery postcode quote.
  */
 export function CartFulfillmentSection({
   fulfillment,
   onFulfillmentChange,
   locationName,
   locationAddress,
+  storeLocationId,
+  collectionDate,
+  collectionTime,
+  onCollectionDateChange,
+  onCollectionSlotChange,
+  collectionSlotSaving = false,
+  collectionSlotError = null,
   deliveryPostcode,
   onDeliveryPostcodeChange,
   deliveryFee,
@@ -41,6 +57,39 @@ export function CartFulfillmentSection({
       <h2 className="font-headline text-xl font-bold text-primary">
         How would you like to receive this?
       </h2>
+
+      <div className="bg-surface-container-lowest p-5 sm:p-6 rounded-2xl border border-outline-variant/30 shadow-sm space-y-3">
+        <div className="flex items-center gap-2 text-secondary">
+          <span className="material-symbols-outlined text-[20px]" data-weight="fill">
+            calendar_month
+          </span>
+          <h3 className="text-sm font-bold text-primary uppercase tracking-wider">
+            Collection date &amp; time
+          </h3>
+        </div>
+        <p className="text-xs text-on-surface-variant leading-relaxed">
+          One collection window for your whole order. We bake and prepare
+          everything for this day and time.
+        </p>
+        <TimeSlotPicker
+          storeLocationId={storeLocationId}
+          date={collectionDate}
+          selectedTime={collectionTime}
+          onDateChange={onCollectionDateChange}
+          onSlotChange={onCollectionSlotChange}
+        />
+        {collectionSlotSaving && (
+          <p className="text-xs text-on-surface-variant" role="status">
+            Saving collection time…
+          </p>
+        )}
+        {collectionSlotError && (
+          <p className="text-xs text-red-600" role="alert">
+            {collectionSlotError}
+          </p>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <button
           type="button"
@@ -85,8 +134,8 @@ export function CartFulfillmentSection({
             </div>
           </div>
           <p className="text-sm text-on-surface-variant leading-relaxed">
-            Collect your order from the selected bakery at the date and time
-            chosen on each product.
+            Collect your order from the selected bakery at the collection date
+            and time above.
           </p>
         </button>
 
@@ -207,11 +256,6 @@ export function CartFulfillmentSection({
           )}
         </div>
       )}
-
-      <p className="text-xs text-on-surface-variant">
-        Collection date and time are set when you add each cake (product page).
-        Check the details under each item above.
-      </p>
     </section>
   )
 }

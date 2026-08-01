@@ -569,10 +569,10 @@ export function isHiddenAttrKey(key: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Collection date/time (product-page slots → line attrs → cart metadata)
+// Collection date/time (cart-page order slot → cart metadata + line attrs)
 // ---------------------------------------------------------------------------
 
-/** Product-page / line-item collection window. */
+/** Order-level / line-item collection window. */
 export type CollectionSlot = {
   date: string
   time: string
@@ -634,6 +634,35 @@ export function cartItemsHaveCollectionSlots(
 ): boolean {
   if (!items?.length) return false
   return items.every((item) => getLineCollectionSlot(item) != null)
+}
+
+/**
+ * Read order-level collection window from cart metadata
+ * (`requested_pickup_date` + `requested_pickup_time` / label).
+ */
+export function getCartMetadataCollectionSlot(
+  metadata: Record<string, unknown> | null | undefined
+): CollectionSlot | null {
+  if (!metadata || typeof metadata !== "object") return null
+  const date =
+    typeof metadata.requested_pickup_date === "string"
+      ? metadata.requested_pickup_date.trim()
+      : ""
+  const rawTime =
+    typeof metadata.requested_pickup_time === "string"
+      ? metadata.requested_pickup_time.trim()
+      : ""
+  const label =
+    typeof metadata.requested_pickup_label === "string"
+      ? metadata.requested_pickup_label.trim()
+      : ""
+  if (!date || (!rawTime && !label)) return null
+  const start = extractSlotStartTime(rawTime || label)
+  return {
+    date,
+    time: start ?? (rawTime || label),
+    label: label || rawTime,
+  }
 }
 
 /**

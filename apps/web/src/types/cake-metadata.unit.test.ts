@@ -6,6 +6,7 @@ import {
   buildCustomAttributes,
   collectionSlotToCartMetadata,
   extractSlotStartTime,
+  getCartMetadataCollectionSlot,
   getLineCollectionSlot,
   isFlavourOptionTitle,
   isFulfillmentOptionTitle,
@@ -229,5 +230,15 @@ assert(line?.date === "2026-07-20", "line date")
 assert(line?.time === "12:30", "line time start")
 assert(line?.label === "12:30 – 13:00", "line label")
 assert(extractSlotStartTime("09:00 – 09:30") === "09:00", "extract start")
+
+const fromCartMeta = getCartMetadataCollectionSlot({
+  requested_pickup_date: "2026-08-01",
+  requested_pickup_time: "14:00",
+  requested_pickup_label: "14:00 – 14:30",
+})
+assert(fromCartMeta?.date === "2026-08-01", "cart meta date")
+assert(fromCartMeta?.time === "14:00", "cart meta time")
+assert(fromCartMeta?.label === "14:00 – 14:30", "cart meta label")
+assert(getCartMetadataCollectionSlot({}) == null, "empty cart meta → null")
 
 console.log("cake-metadata.unit.test.ts: all passed")

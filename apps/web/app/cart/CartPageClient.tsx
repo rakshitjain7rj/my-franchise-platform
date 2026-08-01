@@ -84,6 +84,15 @@ export default function CartPageClient({
               }}
               locationName={model.locationName}
               locationAddress={model.locationAddress}
+              storeLocationId={model.locationId}
+              collectionDate={model.collectionDate}
+              collectionTime={model.collectionTime}
+              onCollectionDateChange={model.handleCollectionDateChange}
+              onCollectionSlotChange={(slot) =>
+                void model.handleCollectionSlotChange(slot)
+              }
+              collectionSlotSaving={model.collectionSlotSaving}
+              collectionSlotError={model.collectionSlotError}
               deliveryPostcode={model.deliveryPostcode}
               onDeliveryPostcodeChange={model.setDeliveryPostcode}
               deliveryFee={model.deliveryFee}

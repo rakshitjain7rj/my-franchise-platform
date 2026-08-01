@@ -9,7 +9,6 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import type { SlotSelection } from "@/components/time-slot-picker";
 import { useCart } from "@/lib/cart/cart-context";
 import { medusaFetch } from "@/lib/medusa";
 import {
@@ -22,7 +21,6 @@ import {
   removeFromWishlist,
   isInWishlist,
 } from "@/lib/wishlist";
-import { defaultMinCollectionDate } from "@/lib/data/logistics";
 
 /** Scroll target for ATC bakery gate (purchase panel Collection bakery card). */
 export const COLLECTION_BAKERY_FIELD_ID = "collection-bakery-field";
@@ -79,14 +77,9 @@ export function useProductDetail(product: MedusaProduct) {
   const [metadataFlavour, setMetadataFlavour] = useState(
     () => metadataFlavours[0] ?? ""
   );
-  const [collectionDate, setCollectionDate] = useState(
-    defaultMinCollectionDate()
-  );
-  const [collectionTime, setCollectionTime] = useState("");
-  const [collectionTimeLabel, setCollectionTimeLabel] = useState("");
 
-  // Guard slot-clear + refresh so same-store re-emits (name hydrate, map
-  // re-click, bootstrap echo) do not wipe a chosen collection time.
+  // Guard bakery switches so same-store re-emits (name hydrate, map re-click,
+  // bootstrap echo) do not force unnecessary refreshes.
   const storeLocationIdRef = useRef<string | null>(null);
 
   const {
@@ -99,8 +92,6 @@ export function useProductDetail(product: MedusaProduct) {
     onExternalChange: (next) => {
       const nextId = next.storeLocationId;
       if (nextId && nextId !== storeLocationIdRef.current) {
-        setCollectionTime("");
-        setCollectionTimeLabel("");
         router.refresh();
       }
     },
@@ -220,12 +211,7 @@ export function useProductDetail(product: MedusaProduct) {
 
   // Bakery is session-wide and locked while the cart has items. Unlocked
   // switches happen in-page via handleBakeryChange (PremiumSelect).
-
-  const clearCollectionSlot = useCallback(() => {
-    setCollectionTime("");
-    setCollectionTimeLabel("");
-    setCollectionDate(defaultMinCollectionDate());
-  }, []);
+  // Collection date/time is chosen on the cart page (order-level), not here.
 
   const handleBakeryChange = useCallback(
     (nextStoreLocationId: string) => {
@@ -251,10 +237,7 @@ export function useProductDetail(product: MedusaProduct) {
         return;
       }
 
-      // Local selects use ignoreSource, so onExternalChange will not run —
-      // clear bakery-scoped slot state here when the branch actually changes.
       if (id !== previousId) {
-        clearCollectionSlot();
         storeLocationIdRef.current = id;
       }
 
@@ -262,25 +245,8 @@ export function useProductDetail(product: MedusaProduct) {
       setCartError(null);
       setAddedToCart(false);
     },
-    [
-      storeLocations,
-      storeName,
-      franchiseId,
-      totalItems,
-      clearCollectionSlot,
-    ]
+    [storeLocations, storeName, franchiseId, totalItems]
   );
-
-  const handleSlotChange = useCallback((slot: SlotSelection | null) => {
-    if (!slot) {
-      setCollectionTime("");
-      setCollectionTimeLabel("");
-      return;
-    }
-    setCollectionDate(slot.date);
-    setCollectionTime(slot.time);
-    setCollectionTimeLabel(slot.label);
-  }, []);
 
   useEffect(() => {
     if (!hasFlavourOption && metadataFlavours.length && !metadataFlavour) {
@@ -386,11 +352,6 @@ export function useProductDetail(product: MedusaProduct) {
       return;
     }
 
-    if (!collectionDate || !collectionTime) {
-      setCartError("Please choose a collection date and time slot.");
-      return;
-    }
-
     setIsAddingToCart(true);
     setCartError(null);
     setBakeryGateActive(false);
@@ -401,12 +362,12 @@ export function useProductDetail(product: MedusaProduct) {
         extraOptions[title] = value;
       }
 
+      // Collection date/time is chosen once on the cart page for the whole
+      // order — not per product — so we omit date/time attributes here.
       const customAttributes = buildCustomAttributes({
         flavour: resolvedFlavour || undefined,
         servings: servingsLabel || undefined,
         jam: supportsJamFilling ? jamOption : undefined,
-        date: collectionDate,
-        time: collectionTimeLabel || collectionTime,
         message: specialMessage.trim() || undefined,
         photo_url: photoUrl || undefined,
         extraOptions,
@@ -420,11 +381,6 @@ export function useProductDetail(product: MedusaProduct) {
         inscription: supportsInscription
           ? inscription.trim() || undefined
           : undefined,
-        collectionSlot: {
-          date: collectionDate,
-          time: collectionTime,
-          label: collectionTimeLabel || collectionTime,
-        },
       });
 
       setAddedToCart(true);
@@ -441,9 +397,6 @@ export function useProductDetail(product: MedusaProduct) {
     quantity,
     selectedOptions,
     inscription,
-    collectionDate,
-    collectionTime,
-    collectionTimeLabel,
     jamOption,
     specialMessage,
     photoUrl,
@@ -526,11 +479,6 @@ export function useProductDetail(product: MedusaProduct) {
       setJamOption(opt);
       touchCartUi();
     },
-    collectionDate,
-    setCollectionDate,
-    collectionTime,
-    collectionTimeLabel,
-    handleSlotChange,
     specialMessage,
     setSpecialMessage,
     inscription,
