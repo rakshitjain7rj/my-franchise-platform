@@ -1,13 +1,16 @@
 "use client";
 
 /**
- * Header search — sends shoppers to the cake catalogue search bar.
+ * Header search — global jump into the cake catalogue.
+ * Shown everywhere except cake catalogue (parent Header hides it there;
+ * the catalogue page has its own live search field).
+ *
  * Submit with a query → /cake-catalogue?q=…
  * Empty submit / search icon → /cake-catalogue?focus=search (focuses catalogue input)
  */
 
 import { FormEvent, useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 
 function catalogueSearchHref(query: string): string {
@@ -29,18 +32,11 @@ export default function HeaderSearch({
   onNavigate,
 }: HeaderSearchProps) {
   const router = useRouter();
-  const pathname = usePathname();
   const [value, setValue] = useState("");
 
   const go = (query: string) => {
-    const href = catalogueSearchHref(query);
     onNavigate?.();
-    // Already on catalogue with same q: still scroll/focus via focus param
-    if (pathname.startsWith("/cake-catalogue") && !query.trim()) {
-      router.push("/cake-catalogue?focus=search");
-      return;
-    }
-    router.push(href);
+    router.push(catalogueSearchHref(query));
   };
 
   const onSubmit = (e: FormEvent) => {
