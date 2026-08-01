@@ -120,8 +120,11 @@ export function defaultMinCollectionDate(leadTimeHours = 0): string {
   return `${yyyy}-${mm}-${dd}`
 }
 
-/** Slots starting before this local time show the early-collection WhatsApp warning. */
-export const EARLY_COLLECTION_WARNING_BEFORE = "10:00"
+/**
+ * Slots starting before this local time show the morning-opening disclaimer
+ * (10:00–10:30 and 10:30–11:00 in the usual 30-min grid).
+ */
+export const EARLY_COLLECTION_WARNING_BEFORE = "11:00"
 
 /** English ordinal for calendar day (1 → 1st, 2 → 2nd, …). */
 export function dayOrdinal(day: number): string {
@@ -202,8 +205,8 @@ export function parseTimeToMinutes(value: string): number | null {
 }
 
 /**
- * True when the selected collection start is before the early-morning threshold
- * (default 10:00). Soft warning only — does not block booking.
+ * True when the selected collection start is before the morning-opening
+ * threshold (default 11:00). Soft warning only — does not block booking.
  */
 export function isEarlyCollectionSlot(
   timeHHmm: string,
@@ -227,7 +230,7 @@ export function whatsAppOrderHref(prefill: string): string {
 }
 
 export const EARLY_COLLECTION_WHATSAPP_TEXT =
-  "Hi Cake Break — I'm placing an order for early morning collection. Can you confirm you can have the cake ready then?"
+  "Hi Cake Break — I'm booking a morning collection slot (before 11:00). Can you confirm when the cake will be ready? I understand it may be closer to 11:30–12:00."
 
 /** Customer-facing reason for a non-bookable slot. */
 export function slotUnbookableLabel(

@@ -291,20 +291,22 @@ export default function TimeSlotPicker({
           role="status"
         >
           <p className="font-headline text-base font-extrabold tracking-tight text-amber-950">
-            Early morning collection?
+            Morning collection notice
           </p>
           <p className="mt-1.5 text-xs font-semibold leading-relaxed sm:text-sm">
-            If you place the order for early morning, please message us on{" "}
+            Cakes booked for 10:00–11:00 often need a little extra prep time —
+            our bakeries open at <strong>9:00</strong> Tuesday–Saturday and{" "}
+            <strong>10:00</strong> on Monday and Sunday. Please contact us on{" "}
             <a
               href={earlyWhatsAppHref}
               target="_blank"
               rel="noopener noreferrer"
               className="font-extrabold underline decoration-2 underline-offset-2 text-[#128C7E] hover:text-[#075E54]"
             >
-              WhatsApp first
+              WhatsApp
             </a>{" "}
-            — we may not be able to hand over the cake as soon as the shop
-            opens.
+            so the bakers can confirm. Morning orders are typically ready
+            between <strong>11:30–12:00</strong>.
           </p>
         </div>
       )}
