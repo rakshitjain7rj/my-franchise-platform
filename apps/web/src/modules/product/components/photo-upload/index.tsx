@@ -140,7 +140,7 @@ export default function PhotoUpload({
         role="note"
       >
         <span className="font-bold">Edible photo note: </span>
-        The printed photo is best enjoyed the same day. It can soften or
+        The printed photo is best enjoyed within 2 hours. It can soften or
         dissolve if left longer, so please collect before your event and serve
         soon after.
       </div>

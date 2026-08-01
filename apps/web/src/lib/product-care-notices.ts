@@ -16,7 +16,7 @@ export type ProductCareNotice = {
 export const PHOTO_CAKE_CARE: ProductCareNotice = {
   kind: "photo",
   title: "Edible photo note",
-  body: "The printed photo is best enjoyed the same day. It can soften or dissolve if left longer, so please collect before your event and serve soon after.",
+  body: "The printed photo is best enjoyed within 2 hours. It can soften or dissolve if left longer, so please collect before your event and serve soon after.",
 }
 
 /**
