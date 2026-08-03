@@ -6,6 +6,7 @@
  */
 export { getMedusaHeaders, getMedusaHeadersSync } from "./headers";
 export type { MedusaHeaders } from "./headers";
+export { getDefaultRegionId } from "./region";
 
 // SDK — only import when @medusajs/js-sdk is installed.
 // Consumers that don't need the SDK can just import from "@/lib/medusa/headers".

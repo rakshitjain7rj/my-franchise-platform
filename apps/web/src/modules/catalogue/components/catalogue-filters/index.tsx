@@ -21,6 +21,10 @@ import {
   type SortKey,
 } from "@/lib/data/catalogue";
 import {
+  catalogueSearchCommitValue,
+  shouldSyncSearchDraftFromUrl,
+} from "@/lib/data/search-suggest";
+import {
   displayCategoryBadge,
   displayCategoryName,
 } from "@/modules/home/lib/category-display";
@@ -290,8 +294,21 @@ export default function CatalogueFilters({
 
   const [searchDraft, setSearchDraft] = useState(currentQ);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * Write-only while focused: never pull URL → draft while the user is typing.
+   * That alone fixes coco → pause → melon clobber (late ?q=coco overwriting draft).
+   * URL → draft only when unfocused (back/forward, clear-all from chips, etc.).
+   */
+  const searchFocusedRef = useRef(false);
+  /** Always-current draft for blur flush without stale closures. */
+  const searchDraftRef = useRef(searchDraft);
+  searchDraftRef.current = searchDraft;
+  const currentQRef = useRef(currentQ);
+  currentQRef.current = currentQ;
 
+  // URL → draft only when the field is not focused
   useEffect(() => {
+    if (!shouldSyncSearchDraftFromUrl(searchFocusedRef.current)) return;
     setSearchDraft(currentQ);
   }, [currentQ]);
 
@@ -319,20 +336,32 @@ export default function CatalogueFilters({
     return () => window.cancelAnimationFrame(id);
   }, [searchParams, pathname]);
 
-  // Debounced live search — skip mid-typing noise under 2 chars (except clear)
+  // Debounced live search — skip mid-typing single-char noise (except clear)
   useEffect(() => {
     if (searchDraft === currentQ) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    const trimmed = searchDraft.trim();
-    // Don't fire a search for a single character while the user is still typing
-    if (trimmed.length === 1) return;
+    const commit = catalogueSearchCommitValue(searchDraft);
+    if (commit === null) return;
     debounceRef.current = setTimeout(() => {
-      updateParams({ q: trimmed });
+      updateParams({ q: commit });
     }, 400);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [searchDraft, currentQ, updateParams]);
+
+  const commitSearchDraftToUrl = useCallback(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    const commit = catalogueSearchCommitValue(searchDraftRef.current);
+    // Single-char mid-type is not a commit — snap draft back to URL so blur
+    // never leaves "c" in the field while ?q= still shows the previous query.
+    if (commit === null) {
+      setSearchDraft(currentQRef.current);
+      return;
+    }
+    if (commit === currentQRef.current) return;
+    updateParams({ q: commit });
+  }, [updateParams]);
 
   const activeCategory = availableCategories.find(
     (c) => c.handle === currentCat
@@ -359,6 +388,7 @@ export default function CatalogueFilters({
   };
 
   const handleClearAll = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
     setSearchDraft("");
     setMobileFiltersOpen(false);
     clearAll();
@@ -399,8 +429,7 @@ export default function CatalogueFilters({
             className="relative min-w-0 flex-1 sm:max-w-md lg:max-w-xl"
             onSubmit={(e) => {
               e.preventDefault();
-              if (debounceRef.current) clearTimeout(debounceRef.current);
-              updateParams({ q: searchDraft.trim() });
+              commitSearchDraftToUrl();
             }}
             role="search"
           >
@@ -423,6 +452,17 @@ export default function CatalogueFilters({
                 spellCheck={false}
                 value={searchDraft}
                 onChange={(e) => setSearchDraft(e.target.value)}
+                onFocus={() => {
+                  searchFocusedRef.current = true;
+                }}
+                onBlur={() => {
+                  // User's visible text wins: flush pending draft so a late
+                  // URL→draft sync after unfocus cannot wipe uncommitted typing.
+                  // Also fixes history-while-focused: on blur we commit draft
+                  // rather than leaving draft and URL permanently desynced.
+                  searchFocusedRef.current = false;
+                  commitSearchDraftToUrl();
+                }}
                 placeholder="Search by name, code or flavour…"
                 aria-label="Search cakes"
                 className="h-11 w-full rounded-full border border-outline-variant/40 bg-gradient-to-b from-white to-lavender-bg/80 pl-11 pr-11 text-sm font-medium text-deep-plum shadow-[0_1px_2px_rgba(74,21,75,0.04),inset_0_1px_0_rgba(255,255,255,0.8)] placeholder:font-normal placeholder:text-on-surface-variant/45 transition-all duration-200 hover:border-deep-plum/20 focus:border-vibrant-magenta/45 focus:bg-white focus:outline-none focus:ring-4 focus:ring-vibrant-magenta/12"
@@ -432,8 +472,8 @@ export default function CatalogueFilters({
                   type="button"
                   aria-label="Clear search"
                   onClick={() => {
-                    setSearchDraft("");
                     if (debounceRef.current) clearTimeout(debounceRef.current);
+                    setSearchDraft("");
                     updateParams({ q: "" });
                   }}
                   className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-on-surface-variant/70 transition-all hover:bg-lavender-bg hover:text-deep-plum active:scale-95"

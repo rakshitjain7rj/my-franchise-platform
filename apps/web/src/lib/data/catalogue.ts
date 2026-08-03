@@ -16,6 +16,7 @@
  */
 
 import { getMedusaHeaders } from "@/lib/medusa/headers";
+import { getDefaultRegionId } from "@/lib/medusa/region";
 import { unstable_cache } from "next/cache";
 
 // ---------------------------------------------------------------------------
@@ -51,37 +52,6 @@ const PRODUCT_FIELDS = [
   "options.values",
 ].join(",");
 
-
-
-let regionIdPromise: Promise<string | null> | null = null;
-
-/**
- * Fetches the default region ID from the Medusa backend.
- */
-function getDefaultRegionId(): Promise<string | null> {
-  if (!regionIdPromise) {
-    regionIdPromise = (async () => {
-      try {
-        const response = await fetch(
-          `${MEDUSA_BACKEND_URL}/store/regions`,
-          {
-            headers: {
-              "x-publishable-api-key": process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? "",
-            },
-            next: { revalidate: 3600 },
-          }
-        );
-        if (!response.ok) return null;
-        const json = await response.json();
-        return json.regions?.[0]?.id ?? null;
-      } catch (err) {
-        console.error("[catalogue] Failed to fetch default region:", err);
-        return null;
-      }
-    })();
-  }
-  return regionIdPromise;
-}
 
 // ---------------------------------------------------------------------------
 // Types
