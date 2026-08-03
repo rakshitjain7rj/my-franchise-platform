@@ -208,46 +208,76 @@ export default function MegaMenu({ mobile = false, onNavigate }: MegaMenuProps) 
   };
 
   // ── Mobile accordion ────────────────────────────────────────────────────
+  // Pure expand/collapse — never navigates. Category links inside go to
+  // /cake-catalogue (not map-routing). Parent drawer must not overlay this.
   if (mobile) {
     return (
-      <div className="border-b border-purple-50 pb-3">
+      <div className="rounded-xl">
         <button
           type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="flex w-full items-center justify-between py-1 text-base font-semibold text-deep-plum"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setOpen((v) => !v);
+          }}
+          className={`flex w-full items-center justify-between gap-3 py-3 px-3.5 rounded-xl text-sm font-semibold transition-all duration-200 min-h-[48px] ${
+            open
+              ? "bg-purple-50 text-purple-950"
+              : "text-gray-700 hover:bg-purple-50/50 hover:text-purple-900 active:bg-purple-50"
+          }`}
           aria-expanded={open}
+          aria-controls="mobile-cakes-panel"
         >
-          Cakes
-          <ChevronDown
-            className={`h-4 w-4 text-deep-plum/60 transition-transform duration-200 ${
-              open ? "rotate-180" : ""
+          <span className="flex items-center gap-2.5">
+            <span
+              className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+                open
+                  ? "bg-deep-plum text-white"
+                  : "bg-purple-100 text-purple-700"
+              }`}
+            >
+              <Cake className="h-4 w-4" />
+            </span>
+            Cakes
+          </span>
+          <span
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-all duration-200 ${
+              open
+                ? "border-purple-200 bg-white text-purple-800 rotate-180"
+                : "border-purple-100 bg-purple-50/80 text-purple-600"
             }`}
-          />
+            aria-hidden
+          >
+            <ChevronDown className="h-4 w-4" strokeWidth={2.25} />
+          </span>
         </button>
 
         {open && (
-          <div className="mt-3 space-y-4 rounded-2xl border border-outline-variant/40 bg-lavender-bg/40 p-4">
+          <div
+            id="mobile-cakes-panel"
+            className="mt-1.5 mb-1 space-y-3.5 rounded-xl border border-purple-100/80 bg-gradient-to-b from-lavender-bg/70 to-white p-3.5 animate-in slide-in-from-top-1 fade-in duration-200"
+          >
             <Link
               href="/cake-catalogue"
               onClick={navigate}
-              className="flex items-center justify-between rounded-xl bg-deep-plum px-4 py-3 text-sm font-semibold text-white"
+              className="flex items-center justify-between rounded-xl bg-gradient-to-r from-deep-plum to-purple-800 px-4 py-3 text-sm font-semibold text-white shadow-sm active:scale-[0.99] transition-transform min-h-[44px]"
             >
               Browse all cakes
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-4 w-4 shrink-0 opacity-90" />
             </Link>
 
             {groups.map((group) => (
               <div key={group.title}>
-                <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-vibrant-magenta">
+                <p className="mb-1.5 px-1 text-[10px] font-bold uppercase tracking-[0.16em] text-vibrant-magenta">
                   {group.title}
                 </p>
-                <ul className="grid grid-cols-2 gap-x-3 gap-y-1">
+                <ul className="grid grid-cols-2 gap-1">
                   {group.items.map((item) => (
                     <li key={item.handle}>
                       <Link
                         href={catHref(item.handle)}
                         onClick={navigate}
-                        className="block rounded-lg py-1.5 text-sm font-medium text-deep-plum/90 transition-colors hover:text-vibrant-magenta"
+                        className="block rounded-lg px-2.5 py-2.5 text-sm font-medium text-deep-plum/90 transition-colors hover:bg-white hover:text-vibrant-magenta active:bg-purple-50 min-h-[40px]"
                       >
                         {item.label}
                       </Link>

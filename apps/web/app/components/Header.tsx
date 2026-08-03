@@ -389,168 +389,205 @@ export default function Header() {
 
             {/* Mobile Menu Button */}
             <button
+              type="button"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="p-2.5 text-purple-800 hover:bg-purple-50 rounded-full md:hidden transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
-              aria-label="Toggle menu"
+              className={`md:hidden relative min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl border transition-all duration-300 ${
+                isMobileMenuOpen
+                  ? "bg-purple-100 border-purple-200 text-purple-900 shadow-inner"
+                  : "bg-white border-purple-100/80 text-purple-800 hover:bg-purple-50 hover:border-purple-200 shadow-sm"
+              }`}
+              aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
               aria-expanded={isMobileMenuOpen}
+              aria-controls="mobile-nav-drawer"
             >
-              {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              {isMobileMenuOpen ? (
+                <X className="h-5 w-5" strokeWidth={2.25} />
+              ) : (
+                <Menu className="h-5 w-5" strokeWidth={2.25} />
+              )}
             </button>
           </div>
         </div>
 
         {/* Mobile Navigation Drawer */}
         {isMobileMenuOpen && (
-          <div className="md:hidden absolute top-full left-0 w-full bg-white/95 backdrop-blur-md border-b border-purple-100 shadow-lg py-4 sm:py-5 px-4 sm:px-5 z-40 animate-in slide-in-from-top-4 duration-300 flex flex-col gap-4 max-h-[85vh] overflow-y-auto">
-            
-            {/* Mobile search → catalogue (hidden on catalogue; page has its own field) */}
-            {!isCakeCatalogue && (
-              <div className="pb-3 border-b border-purple-50">
-                <HeaderSearch
-                  className="w-full"
-                  onNavigate={() => setIsMobileMenuOpen(false)}
-                />
-              </div>
-            )}
-
-            {/* Mobile User Profile Section */}
-            <div className="pb-4 border-b border-purple-50">
-              {customer ? (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-600 to-pink-500 text-white flex items-center justify-center font-bold text-base shadow-sm">
-                      {getUserInitials()}
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-purple-950">
-                        Hi, {customer.first_name || "Guest"}
-                      </p>
-                      <p className="text-xs text-purple-500 truncate max-w-[180px]">{customer.email}</p>
-                    </div>
+          <div
+            id="mobile-nav-drawer"
+            className="md:hidden absolute top-full left-0 w-full z-40 max-h-[min(85vh,720px)] overflow-y-auto overscroll-contain animate-in slide-in-from-top-2 fade-in duration-300"
+          >
+            <div className="mx-3 mb-3 mt-1 rounded-2xl border border-purple-100/80 bg-white/98 backdrop-blur-xl shadow-[0_20px_50px_rgba(74,21,75,0.12)]">
+              <div className="flex flex-col gap-1 p-3 sm:p-4">
+                {/* Mobile search → catalogue (hidden on catalogue; page has its own field) */}
+                {!isCakeCatalogue && (
+                  <div className="pb-3 mb-1 border-b border-purple-50">
+                    <HeaderSearch
+                      className="w-full"
+                      onNavigate={() => setIsMobileMenuOpen(false)}
+                    />
                   </div>
-                  <div className="flex items-center gap-2">
+                )}
+
+                {/* Mobile User Profile Section */}
+                <div className="pb-3 mb-1 border-b border-purple-50">
+                  {customer ? (
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 shrink-0 rounded-full bg-gradient-to-tr from-purple-600 to-pink-500 text-white flex items-center justify-center font-bold text-base shadow-sm ring-2 ring-purple-100">
+                          {getUserInitials()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-purple-950 truncate">
+                            Hi, {customer.first_name || "Guest"}
+                          </p>
+                          <p className="text-xs text-purple-500 truncate">
+                            {customer.email}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Link
+                          href="/account"
+                          onClick={() => setIsMobileMenuOpen(false)}
+                          className="p-2.5 text-purple-600 hover:bg-purple-50 rounded-xl transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                          title="Account Settings"
+                          aria-label="Account settings"
+                        >
+                          <Settings className="h-5 w-5" />
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={handleLogout}
+                          className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                          title="Sign Out"
+                          aria-label="Sign out"
+                        >
+                          <LogOut className="h-5 w-5" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
                     <Link
-                      href="/account"
+                      href="/login"
                       onClick={() => setIsMobileMenuOpen(false)}
-                      className="p-2 text-purple-600 hover:bg-purple-50 rounded-full"
-                      title="Account Settings"
+                      className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-purple-100 hover:border-purple-200 text-purple-700 bg-gradient-to-r from-purple-50/80 to-pink-50/40 font-bold text-sm transition-all shadow-sm"
                     >
-                      <Settings className="h-5 w-5" />
+                      <User className="h-4 w-4" />
+                      <span>Sign In to Your Account</span>
                     </Link>
-                    <button
-                      onClick={handleLogout}
-                      className="p-2 text-red-500 hover:bg-red-50 rounded-full"
-                      title="Sign Out"
-                    >
-                      <LogOut className="h-5 w-5" />
-                    </button>
+                  )}
+                </div>
+
+                {/* Mobile account links — only when a real session exists */}
+                {customer && (
+                  <div className="flex flex-col gap-0.5 pb-3 mb-1 border-b border-purple-50">
+                    {accountNavItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setIsMobileMenuOpen(false)}
+                          className="flex items-center gap-2.5 py-2.5 px-3 text-sm text-purple-800 hover:bg-purple-50 active:bg-purple-100 rounded-xl transition-colors font-medium min-h-[44px]"
+                        >
+                          <Icon className="h-4 w-4 text-purple-500 shrink-0" />
+                          {item.label}
+                        </Link>
+                      );
+                    })}
                   </div>
-                </div>
-              ) : (
-                <Link
-                  href="/login"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-full border border-purple-100 hover:border-purple-200 text-purple-700 bg-purple-50/30 font-bold text-sm transition-all"
-                >
-                  <User className="h-4 w-4" />
-                  <span>Sign In to Your Account</span>
-                </Link>
-              )}
-            </div>
-
-            {/* Mobile account links — only when a real session exists */}
-            {customer && (
-              <div className="flex flex-col gap-1 pb-3 border-b border-purple-50 animate-in slide-in-from-top-2 duration-300">
-                {accountNavItems.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      className="flex items-center gap-2.5 py-2 px-3 text-sm text-purple-800 hover:bg-purple-50 rounded-xl transition-colors font-medium"
-                    >
-                      <Icon className="h-4 w-4 text-purple-500" />
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Mobile Store Locator */}
-            <div className="pb-2">
-              <Link
-                href="/map-routing"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className={`w-full flex items-center justify-between py-3 px-4 rounded-xl transition-all duration-300 border ${
-                  selectedStoreName
-                    ? "bg-green-50/50 border-green-200/50 text-green-800"
-                    : "bg-purple-50/50 border-purple-100 text-purple-700 animate-pulse"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-purple-600" />
-                  <span className="text-sm font-semibold truncate max-w-[220px]">
-                    {selectedStoreName ? `Selected: ${selectedStoreName}` : "Select Nearest Bakery"}
-                  </span>
-                </div>
-                {selectedStoreName ? (
-                  <span className="flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                  </span>
-                ) : (
-                  <span className="text-xs font-bold text-purple-500">Find Store &rarr;</span>
                 )}
-              </Link>
-            </div>
 
-            {/* Mobile Nav Links */}
-            <nav className="flex flex-col gap-1.5 mt-2">
-              <Link
-                href="/"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className={`flex items-center justify-between py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                  pathname === "/"
-                    ? "bg-purple-50 text-purple-950 font-bold"
-                    : "text-gray-600 hover:bg-purple-50/30 hover:text-purple-800"
-                }`}
-              >
-                <span>Home</span>
-                {pathname === "/" && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-purple-600" />
-                )}
-              </Link>
-              <div className="px-4 py-2">
-                <MegaMenu
-                  mobile
-                  onNavigate={() => setIsMobileMenuOpen(false)}
-                />
+                {/* Mobile Store Locator
+                    Important: the live-store ping must use `relative` on the
+                    outer span. Without it, the absolute `h-full w-full` ping
+                    positions against the drawer and covers the whole menu,
+                    so taps on Cakes (and every other item) hit this link → /map-routing. */}
+                <div className="pb-2 mb-1 border-b border-purple-50">
+                  <Link
+                    href="/map-routing"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`relative w-full flex items-center justify-between gap-3 py-3 px-3.5 rounded-xl transition-all duration-300 border min-h-[48px] ${
+                      selectedStoreName
+                        ? "bg-green-50/60 border-green-200/60 text-green-900"
+                        : "bg-purple-50/60 border-purple-100 text-purple-800"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                          selectedStoreName
+                            ? "bg-green-100 text-green-700"
+                            : "bg-purple-100 text-purple-600"
+                        }`}
+                      >
+                        <MapPin className="h-4 w-4" />
+                      </span>
+                      <span className="text-sm font-semibold truncate">
+                        {selectedStoreName
+                          ? selectedStoreName
+                          : "Select nearest bakery"}
+                      </span>
+                    </div>
+                    {selectedStoreName ? (
+                      <span className="relative flex h-2.5 w-2.5 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+                      </span>
+                    ) : (
+                      <span className="text-xs font-bold text-purple-500 shrink-0">
+                        Find &rarr;
+                      </span>
+                    )}
+                  </Link>
+                </div>
+
+                {/* Mobile Nav Links */}
+                <nav className="flex flex-col gap-0.5 pt-1" aria-label="Mobile">
+                  <Link
+                    href="/"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`flex items-center justify-between py-3 px-3.5 rounded-xl text-sm font-semibold transition-all duration-200 min-h-[48px] ${
+                      pathname === "/"
+                        ? "bg-purple-50 text-purple-950"
+                        : "text-gray-700 hover:bg-purple-50/50 hover:text-purple-900 active:bg-purple-50"
+                    }`}
+                  >
+                    <span>Home</span>
+                    {pathname === "/" && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-600" />
+                    )}
+                  </Link>
+
+                  <MegaMenu
+                    mobile
+                    onNavigate={() => setIsMobileMenuOpen(false)}
+                  />
+
+                  {navLinks
+                    .filter((l) => l.href !== "/")
+                    .map((link) => {
+                      const isActive = pathname === link.href;
+                      return (
+                        <Link
+                          key={link.label}
+                          href={link.href}
+                          onClick={() => setIsMobileMenuOpen(false)}
+                          className={`flex items-center justify-between py-3 px-3.5 rounded-xl text-sm font-semibold transition-all duration-200 min-h-[48px] ${
+                            isActive
+                              ? "bg-purple-50 text-purple-950"
+                              : "text-gray-700 hover:bg-purple-50/50 hover:text-purple-900 active:bg-purple-50"
+                          }`}
+                        >
+                          <span>{link.label}</span>
+                          {isActive && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-purple-600" />
+                          )}
+                        </Link>
+                      );
+                    })}
+                </nav>
               </div>
-              {navLinks
-                .filter((l) => l.href !== "/")
-                .map((link) => {
-                  const isActive = pathname === link.href;
-                  return (
-                    <Link
-                      key={link.label}
-                      href={link.href}
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      className={`flex items-center justify-between py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                        isActive
-                          ? "bg-purple-50 text-purple-950 font-bold"
-                          : "text-gray-600 hover:bg-purple-50/30 hover:text-purple-800"
-                      }`}
-                    >
-                      <span>{link.label}</span>
-                      {isActive && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-purple-600" />
-                      )}
-                    </Link>
-                  );
-                })}
-            </nav>
+            </div>
           </div>
         )}
       </header>
