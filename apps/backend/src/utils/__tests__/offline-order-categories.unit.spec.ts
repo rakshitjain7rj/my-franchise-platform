@@ -17,7 +17,7 @@ describe("offline-order-categories", () => {
     expect(isOfflineOrderCategoryHandle(null)).toBe(false)
   })
 
-  it("treats any offline category as offline product", () => {
+  it("treats wedding/icing as offline, with heart-cake exception for wedding", () => {
     expect(
       productHasOfflineOrderCategory([
         { handle: "birthday-round-cakes" },
@@ -32,5 +32,20 @@ describe("offline-order-categories", () => {
     ).toBe(false)
     expect(productHasOfflineOrderCategory([])).toBe(false)
     expect(productHasOfflineOrderCategory(null)).toBe(false)
+    // (H1) Heart Wedding Cake — heart shape, site-orderable
+    expect(
+      productHasOfflineOrderCategory([
+        { handle: "heart-cake" },
+        { handle: "wedding-cakes" },
+        { handle: "valentines" },
+      ])
+    ).toBe(false)
+    // Icing still offline even if also heart-shaped
+    expect(
+      productHasOfflineOrderCategory([
+        { handle: "heart-cake" },
+        { handle: "icing-cakes" },
+      ])
+    ).toBe(true)
   })
 })

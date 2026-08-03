@@ -4,6 +4,10 @@
  * Products in these categories stay browseable (prices shown) but cannot be
  * added to cart / checked out. Customers order via WhatsApp or visit the bakery.
  *
+ * Exception: products also in `heart-cake` stay **online**. Heart SKUs (H1…)
+ * often have "Wedding" in the title and get tagged wedding-cakes, but they are
+ * regular heart cakes customers should buy through the site.
+ *
  * Keep handles in sync with:
  *   apps/backend/src/utils/offline-order-categories.ts
  */
@@ -16,10 +20,17 @@ export const OFFLINE_ORDER_CATEGORY_HANDLES = [
   "wedding-cakes",
 ] as const
 
+/**
+ * If a product has any of these, it stays online even when also in wedding-cakes.
+ * (Icing cakes remain offline regardless.)
+ */
+export const ONLINE_ORDER_EXCEPTION_HANDLES = ["heart-cake"] as const
+
 export type OfflineOrderCategoryHandle =
   (typeof OFFLINE_ORDER_CATEGORY_HANDLES)[number]
 
 const OFFLINE_HANDLE_SET = new Set<string>(OFFLINE_ORDER_CATEGORY_HANDLES)
+const ONLINE_EXCEPTION_SET = new Set<string>(ONLINE_ORDER_EXCEPTION_HANDLES)
 
 /** Prefer this order when listing dual offline categories in WhatsApp. */
 const LABEL_ORDER: OfflineOrderCategoryHandle[] = [
@@ -68,7 +79,25 @@ function categoriesFromInput(
   return input.categories ?? []
 }
 
-/** True if the product has any offline-order category (multi-category → offline). */
+function normalizedHandles(
+  categories: OfflineCategoryLike[]
+): Set<string> {
+  const set = new Set<string>()
+  for (const c of categories) {
+    const h = (c?.handle ?? "").trim().toLowerCase()
+    if (h) set.add(h)
+  }
+  return set
+}
+
+/**
+ * True when the product must not use online checkout.
+ *
+ * Rules:
+ *  1. `icing-cakes` → always offline
+ *  2. `wedding-cakes` → offline unless also `heart-cake` (heart cakes stay online)
+ *  3. Otherwise online
+ */
 export function isOfflineOrderProduct(
   input:
     | { categories?: OfflineCategoryLike[] | null }
@@ -76,9 +105,16 @@ export function isOfflineOrderProduct(
     | null
     | undefined
 ): boolean {
-  return categoriesFromInput(input).some((c) =>
-    isOfflineOrderCategoryHandle(c?.handle)
-  )
+  const handles = normalizedHandles(categoriesFromInput(input))
+  if (handles.has("icing-cakes")) return true
+  if (handles.has("wedding-cakes")) {
+    // Heart cakes (H-prefix) often share the wedding keyword but are site-orderable.
+    for (const ex of ONLINE_EXCEPTION_SET) {
+      if (handles.has(ex)) return false
+    }
+    return true
+  }
+  return false
 }
 
 /**

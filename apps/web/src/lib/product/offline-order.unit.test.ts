@@ -50,6 +50,25 @@ assert(
   ]),
   "case insensitive handle"
 )
+assert(
+  !isOfflineOrderProduct({
+    categories: [
+      { handle: "heart-cake" },
+      { handle: "wedding-cakes" },
+      { handle: "valentines" },
+    ],
+  }),
+  "heart cake + wedding stays online"
+)
+assert(
+  isOfflineOrderProduct({
+    categories: [
+      { handle: "heart-cake" },
+      { handle: "icing-cakes" },
+    ],
+  }),
+  "icing still offline even with heart-cake"
+)
 
 const dual = offlineOrderCategoryLabels([
   { handle: "icing-cakes", name: "Icing Cakes" },
