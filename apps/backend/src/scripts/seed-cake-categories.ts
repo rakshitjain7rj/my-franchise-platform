@@ -360,6 +360,15 @@ function extractPrefix(title: string, handle: string): string | null {
   return null
 }
 
+/**
+ * Per-product extras (client overrides) keyed by product handle.
+ * Applied on top of prefix + keyword heuristics.
+ */
+const HANDLE_EXTRA_CATEGORIES: Record<string, string[]> = {
+  // Client: DH35 should also appear under Round
+  "dh35-pink-white-buttercream-cake": ["round-cakes"],
+}
+
 function heuristicHandles(title: string, handle: string): string[] {
   const handles = new Set<string>()
 
@@ -378,6 +387,11 @@ function heuristicHandles(title: string, handle: string): string[] {
   // "double tall" should not also force the plain tall-cakes bucket from the tall keyword
   if (/double[\s-]*(tall|high)/i.test(blob)) {
     handles.delete("tall-cakes")
+  }
+
+  const extras = HANDLE_EXTRA_CATEGORIES[(handle || "").toLowerCase()]
+  if (extras) {
+    for (const h of extras) handles.add(h)
   }
 
   return Array.from(handles)
