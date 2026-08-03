@@ -274,6 +274,10 @@ export async function updateLineItem(
  * Updates line-item metadata with spread-merge on `custom_attributes`.
  * Use this for post-add edits (e.g. changing collection time) so a partial
  * write cannot wipe other cake fields.
+ *
+ * Medusa's StoreUpdateCartLineItem requires `quantity` on every POST to
+ * `/store/carts/:id/line-items/:line_id` — even metadata-only updates. We
+ * re-send the current line quantity so collection-slot stamps succeed.
  */
 export async function updateLineItemMetadata(
   cartId: string,
@@ -288,13 +292,16 @@ export async function updateLineItemMetadata(
   // did not pass existingCustomAttributes explicitly.
   const current = await getCart(cartId)
   const line = current?.items.find((i) => i.id === lineItemId)
+  if (!line) {
+    throw new Error("Cart line item not found. Please refresh and try again.")
+  }
   const existingAttrs =
     params.existingCustomAttributes ??
-    (line?.metadata?.custom_attributes as Record<string, string> | undefined) ??
+    (line.metadata?.custom_attributes as Record<string, string> | undefined) ??
     null
 
   const metadata: CartLineItemMetadata = {
-    ...(line?.metadata ?? {}),
+    ...(line.metadata ?? {}),
   }
 
   if (params.customAttributes) {
@@ -314,11 +321,14 @@ export async function updateLineItemMetadata(
     }
   }
 
+  // quantity is required by Medusa even when only metadata changes.
+  const quantity = line.quantity > 0 ? line.quantity : 1
+
   const { cart } = await cartFetch<{ cart: MedusaCart }>(
     `/store/carts/${cartId}/line-items/${lineItemId}`,
     {
       method: "POST",
-      body: JSON.stringify({ metadata }),
+      body: JSON.stringify({ quantity, metadata }),
     }
   )
   return cart
