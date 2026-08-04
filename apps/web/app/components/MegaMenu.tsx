@@ -302,7 +302,7 @@ export default function MegaMenu({ mobile = false, onNavigate }: MegaMenuProps) 
     >
       <Link
         href="/cake-catalogue"
-        className={`relative inline-flex items-center gap-1 py-1.5 text-sm font-semibold tracking-wide transition-colors duration-200 ${
+        className={`relative inline-flex items-center gap-1 whitespace-nowrap py-1.5 text-sm font-semibold tracking-wide transition-colors duration-200 ${
           open ? "text-deep-plum" : "text-gray-600 hover:text-deep-plum"
         }`}
         onFocus={openMenu}

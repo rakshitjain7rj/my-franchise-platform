@@ -106,6 +106,16 @@ export default function Header() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Close the drawer when crossing into desktop nav (≥ lg) so it doesn't linger
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const onChange = () => {
+      if (mq.matches) setIsMobileMenuOpen(false);
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
   const handleLogout = async () => {
     await logoutCustomer();
     // Drop the session's cart so the next visitor (or another account) on
@@ -121,11 +131,12 @@ export default function Header() {
   };
 
   // "Cakes" is rendered via MegaMenu (flyout) — not listed here.
+  // shortLabel: used below xl so multi-word links never wrap in a tight bar.
   const navLinks = [
-    { label: "Home", href: "/" },
-    { label: "About Us", href: "/about" },
-    { label: "Apply Franchise", href: "/franchise" },
-    { label: "Contact Us", href: "/contact" },
+    { label: "Home", shortLabel: "Home", href: "/" },
+    { label: "About Us", shortLabel: "About", href: "/about" },
+    { label: "Apply Franchise", shortLabel: "Franchise", href: "/franchise" },
+    { label: "Contact Us", shortLabel: "Contact", href: "/contact" },
   ];
 
   // Account destinations only exist for an authenticated customer session.
@@ -179,42 +190,43 @@ export default function Header() {
       <header
         className={`sticky top-0 z-50 w-full transition-all duration-300 ease-in-out border-b ${
           isScrolled
-            ? "bg-white/85 backdrop-blur-md border-purple-100/60 shadow-[0_8px_30px_rgba(74,21,75,0.03)] py-3"
-            : "bg-white border-purple-50 py-4 md:py-5"
+            ? "bg-white/85 backdrop-blur-md border-purple-100/60 shadow-[0_8px_30px_rgba(74,21,75,0.03)] py-2.5"
+            : "bg-white border-purple-50 py-3 md:py-3.5"
         }`}
       >
-        <div className="container mx-auto flex items-center justify-between px-5">
-          {/* Logo Section */}
-          <Link href="/" className="flex items-center gap-2 md:gap-2.5 group select-none">
-            <div className="relative bg-gradient-to-tr from-purple-100 to-pink-50 p-2 rounded-xl text-purple-700 group-hover:scale-105 group-hover:rotate-6 transition-all duration-300 shadow-sm border border-purple-200/20">
-              <Cake className="h-5 w-5 md:h-6 md:w-6 text-purple-700" />
+        {/*
+          Hybrid density ladder:
+          xl+ (≥1280): full nav labels, search bar, store name, Sign In text / Hi name
+          lg–xl (1024–1279): short nav labels, search icon, MapPin-only store, icon account
+          <lg: hamburger drawer — no inline nav (prevents logo/nav/utility overlap)
+        */}
+        <div className="container mx-auto grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-4 md:px-5 lg:gap-x-4 xl:gap-x-6">
+          {/* Logo — left column, never shrinks into nav */}
+          <Link
+            href="/"
+            className="col-start-1 flex shrink-0 items-center gap-2 group select-none z-[1]"
+            aria-label="Cake Break home"
+          >
+            <div className="relative bg-gradient-to-tr from-purple-100 to-pink-50 p-1.5 md:p-2 rounded-xl text-purple-700 group-hover:scale-105 group-hover:rotate-6 transition-all duration-300 shadow-sm border border-purple-200/20">
+              <Cake className="h-5 w-5 text-purple-700" />
               <span className="absolute -top-1 -right-1 flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-pink-500"></span>
               </span>
             </div>
-            <h1 className="text-lg md:text-2xl lg:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-purple-900 via-purple-700 to-pink-600 bg-clip-text text-transparent group-hover:opacity-90 transition-opacity">
+            <h1 className="whitespace-nowrap text-base sm:text-lg xl:text-xl 2xl:text-2xl font-extrabold tracking-tight bg-gradient-to-r from-purple-900 via-purple-700 to-pink-600 bg-clip-text text-transparent group-hover:opacity-90 transition-opacity">
               Cake Break
             </h1>
           </Link>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-5 lg:gap-8">
-            <Link
-              href="/"
-              className={`relative text-sm font-semibold tracking-wide py-1.5 transition-all duration-300 group ${
-                pathname === "/"
-                  ? "text-purple-950 font-bold"
-                  : "text-gray-600 hover:text-purple-700"
-              }`}
-            >
-              Home
-              <span
-                className={`absolute bottom-0 left-0 w-full h-[2px] bg-gradient-to-r from-purple-600 to-pink-500 rounded-full transition-transform duration-300 origin-center ${
-                  pathname === "/" ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
-                }`}
-              />
-            </Link>
+          {/*
+            Desktop nav — center column, only from lg up.
+            Home is omitted here (logo is home); still listed in the drawer.
+          */}
+          <nav
+            className="col-start-2 hidden min-w-0 items-center justify-center gap-4 xl:gap-6 lg:flex"
+            aria-label="Primary"
+          >
             <MegaMenu />
             {navLinks
               .filter((l) => l.href !== "/")
@@ -224,13 +236,14 @@ export default function Header() {
                   <Link
                     key={link.label}
                     href={link.href}
-                    className={`relative text-sm font-semibold tracking-wide py-1.5 transition-all duration-300 group ${
+                    className={`relative shrink-0 whitespace-nowrap text-sm font-semibold tracking-wide py-1.5 transition-all duration-300 group ${
                       isActive
                         ? "text-purple-950 font-bold"
                         : "text-gray-600 hover:text-purple-700"
                     }`}
                   >
-                    {link.label}
+                    <span className="xl:hidden">{link.shortLabel}</span>
+                    <span className="hidden xl:inline">{link.label}</span>
                     <span
                       className={`absolute bottom-0 left-0 w-full h-[2px] bg-gradient-to-r from-purple-600 to-pink-500 rounded-full transition-transform duration-300 origin-center ${
                         isActive ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"
@@ -241,19 +254,19 @@ export default function Header() {
               })}
           </nav>
 
-          {/* Right Section */}
-          <div className="flex items-center gap-2 md:gap-4 lg:gap-5">
-            {/* Search → cake catalogue (hidden on catalogue; page has its own field) */}
+          {/* Utility cluster — right column; always wins space over nav */}
+          <div className="col-start-3 flex shrink-0 items-center justify-end gap-0.5 sm:gap-1 xl:gap-2">
+            {/* Search: xl+ bar; below xl icon→overlay */}
             {!isCakeCatalogue && (
               <div className="hidden sm:block">
                 <HeaderSearch />
               </div>
             )}
 
-            {/* Store Locator / Map Routing - Desktop only */}
+            {/* Store — MapPin only below xl; name at xl+ */}
             <Link
               href="/map-routing"
-              className={`hidden sm:flex items-center gap-1.5 font-semibold text-xs md:text-sm py-2 px-3.5 rounded-full transition-all duration-300 border ${
+              className={`hidden sm:inline-flex items-center justify-center gap-1.5 font-semibold text-xs xl:text-sm h-9 w-9 xl:h-auto xl:w-auto xl:py-2 xl:px-3.5 rounded-full transition-all duration-300 border whitespace-nowrap ${
                 selectedStoreName
                   ? "bg-green-50/50 border-green-200/70 hover:border-green-300 text-green-800 hover:bg-green-50"
                   : "bg-purple-50/50 border-purple-100 hover:border-purple-300 text-purple-700 hover:bg-purple-50 animate-pulse hover:animate-none"
@@ -265,29 +278,37 @@ export default function Header() {
                     ? `Selected Store: ${selectedStoreName}`
                     : "Find a Bakery"
               }
+              aria-label={
+                selectedStoreName
+                  ? `Selected store: ${selectedStoreName}`
+                  : "Select store"
+              }
             >
               {selectedStoreName ? (
-                <span className="relative flex h-2 w-2 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                </span>
+                <>
+                  <span className="relative hidden xl:flex h-2 w-2 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                  </span>
+                  <MapPin className="h-4 w-4 shrink-0 text-green-600 xl:hidden" />
+                </>
               ) : (
-                <MapPin className="h-3.5 w-3.5 shrink-0 text-purple-500" />
+                <MapPin className="h-4 w-4 shrink-0 text-purple-500" />
               )}
-              <span className="max-w-[80px] md:max-w-[140px] truncate">
+              <span className="hidden xl:inline max-w-[9rem] truncate">
                 {selectedStoreName || "Select Store"}
               </span>
             </Link>
 
-            {/* Public wishlist — guests and signed-in customers share /wishlist */}
+            {/* Wishlist */}
             <Link
               href="/wishlist"
-              className="relative p-2.5 text-purple-700 hover:text-purple-900 hover:bg-purple-50 rounded-full transition-all duration-300"
+              className="relative flex h-9 w-9 items-center justify-center text-purple-700 hover:text-purple-900 hover:bg-purple-50 rounded-full transition-all duration-300"
               aria-label="Wishlist"
             >
-              <Heart className="h-5.5 w-5.5 md:h-6 md:w-6" />
+              <Heart className="h-5 w-5" />
               {wishlistCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-[10px] font-bold h-5 min-w-[20px] px-1.5 rounded-full flex items-center justify-center border-2 border-white shadow-sm transition-all duration-300 animate-in zoom-in-50">
+                <span className="absolute -top-0.5 -right-0.5 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-[10px] font-bold h-5 min-w-[20px] px-1.5 rounded-full flex items-center justify-center border-2 border-white shadow-sm transition-all duration-300 animate-in zoom-in-50">
                   {wishlistCount}
                 </span>
               )}
@@ -296,33 +317,35 @@ export default function Header() {
             {/* Cart */}
             <Link
               href="/cart"
-              className="relative p-2.5 text-purple-700 hover:text-purple-900 hover:bg-purple-50 rounded-full transition-all duration-300"
+              className="relative flex h-9 w-9 items-center justify-center text-purple-700 hover:text-purple-900 hover:bg-purple-50 rounded-full transition-all duration-300"
               aria-label="Cart"
             >
-              <ShoppingCart className="h-5.5 w-5.5 md:h-6 md:w-6" />
+              <ShoppingCart className="h-5 w-5" />
               {totalItems > 0 && (
-                <span className="absolute -top-1 -right-1 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-[10px] font-bold h-5 min-w-[20px] px-1.5 rounded-full flex items-center justify-center border-2 border-white shadow-sm transition-all duration-300 animate-in zoom-in-50">
+                <span className="absolute -top-0.5 -right-0.5 bg-gradient-to-r from-pink-500 to-purple-600 text-white text-[10px] font-bold h-5 min-w-[20px] px-1.5 rounded-full flex items-center justify-center border-2 border-white shadow-sm transition-all duration-300 animate-in zoom-in-50">
                   {totalItems}
                 </span>
               )}
             </Link>
 
-            {/* Authenticated account menu, or Sign In for guests — desktop only */}
+            {/* Account / Sign In — icon-only below xl; label at xl+ */}
             <div className="relative hidden sm:block group">
               {customer ? (
                 <>
                   <button
                     type="button"
-                    className="flex items-center gap-1.5 p-1 rounded-full hover:bg-purple-50 transition-all duration-300 outline-none focus:outline-none"
+                    className="flex items-center gap-1.5 p-0.5 rounded-full hover:bg-purple-50 transition-all duration-300 outline-none focus-visible:ring-2 focus-visible:ring-purple-300/50"
                     aria-label="User Account"
                     aria-haspopup="menu"
                   >
                     <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-pink-500 text-white flex items-center justify-center font-bold text-sm shadow-sm hover:ring-2 hover:ring-purple-300/40 transition-all duration-300">
                       {getUserInitials()}
                     </div>
-                    <span className="hidden md:inline-flex items-center gap-0.5 text-xs font-semibold text-purple-900 pr-1">
-                      Hi, {customer.first_name || "Guest"}
-                      <ChevronDown className="h-3.5 w-3.5 text-purple-500/70" />
+                    <span className="hidden xl:inline-flex items-center gap-0.5 text-xs font-semibold text-purple-900 pr-1 whitespace-nowrap max-w-[7rem]">
+                      <span className="truncate">
+                        Hi, {customer.first_name || "Guest"}
+                      </span>
+                      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-purple-500/70" />
                     </span>
                   </button>
 
@@ -373,25 +396,22 @@ export default function Header() {
                   </div>
                 </>
               ) : (
-                <>
-                  {/* Guests: auth CTA only — no account destinations. */}
-                  <Link
-                    href="/login"
-                    className="flex items-center gap-1.5 py-1.5 px-4 rounded-full border border-purple-100 hover:border-purple-200 text-purple-700 bg-purple-50/20 hover:bg-purple-50 font-semibold text-sm transition-all duration-300 shadow-sm outline-none focus:outline-none"
-                    aria-label="Sign In"
-                  >
-                    <User className="h-4 w-4 text-purple-600" />
-                    <span>Sign In</span>
-                  </Link>
-                </>
+                <Link
+                  href="/login"
+                  className="flex items-center justify-center gap-1.5 h-9 w-9 xl:h-auto xl:w-auto xl:py-1.5 xl:px-4 rounded-full border border-purple-100 hover:border-purple-200 text-purple-700 bg-purple-50/20 hover:bg-purple-50 font-semibold text-sm transition-all duration-300 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-purple-300/50 whitespace-nowrap"
+                  aria-label="Sign In"
+                >
+                  <User className="h-4 w-4 shrink-0 text-purple-600" />
+                  <span className="hidden xl:inline">Sign In</span>
+                </Link>
               )}
             </div>
 
-            {/* Mobile Menu Button */}
+            {/* Menu button — below lg (drawer carries full nav) */}
             <button
               type="button"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className={`md:hidden relative min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl border transition-all duration-300 ${
+              className={`lg:hidden relative min-w-[40px] min-h-[40px] flex items-center justify-center rounded-xl border transition-all duration-300 ${
                 isMobileMenuOpen
                   ? "bg-purple-100 border-purple-200 text-purple-900 shadow-inner"
                   : "bg-white border-purple-100/80 text-purple-800 hover:bg-purple-50 hover:border-purple-200 shadow-sm"
@@ -413,7 +433,7 @@ export default function Header() {
         {isMobileMenuOpen && (
           <div
             id="mobile-nav-drawer"
-            className="md:hidden absolute top-full left-0 w-full z-40 max-h-[min(85vh,720px)] overflow-y-auto overscroll-contain animate-in slide-in-from-top-2 fade-in duration-300"
+            className="lg:hidden absolute top-full left-0 w-full z-40 max-h-[min(85vh,720px)] overflow-y-auto overscroll-contain animate-in slide-in-from-top-2 fade-in duration-300"
           >
             <div className="mx-3 mb-3 mt-1 rounded-2xl border border-purple-100/80 bg-white/98 backdrop-blur-xl shadow-[0_20px_50px_rgba(74,21,75,0.12)]">
               <div className="flex flex-col gap-1 p-3 sm:p-4">
@@ -422,6 +442,7 @@ export default function Header() {
                   <div className="pb-3 mb-1 border-b border-purple-50">
                     <HeaderSearch
                       className="w-full"
+                      alwaysField
                       onNavigate={() => setIsMobileMenuOpen(false)}
                     />
                   </div>
