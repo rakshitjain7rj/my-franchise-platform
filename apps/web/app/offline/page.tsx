@@ -23,7 +23,7 @@ export default function OfflinePage() {
         alignItems: "center",
         justifyContent: "center",
         padding: "4rem 1.5rem",
-        background: "#E2D4F0",
+        background: "#EEDFF5",
         fontFamily:
           'var(--font-be-vietnam), "Be Vietnam Pro", system-ui, sans-serif',
         color: "#1a1c1c",

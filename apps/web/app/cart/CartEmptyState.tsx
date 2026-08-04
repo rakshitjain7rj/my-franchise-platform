@@ -6,7 +6,7 @@ import Footer from "../components/Footer"
 
 export function CartEmptyState() {
   return (
-    <div className="flex flex-col min-h-screen bg-[#EEDFF5] font-body selection:bg-secondary selection:text-on-secondary">
+    <div className="flex flex-col min-h-screen bg-page-bg font-body selection:bg-secondary selection:text-on-secondary">
       <Header />
       <main className="flex-grow flex items-center justify-center pt-28 pb-16">
         <div className="text-center space-y-6 max-w-md mx-auto px-6 py-12 bg-surface-container-lowest rounded-2xl border border-surface-container shadow-sm">

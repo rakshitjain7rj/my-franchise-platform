@@ -422,7 +422,7 @@ export default function CheckoutPage() {
     return (
       <div className={`flex flex-col min-h-screen ${playfair.variable}`}>
         <Header />
-        <main className="flex-grow bg-[#EEDFF5] flex items-center justify-center py-16 px-6">
+        <main className="flex-grow bg-page-bg flex items-center justify-center py-16 px-6">
           <div className="bg-white rounded-xl shadow-lg border border-outline-variant p-8 text-center space-y-6 max-w-md w-full">
             <div className="w-20 h-20 mx-auto rounded-full bg-green-100 flex items-center justify-center">
               <span className="material-symbols-outlined !text-[44px] text-green-600">
@@ -435,7 +435,7 @@ export default function CheckoutPage() {
             <p className="text-on-surface-variant text-sm leading-relaxed">
               Thank you, <strong className="text-on-surface">{form.firstName}</strong>. Your order has been placed with the bakery.
             </p>
-            <div className="bg-[#EEDFF5]/20 rounded-lg p-4 border border-outline-variant/30 text-left space-y-2">
+            <div className="bg-page-bg/20 rounded-lg p-4 border border-outline-variant/30 text-left space-y-2">
               <p className="text-xs text-on-surface-variant">
                 <strong>Delivery Address:</strong> {form.address}, {form.apartment && `${form.apartment}, `}{form.city}, {form.postalCode}
               </p>
@@ -462,7 +462,7 @@ export default function CheckoutPage() {
   return (
     <div className={`flex flex-col min-h-screen ${playfair.variable}`}>
         <Header />
-        <main className="flex-grow pt-20 sm:pt-28 pb-20 md:pb-16 bg-[#EEDFF5] w-full">
+        <main className="flex-grow pt-20 sm:pt-28 pb-20 md:pb-16 bg-page-bg w-full">
           <div className="max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8">
             <div className="mb-6 sm:mb-10">
               <h1 className={`text-2xl sm:text-3xl font-bold text-[#4A154B] mb-2 ${playfair.className}`}>Secure Checkout</h1>
@@ -981,7 +981,7 @@ export default function CheckoutPage() {
 
                   {/* Collection / delivery slot from cart logistics */}
                   {(slotDate || slotLabel) && (
-                    <div className="mb-4 rounded-lg bg-[#EEDFF5]/40 border border-outline-variant/40 px-3 py-2.5 text-xs text-on-surface-variant">
+                    <div className="mb-4 rounded-lg bg-page-bg/40 border border-outline-variant/40 px-3 py-2.5 text-xs text-on-surface-variant">
                       <span className="font-semibold text-[#4A154B] uppercase tracking-wider text-[10px]">
                         {isDelivery ? "Delivery window" : "Collection slot"}
                       </span>

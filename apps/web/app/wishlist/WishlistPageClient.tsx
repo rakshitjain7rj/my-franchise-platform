@@ -88,7 +88,7 @@ export default function WishlistPageClient() {
   const showGuestCtas = authResolved && !isSignedIn;
 
   return (
-    <div className="flex flex-col min-h-screen bg-lavender-bg">
+    <div className="flex flex-col min-h-screen bg-page-bg">
       <Header />
 
       <main className="flex-grow pt-20 sm:pt-28 pb-20 md:pb-16 px-4 md:px-6">

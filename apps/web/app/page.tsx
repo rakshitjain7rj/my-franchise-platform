@@ -104,7 +104,7 @@ export default async function HomePage() {
     <div>
       <Header />
 
-      <main className="pb-20 bg-[#F5F0F9]">
+      <main className="pb-20 bg-page-bg">
         <div className="max-w-[1440px] mx-auto px-margin-mobile md:px-margin-desktop py-12 md:py-20 space-y-20">
           
           {/* 1. Hero sliding carousel (CMS-driven with static fallback) */}

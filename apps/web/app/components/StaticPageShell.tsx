@@ -21,7 +21,7 @@ export default function StaticPageShell({
   subtitle,
 }: StaticPageShellProps) {
   return (
-    <div className="min-h-screen flex flex-col bg-[#FDFBFE]">
+    <div className="min-h-screen flex flex-col bg-page-bg">
       <Header />
       <main className="flex-1">
         <section className="bg-gradient-to-br from-deep-plum via-purple-900 to-purple-800 text-white">

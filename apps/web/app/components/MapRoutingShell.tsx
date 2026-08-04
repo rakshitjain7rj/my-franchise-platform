@@ -151,7 +151,7 @@ export default function MapRoutingShell({
   };
 
   return (
-    <div className="relative h-screen w-full overflow-hidden bg-[#E2D4F0]">
+    <div className="relative h-screen w-full overflow-hidden bg-page-bg">
       {/* ── Custom Keyframe Animations ──────────────────────────────────── */}
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes toastSlideIn {

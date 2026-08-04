@@ -208,7 +208,7 @@ export default function ImageGallery({
                   onClick={() => setSelectedIndex(index)}
                   className={`relative h-16 w-16 shrink-0 rounded-xl bg-transparent p-0.5 transition-all duration-200 md:h-20 md:w-20 ${
                     selected
-                      ? "ring-2 ring-vibrant-magenta ring-offset-2 ring-offset-[#FDFBFE]"
+                      ? "ring-2 ring-vibrant-magenta ring-offset-2 ring-offset-page-bg"
                       : "opacity-70 ring-1 ring-outline-variant/50 hover:opacity-100 hover:ring-deep-plum/35"
                   }`}
                   aria-label={`View image ${index + 1}`}

@@ -13,7 +13,7 @@ import Footer from "../components/Footer";
 
 export default function ShopLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-[#FAF7FC]">
+    <div className="min-h-screen bg-page-bg">
       <Header />
       {children}
       <Footer />

@@ -74,7 +74,7 @@ export default function PayPalReturnPage() {
   }, [hasMounted, cartId, clearCart, isLoading])
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#EEDFF5]">
+    <div className="flex min-h-screen flex-col bg-page-bg">
       <Header />
       <main className="flex flex-1 items-center justify-center px-6 py-28">
         <section className="w-full max-w-md rounded-lg border border-outline-variant bg-white p-8 text-center shadow-sm">

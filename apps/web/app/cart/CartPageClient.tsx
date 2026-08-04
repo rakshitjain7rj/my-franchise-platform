@@ -35,7 +35,7 @@ export default function CartPageClient({
     // Banner state survives empty cart after scrub so shoppers still see why.
     if (removedOfflineItems.length > 0) {
       return (
-        <div className="flex flex-col min-h-screen bg-[#EEDFF5] font-body">
+        <div className="flex flex-col min-h-screen bg-page-bg font-body">
           <Header />
           <main className="flex-grow w-full max-w-2xl mx-auto px-4 pt-24 sm:pt-28 pb-16">
             <OfflineRemovedBanner
@@ -69,7 +69,7 @@ export default function CartPageClient({
   const items = model.cart?.items ?? []
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#EEDFF5] font-body selection:bg-secondary selection:text-on-secondary">
+    <div className="flex flex-col min-h-screen bg-page-bg font-body selection:bg-secondary selection:text-on-secondary">
       <Header />
       <main className="flex-grow w-full max-w-7xl mx-auto px-4 md:px-8 lg:px-12 py-8 lg:py-16 bg-transparent pt-20 sm:pt-28 pb-20 md:pb-16">
         <div className="mb-6 sm:mb-10">

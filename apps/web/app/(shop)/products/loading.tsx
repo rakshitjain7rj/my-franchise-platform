@@ -5,7 +5,7 @@
 
 export default function ProductLoading() {
   return (
-    <main className="pb-20 bg-[#FDFBFE]" aria-busy="true" aria-label="Loading product">
+    <main className="pb-20 bg-page-bg" aria-busy="true" aria-label="Loading product">
       <div className="max-w-[1440px] mx-auto px-4 sm:px-margin-mobile md:px-margin-desktop pb-12 pt-20 sm:pt-8 md:pb-20 space-y-16 sm:space-y-20">
         <div className="space-y-12 animate-pulse">
           {/* Breadcrumb */}

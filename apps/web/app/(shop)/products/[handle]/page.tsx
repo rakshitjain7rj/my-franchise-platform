@@ -367,7 +367,7 @@ export default async function ProductDetailPage({
   const metadataTags = dietaryTagsFromMetadata(product.metadata);
 
   return (
-    <main className="pb-20 bg-[#FDFBFE]">
+    <main className="pb-20 bg-page-bg">
       <div className="max-w-[1440px] mx-auto px-4 sm:px-margin-mobile md:px-margin-desktop pb-12 pt-20 sm:pt-8 md:pb-20 space-y-16 sm:space-y-20">
         {/* ── Product Detail (product first; tags streamed) ─────────────── */}
         <ProductDetail

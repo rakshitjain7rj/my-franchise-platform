@@ -36,6 +36,8 @@ const config: Config = {
         "surface-container-highest": "#e2e2e2",
         "surface-container-low": "#f3f3f4",
         "lavender-bg": "#F5F0F9",
+        /** Full-page canvas (cart/checkout). Nested UI keeps lavender-bg. */
+        "page-bg": "#EEDFF5",
         "inverse-primary": "#d5c0d5",
         "primary-fixed-dim": "#d5c0d5",
         background: "#f9f9f9",

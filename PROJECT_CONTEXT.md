@@ -147,7 +147,7 @@ The storefront interface (`apps/web`) is styled with a premium "Modern Confectio
 *   **Primary Palette**:
     *   Muted Plum (`#C6B2C6` / HSL variation): Brand signature primary.
     *   Vibrant Pink (`#FF69B4` / `#ac2471`): Highlight actions, CTAs, alerts, and rewards.
-    *   Soft Lavender (`#E2D4F0`): Large surface panels and backgrounds.
+    *   Soft Lavender / page canvas (`#EEDFF5`, Tailwind `page-bg`): Full-page backgrounds (home, catalogue, product, cart, checkout). Nested chips/hovers use `lavender-bg` (`#F5F0F9`).
     *   Deep Purple (`#4A154B`): Layout headers, text legibility, structure.
 *   **Typography**:
     *   *Headlines & Labels*: **Plus Jakarta Sans** (clean, geometric, friendly).

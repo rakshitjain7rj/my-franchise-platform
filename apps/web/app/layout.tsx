@@ -80,7 +80,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
         />
       </head>
       <body
-        className={`${plusJakartaSans.variable} ${beVietnamPro.variable} font-body-md text-on-surface selection:bg-vibrant-magenta selection:text-white bg-[#E2D4F0]`}
+        className={`${plusJakartaSans.variable} ${beVietnamPro.variable} font-body-md text-on-surface selection:bg-vibrant-magenta selection:text-white bg-page-bg`}
       >
         <CartProvider>
           {/* Auto-select franchise default bakery for first-time visitors only. */}
