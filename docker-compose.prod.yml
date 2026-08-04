@@ -111,6 +111,13 @@ services:
       CREATE_ADMIN_PASSWORD: ${CREATE_ADMIN_PASSWORD:-}
       # One-shot: set metadata.is_super_admin=true, then clear.
       MAKE_SUPER_ADMIN_EMAIL: ${MAKE_SUPER_ADMIN_EMAIL:-}
+      # Local delivery pricing (miles, GBP major units). Defaults match product policy.
+      DELIVERY_FREE_MILES: ${DELIVERY_FREE_MILES:-1}
+      DELIVERY_PER_MILE: ${DELIVERY_PER_MILE:-4.49}
+      DELIVERY_DEFAULT_RADIUS_MI: ${DELIVERY_DEFAULT_RADIUS_MI:-10}
+      DELIVERY_FREE_OVER_GBP: ${DELIVERY_FREE_OVER_GBP:-150}
+      DELIVERY_ROAD_FACTOR: ${DELIVERY_ROAD_FACTOR:-1.3}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
     volumes:
       # Persist local file-provider uploads across redeploys. Without this,
       # /app/static is container-local and every rebuild loses banner images
@@ -151,6 +158,11 @@ services:
         NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY: ${NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY}
         NEXT_PUBLIC_DEFAULT_FRANCHISE_ID: ${NEXT_PUBLIC_DEFAULT_FRANCHISE_ID}
         NEXT_PUBLIC_PAYPAL_CLIENT_ID: ${NEXT_PUBLIC_PAYPAL_CLIENT_ID:-}
+        # Delivery policy copy / free-over progress (build-time; keep in sync with backend DELIVERY_*)
+        NEXT_PUBLIC_DELIVERY_FREE_MILES: ${NEXT_PUBLIC_DELIVERY_FREE_MILES:-1}
+        NEXT_PUBLIC_DELIVERY_PER_MILE: ${NEXT_PUBLIC_DELIVERY_PER_MILE:-4.49}
+        NEXT_PUBLIC_DELIVERY_DEFAULT_RADIUS_MI: ${NEXT_PUBLIC_DELIVERY_DEFAULT_RADIUS_MI:-10}
+        NEXT_PUBLIC_DELIVERY_FREE_OVER_GBP: ${NEXT_PUBLIC_DELIVERY_FREE_OVER_GBP:-150}
     restart: unless-stopped
     logging: *default-logging
     environment:

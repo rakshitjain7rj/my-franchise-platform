@@ -8,8 +8,12 @@
  *   - dest_lat + dest_lng   (WGS-84)
  *   - postcode              (UK postcode via postcodes.io)
  *
+ * Optional:
+ *   - merchandise_subtotal  (GBP major units after discounts, before tax & delivery)
+ *     Enables free delivery at/above the free-over threshold.
+ *
  * Pricing policy is owned by quoteLocalDelivery (same function used by the
- * fulfillment provider calculatePrice path).
+ * fulfillment provider calculatePrice path). Distance is in miles.
  *
  * Money: GBP major units.
  */
@@ -49,6 +53,11 @@ export const GET = async (
   const destLat = q.dest_lat != null ? Number(q.dest_lat) : NaN
   const destLng = q.dest_lng != null ? Number(q.dest_lng) : NaN
   const postcode = typeof q.postcode === "string" ? q.postcode.trim() : ""
+  const merchandiseSubtotalRaw =
+    q.merchandise_subtotal != null ? Number(q.merchandise_subtotal) : NaN
+  const merchandise_subtotal = Number.isFinite(merchandiseSubtotalRaw)
+    ? merchandiseSubtotalRaw
+    : undefined
 
   const dest =
     Number.isFinite(destLat) && Number.isFinite(destLng)
@@ -121,6 +130,7 @@ export const GET = async (
     store: location,
     dest,
     postcode: postcode || undefined,
+    merchandise_subtotal,
   })
 
   if (quote.error === "missing_coords") {
@@ -145,32 +155,38 @@ export const GET = async (
   if (!quote.deliverable) {
     res.status(200).json({
       deliverable: false,
-      distance_km: quote.distance_km,
+      distance_mi: quote.distance_mi,
       duration_minutes: quote.duration_minutes,
       fee: 0,
       currency_code: "gbp",
-      max_radius_km: quote.max_radius_km,
+      max_radius_mi: quote.max_radius_mi,
       source: quote.source,
       message:
         quote.message ??
-        `Sorry — this address is outside the ${quote.max_radius_km} km delivery radius for ${location.name}.`,
+        `Sorry — this address is outside the ${quote.max_radius_mi} mile delivery radius for ${location.name}.`,
     })
     return
   }
 
   const logger = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   logger.info(
-    `[delivery-fee] store=${storeId} dist=${quote.distance_km}km fee=${quote.fee} source=${quote.source}`
+    `[delivery-fee] store=${storeId} dist=${quote.distance_mi}mi fee=${quote.fee} source=${quote.source}` +
+      (merchandise_subtotal != null
+        ? ` merchandise=${merchandise_subtotal}`
+        : "")
   )
 
   res.status(200).json({
     deliverable: true,
-    distance_km: quote.distance_km,
+    distance_mi: quote.distance_mi,
     duration_minutes: quote.duration_minutes,
     fee: quote.fee,
     currency_code: "gbp",
-    max_radius_km: quote.max_radius_km,
+    max_radius_mi: quote.max_radius_mi,
     source: quote.source,
     store_location_id: storeId,
+    ...(quote.amount_to_free_delivery != null
+      ? { amount_to_free_delivery: quote.amount_to_free_delivery }
+      : {}),
   })
 }

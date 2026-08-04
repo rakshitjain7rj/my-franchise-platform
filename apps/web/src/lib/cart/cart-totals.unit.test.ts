@@ -3,9 +3,12 @@
  * Run: npx tsx src/lib/cart/cart-totals.unit.test.ts
  */
 import {
+  amountToFreeDelivery,
   getCartDeliveryPostcode,
   getCartFulfillmentMethod,
   getQuotedDeliveryFee,
+  isDeliveryQuoteDeliverable,
+  merchandiseSubtotalForDelivery,
   resolveCartTotals,
 } from "./cart-totals"
 import type { MedusaCart } from "./cart-actions"
@@ -90,7 +93,7 @@ assert(
   )
   assert(totals.shipping === 6.96, "metadata fee when shipping not attached")
   assert(Math.abs(totals.total - 31.96) < 1e-9, "total = subtotal + quoted fee")
-  assert(totals.shippingIsAuthoritative === false, "not yet authoritative")
+  assert(totals.shippingIsAuthoritative === true, "deliverable quote is authoritative")
 }
 
 {
@@ -105,6 +108,27 @@ assert(
   )
   assert(totals.shipping === 6.96, "local fee while quote hydrates")
   assert(Math.abs(totals.total - 31.96) < 1e-9, "local fee added to total")
+}
+
+{
+  // Free £0 deliverable must not be overridden by a stale local paid fee.
+  const totals = resolveCartTotals(
+    makeCart({
+      total: 150,
+      subtotal: 150,
+      shipping_total: 0,
+      metadata: {
+        fulfillment_method: "delivery",
+        delivery_fee: 0,
+        delivery_deliverable: true,
+        delivery_postcode: "B69 1AA",
+      },
+    }),
+    { localDeliveryFee: 9.88 }
+  )
+  assert(totals.shipping === 0, "free deliverable beats stale local fee")
+  assert(totals.total === 150, "free delivery grand total is merchandise only")
+  assert(totals.shippingIsAuthoritative === true, "free quote is authoritative")
 }
 
 {
@@ -132,5 +156,75 @@ assert(
   ) === 0,
   "not deliverable → fee 0"
 )
+
+assert(
+  getQuotedDeliveryFee(
+    makeCart({
+      metadata: { delivery_fee: 0, delivery_deliverable: true },
+    })
+  ) === 0,
+  "free deliverable quote → fee 0"
+)
+
+assert(
+  isDeliveryQuoteDeliverable(
+    makeCart({ metadata: { delivery_deliverable: true } })
+  ) === true,
+  "deliverable flag"
+)
+
+// Free-over merchandise: lines win; shipping must not inflate.
+assert(
+  merchandiseSubtotalForDelivery(
+    makeCart({
+      subtotal: 160, // includes £9.88 delivery after attach
+      shipping_total: 9.88,
+      discount_total: 0,
+      items: [
+        { id: "i1", variant_id: null, product_id: null, title: "A", quantity: 1, unit_price: 100, subtotal: 100, currency_code: "gbp" },
+        { id: "i2", variant_id: null, product_id: null, title: "B", quantity: 1, unit_price: 50.12, subtotal: 50.12, currency_code: "gbp" },
+      ],
+    })
+  ) === 150.12,
+  "merchandise from lines excludes shipping"
+)
+
+assert(
+  merchandiseSubtotalForDelivery(
+    makeCart({
+      subtotal: 145 + 9.88,
+      shipping_total: 9.88,
+      discount_total: 0,
+      items: [],
+    })
+  ) === 145,
+  "last-resort strips shipping_total from cart.subtotal"
+)
+
+assert(
+  merchandiseSubtotalForDelivery(
+    makeCart({
+      subtotal: 160,
+      discount_total: 20,
+      items: [
+        {
+          id: "i1",
+          variant_id: null,
+          product_id: null,
+          title: "A",
+          quantity: 1,
+          unit_price: 160,
+          subtotal: 160,
+          currency_code: "gbp",
+          discount_subtotal: 20,
+        } as MedusaCart["items"][number] & { discount_subtotal: number },
+      ],
+    })
+  ) === 140,
+  "merchandise = line subtotal − line discount"
+)
+
+assert(amountToFreeDelivery(40) === 110, "progress to free delivery")
+assert(amountToFreeDelivery(150) === 0, "already free by order value")
 
 console.log("cart-totals.unit.test.ts: all assertions passed")

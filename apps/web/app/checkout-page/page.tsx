@@ -13,10 +13,14 @@ import {
   PAYPAL_PROVIDER_ID,
 } from "@/lib/cart/cart-actions"
 import {
+  amountToFreeDelivery,
   getCartDeliveryPostcode,
   getCartFulfillmentMethod,
+  isDeliveryQuoteDeliverable,
+  merchandiseSubtotalForDelivery,
   resolveCartTotals,
 } from "@/lib/cart/cart-totals"
+import { DELIVERY_POLICY_COPY } from "@/lib/data/logistics"
 import { getCurrentCustomer } from "@/lib/auth/auth-actions"
 import {
   getCustomerAddresses,
@@ -399,6 +403,13 @@ export default function CheckoutPage() {
   // Same totals helper as the cart page — never invent a client-only fee.
   const totals = resolveCartTotals(cart)
   const isDelivery = getCartFulfillmentMethod(cart) === "delivery"
+  const deliveryIsFree =
+    isDelivery &&
+    isDeliveryQuoteDeliverable(cart) &&
+    totals.shipping <= 0
+  const freeDeliveryProgress = isDelivery
+    ? amountToFreeDelivery(merchandiseSubtotalForDelivery(cart))
+    : 0
   const subtotalVal = totals.subtotal
   const taxVal = totals.tax
   const discountVal = totals.discount
@@ -991,11 +1002,18 @@ export default function CheckoutPage() {
                       {isDelivery && cartDeliveryPostcode && (
                           <p className="mt-0.5">
                             To {cartDeliveryPostcode}
-                            {typeof cart?.metadata?.delivery_distance_km === "number" &&
-                              ` · ~${Number(cart.metadata.delivery_distance_km).toFixed(1)} km`}
+                            {typeof cart?.metadata?.delivery_distance_mi === "number" &&
+                              ` · ~${Number(cart.metadata.delivery_distance_mi).toFixed(1)} mi`}
                           </p>
                         )}
                     </div>
+                  )}
+
+                  {isDelivery && (
+                    <p className="mb-4 text-xs text-on-surface-variant leading-relaxed">
+                      <span className="font-semibold text-[#4A154B]">Delivery: </span>
+                      {DELIVERY_POLICY_COPY}
+                    </p>
                   )}
 
                   {/* Pricing Breakdowns — totals from resolveCartTotals (SSOT) */}
@@ -1011,11 +1029,21 @@ export default function CheckoutPage() {
                       <dd className="font-medium text-on-surface">
                         {shippingVal > 0
                           ? fmt(shippingVal, currencyCode)
-                          : isDelivery
-                            ? "Calculated at bakery"
-                            : "Free"}
+                          : deliveryIsFree
+                            ? "Free"
+                            : isDelivery
+                              ? "Calculated at bakery"
+                              : "Free"}
                       </dd>
                     </div>
+                    {isDelivery &&
+                      shippingVal > 0 &&
+                      freeDeliveryProgress > 0 && (
+                      <p className="text-xs text-secondary font-medium -mt-1">
+                        Add {fmt(freeDeliveryProgress, currencyCode)} more for free
+                        delivery
+                      </p>
+                    )}
                     <div className="flex items-center justify-between text-on-surface-variant">
                       <dt>Est. Taxes</dt>
                       <dd className="font-medium text-on-surface">

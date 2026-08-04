@@ -27,7 +27,10 @@ import type {
   CalculateShippingOptionPriceDTO,
   CreateShippingOptionDTO,
 } from "@medusajs/framework/types"
-import { quoteLocalDelivery } from "../../utils/logistics"
+import {
+  merchandiseSubtotalForDelivery,
+  quoteLocalDelivery,
+} from "../../utils/logistics"
 import { getBoundCakeFulfillmentQuery } from "./query-bridge"
 
 /**
@@ -155,9 +158,13 @@ class CakeFulfillmentProviderService extends AbstractFulfillmentProviderService 
 
     await this.assertStoreBelongsToCartFranchise(context, location)
 
+    const merchandiseSubtotal =
+      this.resolveMerchandiseSubtotal(context)
+
     const quote = await quoteLocalDelivery({
       store: location,
       postcode,
+      merchandise_subtotal: merchandiseSubtotal,
     })
 
     if (quote.error === "missing_coords") {
@@ -587,6 +594,31 @@ class CakeFulfillmentProviderService extends AbstractFulfillmentProviderService 
     const fromAddress = context.shipping_address?.postal_code?.trim()
     if (fromAddress) return fromAddress
     return ""
+  }
+
+  /**
+   * Merchandise after discounts, before tax & delivery (GBP major units).
+   * Free-over SSOT — never uses tax-inclusive item_total or shipping-inflated
+   * cart.subtotal alone. See merchandiseSubtotalForDelivery.
+   */
+  private resolveMerchandiseSubtotal(
+    context: CalculateShippingOptionPriceDTO["context"]
+  ): number | undefined {
+    const ctx = context as Record<string, unknown>
+    const items = Array.isArray(ctx.items)
+      ? (ctx.items as Array<Record<string, unknown>>)
+      : null
+
+    return merchandiseSubtotalForDelivery({
+      items,
+      item_subtotal: ctx.item_subtotal,
+      item_discount_total: ctx.item_discount_total,
+      // Only used after stripping shipping — never prefer raw subtotal/item_total.
+      subtotal: ctx.subtotal,
+      shipping_subtotal: ctx.shipping_subtotal,
+      shipping_total: ctx.shipping_total,
+      discount_total: ctx.discount_total,
+    })
   }
 
   async createFulfillment() {

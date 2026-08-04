@@ -36,15 +36,25 @@ export type SlotsResponse = {
 
 export type DeliveryFeeResponse = {
   deliverable: boolean
-  distance_km?: number
+  distance_mi?: number
   duration_minutes?: number | null
   fee: number
   currency_code: string
-  max_radius_km?: number
+  max_radius_mi?: number
   source?: "google" | "haversine"
   message?: string
   store_location_id?: string
+  amount_to_free_delivery?: number
 }
+
+export {
+  DELIVERY_POLICY_COPY,
+  DELIVERY_FREE_OVER_GBP,
+  DELIVERY_FREE_MILES,
+  DELIVERY_PER_MILE_GBP,
+  DELIVERY_DEFAULT_RADIUS_MI,
+  buildDeliveryPolicyCopy,
+} from "./delivery-policy"
 
 export async function fetchStoreSlots(
   storeLocationId: string,
@@ -70,7 +80,8 @@ export async function fetchDeliveryFee(
   storeLocationId: string,
   dest:
     | { postcode: string }
-    | { dest_lat: number; dest_lng: number }
+    | { dest_lat: number; dest_lng: number },
+  options?: { merchandiseSubtotal?: number | null }
 ): Promise<DeliveryFeeResponse> {
   const headers = getMedusaHeadersSync()
   const params = new URLSearchParams()
@@ -79,6 +90,12 @@ export async function fetchDeliveryFee(
   } else {
     params.set("dest_lat", String(dest.dest_lat))
     params.set("dest_lng", String(dest.dest_lng))
+  }
+  if (
+    options?.merchandiseSubtotal != null &&
+    Number.isFinite(options.merchandiseSubtotal)
+  ) {
+    params.set("merchandise_subtotal", String(options.merchandiseSubtotal))
   }
 
   const url = `${BACKEND_URL}/store/stores/${encodeURIComponent(

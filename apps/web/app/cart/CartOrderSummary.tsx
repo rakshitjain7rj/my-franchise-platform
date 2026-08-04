@@ -14,6 +14,7 @@ interface CartOrderSummaryProps {
   shippingVal: number
   deliveryFee: number
   deliveryFeeError: string | null
+  deliveryDeliverable?: boolean
   subtotalVal: number
   taxVal: number
   discountVal: number
@@ -40,6 +41,7 @@ export function CartOrderSummary({
   shippingVal,
   deliveryFee,
   deliveryFeeError,
+  deliveryDeliverable = false,
   subtotalVal,
   taxVal,
   discountVal,
@@ -178,7 +180,7 @@ export function CartOrderSummary({
         <div className="flex items-center justify-between text-on-surface-variant">
           <dt>
             {fulfillment === "delivery"
-              ? shippingVal > 0 || deliveryFee > 0
+              ? shippingVal > 0 || deliveryFee > 0 || deliveryDeliverable
                 ? "Delivery"
                 : "Est. delivery"
               : "Fulfillment"}
@@ -186,11 +188,15 @@ export function CartOrderSummary({
           <dd className="font-medium text-on-surface">
             {fulfillment === "pickup"
               ? "FREE"
-              : shippingVal > 0
-                ? fmt(shippingVal, currencyCode)
-                : deliveryFeeError
-                  ? "—"
-                  : "Enter postcode"}
+              : deliveryDeliverable && shippingVal <= 0 && deliveryFee <= 0
+                ? "Free"
+                : shippingVal > 0
+                  ? fmt(shippingVal, currencyCode)
+                  : deliveryFee > 0
+                    ? fmt(deliveryFee, currencyCode)
+                    : deliveryFeeError
+                      ? "—"
+                      : "Enter postcode"}
           </dd>
         </div>
         <div className="flex items-center justify-between text-on-surface-variant">

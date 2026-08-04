@@ -359,55 +359,214 @@ export function extractSlotStart(
   return null
 }
 
-export function haversineKm(
+/** Mean Earth radius in miles (WGS-84 sphere approximation). */
+const EARTH_RADIUS_MI = 3958.7613
+/** Metres per statute mile. */
+const METRES_PER_MILE = 1609.344
+
+/**
+ * Great-circle distance in miles between two WGS-84 points.
+ */
+export function haversineMi(
   lat1: number,
   lon1: number,
   lat2: number,
   lon2: number
 ): number {
   const toRad = (d: number) => (d * Math.PI) / 180
-  const R = 6371
   const dLat = toRad(lat2 - lat1)
   const dLon = toRad(lon2 - lon1)
   const a =
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return EARTH_RADIUS_MI * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+/** @deprecated Prefer haversineMi — kept for any residual km callers. */
+export function haversineKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  return haversineMi(lat1, lon1, lat2, lon2) * (1609.344 / 1000)
 }
 
 export type DeliveryFeeConfig = {
-  baseFee: number
-  perKm: number
-  freeUnderKm: number
-  maxFee: number
-  /** Road-distance multiplier when using straight-line haversine */
+  /** First N miles free (default 1). */
+  freeMiles: number
+  /** GBP major units charged per mile after free band (default 4.49). */
+  perMileGbp: number
+  /** Road-distance multiplier when using straight-line haversine. */
   roadFactor: number
-  defaultRadiusKm: number
+  /** Max deliverable radius in miles (default 10). */
+  defaultRadiusMi: number
+  /**
+   * Merchandise subtotal (after discounts, before tax & delivery) at/above
+   * which delivery is free within the radius (default 150).
+   */
+  freeOverGbp: number
 }
 
 export const DEFAULT_DELIVERY_FEE_CONFIG: DeliveryFeeConfig = {
-  baseFee: Number(process.env.DELIVERY_BASE_FEE ?? 2.5),
-  perKm: Number(process.env.DELIVERY_PER_KM ?? 0.75),
-  freeUnderKm: Number(process.env.DELIVERY_FREE_UNDER_KM ?? 0),
-  maxFee: Number(process.env.DELIVERY_MAX_FEE ?? 15),
+  freeMiles: Number(process.env.DELIVERY_FREE_MILES ?? 1),
+  perMileGbp: Number(process.env.DELIVERY_PER_MILE ?? 4.49),
   roadFactor: Number(process.env.DELIVERY_ROAD_FACTOR ?? 1.3),
-  defaultRadiusKm: Number(process.env.DELIVERY_DEFAULT_RADIUS_KM ?? 10),
+  defaultRadiusMi: Number(process.env.DELIVERY_DEFAULT_RADIUS_MI ?? 10),
+  freeOverGbp: Number(process.env.DELIVERY_FREE_OVER_GBP ?? 150),
 }
 
 /**
- * Compute delivery fee in GBP major units from driving distance.
+ * Compute delivery fee in GBP major units from driving distance in miles.
+ * Optional merchandise subtotal enables free delivery at/above freeOverGbp.
+ * No base fee and no max-fee cap.
  */
 export function computeDeliveryFee(
-  distanceKm: number,
+  distanceMi: number,
+  config: DeliveryFeeConfig = DEFAULT_DELIVERY_FEE_CONFIG,
+  merchandiseSubtotal?: number | null
+): number {
+  if (distanceMi < 0 || !Number.isFinite(distanceMi)) return 0
+  if (
+    merchandiseSubtotal != null &&
+    Number.isFinite(merchandiseSubtotal) &&
+    merchandiseSubtotal >= config.freeOverGbp
+  ) {
+    return 0
+  }
+  if (distanceMi <= config.freeMiles) return 0
+  const chargeable = Math.max(0, distanceMi - config.freeMiles)
+  const raw = chargeable * config.perMileGbp
+  // Round to nearest 0.01 (major units)
+  return Math.round(raw * 100) / 100
+}
+
+/**
+ * GBP still needed to unlock free delivery by order value.
+ * Returns 0 when already at/above the threshold.
+ */
+export function amountToFreeDelivery(
+  merchandiseSubtotal: number,
   config: DeliveryFeeConfig = DEFAULT_DELIVERY_FEE_CONFIG
 ): number {
-  if (distanceKm < 0 || !Number.isFinite(distanceKm)) return 0
-  if (distanceKm <= config.freeUnderKm) return 0
-  const chargeable = Math.max(0, distanceKm - config.freeUnderKm)
-  const raw = config.baseFee + chargeable * config.perKm
-  const capped = Math.min(config.maxFee, raw)
-  // Round to nearest 0.01 (major units)
-  return Math.round(capped * 100) / 100
+  if (!Number.isFinite(merchandiseSubtotal)) return config.freeOverGbp
+  return Math.max(0, Math.round((config.freeOverGbp - merchandiseSubtotal) * 100) / 100)
+}
+
+function asFiniteMoney(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string" && value.trim() !== "") {
+    const n = Number(value)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
+}
+
+export type MerchandiseSubtotalSources = {
+  /** Line items (preferred — excludes shipping & tax). */
+  items?: Array<Record<string, unknown>> | null
+  /**
+   * Pre-tax item subtotal before line discounts (Medusa `item_subtotal`).
+   * Prefer with `item_discount_total` when lines are incomplete.
+   */
+  item_subtotal?: unknown
+  /** Pre-tax discounts on items only (Medusa `item_discount_total`). */
+  item_discount_total?: unknown
+  /**
+   * Cart `subtotal` may include shipping after a method is attached — never
+   * use alone. Only used as last resort after stripping shipping.
+   */
+  subtotal?: unknown
+  shipping_subtotal?: unknown
+  shipping_total?: unknown
+  /** Cart-level discount total (items + possibly shipping). */
+  discount_total?: unknown
+  /**
+   * Do not use `item_total` for free-over — it is tax-inclusive.
+   * Listed here only so callers do not pass it by mistake via rest spreads.
+   */
+  item_total?: unknown
+}
+
+/**
+ * Merchandise after discounts, before tax & delivery (GBP major units).
+ *
+ * Free-over-£150 SSOT for soft quote and charge path. Never counts shipping
+ * or tax. Prefer line items; fall back to item_subtotal; last resort strips
+ * shipping from cart.subtotal.
+ *
+ * Returns `undefined` when nothing usable is found (distance-only pricing).
+ */
+export function merchandiseSubtotalForDelivery(
+  sources: MerchandiseSubtotalSources | null | undefined
+): number | undefined {
+  if (!sources) return undefined
+
+  const items = sources.items
+  if (Array.isArray(items) && items.length > 0) {
+    let sum = 0
+    let any = false
+    for (const item of items) {
+      if (!item || typeof item !== "object") continue
+      const lineSub = asFiniteMoney(item.subtotal)
+      const unit = asFiniteMoney(item.unit_price)
+      const qty = asFiniteMoney(item.quantity) ?? 1
+      let gross: number | null = lineSub
+      if (gross == null && unit != null) {
+        gross = unit * qty
+      }
+      if (gross == null) continue
+
+      // Prefer pre-tax discount; fall back to adjustments or discount_total.
+      let disc =
+        asFiniteMoney(item.discount_subtotal) ??
+        asFiniteMoney(item.discount_total) ??
+        null
+      if (disc == null && Array.isArray(item.adjustments)) {
+        disc = 0
+        for (const adj of item.adjustments) {
+          if (!adj || typeof adj !== "object") continue
+          const amt = asFiniteMoney((adj as Record<string, unknown>).amount)
+          if (amt != null) disc += Math.abs(amt)
+        }
+      }
+      sum += Math.max(0, gross - (disc ?? 0))
+      any = true
+    }
+    if (any) return Math.round(sum * 100) / 100
+  }
+
+  const itemSub = asFiniteMoney(sources.item_subtotal)
+  if (itemSub != null) {
+    const itemDisc = asFiniteMoney(sources.item_discount_total) ?? 0
+    return Math.max(0, Math.round((itemSub - itemDisc) * 100) / 100)
+  }
+
+  // Last resort: cart.subtotal often includes shipping after attach.
+  const sub = asFiniteMoney(sources.subtotal)
+  if (sub != null) {
+    const ship =
+      asFiniteMoney(sources.shipping_subtotal) ??
+      asFiniteMoney(sources.shipping_total) ??
+      0
+    const disc = asFiniteMoney(sources.discount_total) ?? 0
+    return Math.max(0, Math.round((sub - ship - disc) * 100) / 100)
+  }
+
+  return undefined
+}
+
+/**
+ * Resolve store delivery radius in miles.
+ * Prefers metadata.delivery_radius_mi; ignores legacy delivery_radius_km.
+ */
+export function resolveDeliveryRadiusMi(
+  store: { metadata?: Record<string, unknown> | null },
+  config: DeliveryFeeConfig = DEFAULT_DELIVERY_FEE_CONFIG
+): number {
+  const raw = Number(store.metadata?.delivery_radius_mi)
+  if (Number.isFinite(raw) && raw > 0) return raw
+  return config.defaultRadiusMi
 }
 
 // ── Simple in-process TTL cache for Distance Matrix / geocode results ────────
@@ -458,12 +617,14 @@ export type QuoteLocalDeliveryError =
 export type QuoteLocalDeliveryResult = {
   deliverable: boolean
   fee: number
-  distance_km: number | null
+  distance_mi: number | null
   duration_minutes: number | null
-  max_radius_km: number
+  max_radius_mi: number
   source: "google" | "haversine" | null
   error?: QuoteLocalDeliveryError
   message?: string
+  /** Present when fee > 0 and a merchandise subtotal was supplied. */
+  amount_to_free_delivery?: number
 }
 
 export type QuoteLocalDeliveryInput = {
@@ -472,18 +633,28 @@ export type QuoteLocalDeliveryInput = {
   dest?: GeoPoint | null
   /** UK postcode — used when `dest` is not provided. */
   postcode?: string | null
+  /**
+   * Merchandise subtotal after discounts, before tax & delivery (GBP major units).
+   * Used for free delivery at/above freeOverGbp.
+   */
+  merchandise_subtotal?: number | null
   config?: DeliveryFeeConfig
   /** Test / DI hooks — production callers leave these unset. */
   geocode?: (postcode: string) => Promise<GeoPoint | null>
   drivingDistance?: (
     origin: GeoPoint,
     dest: GeoPoint
-  ) => Promise<{ km: number; minutes: number } | null>
+  ) => Promise<{ mi: number; minutes: number } | null>
 }
 
 /** Round distance to 2dp — single policy for quote and charge paths. */
+export function roundDistanceMi(distanceMi: number): number {
+  return Math.round(distanceMi * 100) / 100
+}
+
+/** @deprecated Prefer roundDistanceMi. */
 export function roundDistanceKm(distanceKm: number): number {
-  return Math.round(distanceKm * 100) / 100
+  return roundDistanceMi(distanceKm)
 }
 
 /**
@@ -523,18 +694,18 @@ export async function geocodeUkPostcode(
 }
 
 /**
- * Google Distance Matrix driving distance when `GOOGLE_MAPS_API_KEY` is set.
+ * Google Distance Matrix driving distance in miles when `GOOGLE_MAPS_API_KEY` is set.
  * Returns null when the key is absent or the request fails.
  */
-export async function googleDrivingDistanceKm(
+export async function googleDrivingDistanceMi(
   origin: GeoPoint,
   dest: GeoPoint
-): Promise<{ km: number; minutes: number } | null> {
+): Promise<{ mi: number; minutes: number } | null> {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY?.trim()
   if (!apiKey) return null
 
-  const cacheKey = `gdm:${origin.lat.toFixed(4)},${origin.lng.toFixed(4)}>${dest.lat.toFixed(4)},${dest.lng.toFixed(4)}`
-  const cached = cacheGet<{ km: number; minutes: number }>(cacheKey)
+  const cacheKey = `gdm:mi:${origin.lat.toFixed(4)},${origin.lng.toFixed(4)}>${dest.lat.toFixed(4)},${dest.lng.toFixed(4)}`
+  const cached = cacheGet<{ mi: number; minutes: number }>(cacheKey)
   if (cached) return cached
 
   try {
@@ -543,6 +714,7 @@ export async function googleDrivingDistanceKm(
     )
     url.searchParams.set("origins", `${origin.lat},${origin.lng}`)
     url.searchParams.set("destinations", `${dest.lat},${dest.lng}`)
+    // Distance value is always metres; convert to miles ourselves for SSOT.
     url.searchParams.set("units", "metric")
     url.searchParams.set("mode", "driving")
     url.searchParams.set("key", apiKey)
@@ -564,7 +736,7 @@ export async function googleDrivingDistanceKm(
     if (!el || el.status !== "OK" || el.distance?.value == null) return null
 
     const result = {
-      km: el.distance.value / 1000,
+      mi: el.distance.value / METRES_PER_MILE,
       minutes: Math.round((el.duration?.value ?? 0) / 60),
     }
     cacheSet(cacheKey, result, GEO_CACHE_TTL_MS)
@@ -572,6 +744,16 @@ export async function googleDrivingDistanceKm(
   } catch {
     return null
   }
+}
+
+/** @deprecated Prefer googleDrivingDistanceMi. */
+export async function googleDrivingDistanceKm(
+  origin: GeoPoint,
+  dest: GeoPoint
+): Promise<{ km: number; minutes: number } | null> {
+  const mi = await googleDrivingDistanceMi(origin, dest)
+  if (!mi) return null
+  return { km: mi.mi * (METRES_PER_MILE / 1000), minutes: mi.minutes }
 }
 
 /**
@@ -587,16 +769,20 @@ export async function quoteLocalDelivery(
 ): Promise<QuoteLocalDeliveryResult> {
   const cfg = input.config ?? DEFAULT_DELIVERY_FEE_CONFIG
   const store = input.store
-  const radiusKm =
-    Number(store.metadata?.delivery_radius_km) || cfg.defaultRadiusKm
+  const radiusMi = resolveDeliveryRadiusMi(store, cfg)
+  const merchandiseSubtotal =
+    input.merchandise_subtotal != null &&
+    Number.isFinite(Number(input.merchandise_subtotal))
+      ? Number(input.merchandise_subtotal)
+      : null
 
   if (store.latitude == null || store.longitude == null) {
     return {
       deliverable: false,
       fee: 0,
-      distance_km: null,
+      distance_mi: null,
       duration_minutes: null,
-      max_radius_km: radiusKm,
+      max_radius_mi: radiusMi,
       source: null,
       error: "missing_coords",
       message: "This bakery has no map coordinates configured for delivery.",
@@ -621,9 +807,9 @@ export async function quoteLocalDelivery(
       return {
         deliverable: false,
         fee: 0,
-        distance_km: null,
+        distance_mi: null,
         duration_minutes: null,
-        max_radius_km: radiusKm,
+        max_radius_mi: radiusMi,
         source: null,
         error: "missing_destination",
         message: "Provide dest_lat & dest_lng, or a UK postcode",
@@ -635,9 +821,9 @@ export async function quoteLocalDelivery(
       return {
         deliverable: false,
         fee: 0,
-        distance_km: null,
+        distance_mi: null,
         duration_minutes: null,
-        max_radius_km: radiusKm,
+        max_radius_mi: radiusMi,
         source: null,
         error: "unresolvable_postcode",
         message: "Could not resolve that postcode. Please check and try again.",
@@ -645,45 +831,54 @@ export async function quoteLocalDelivery(
     }
   }
 
-  let distanceKm: number
+  let distanceMi: number
   let durationMinutes: number | null = null
   let source: "google" | "haversine" = "haversine"
 
-  const drivingDistance = input.drivingDistance ?? googleDrivingDistanceKm
+  const drivingDistance = input.drivingDistance ?? googleDrivingDistanceMi
   const google = await drivingDistance(origin, dest)
   if (google) {
-    distanceKm = google.km
+    distanceMi = google.mi
     durationMinutes = google.minutes
     source = "google"
   } else {
-    distanceKm =
-      haversineKm(origin.lat, origin.lng, dest.lat, dest.lng) * cfg.roadFactor
+    distanceMi =
+      haversineMi(origin.lat, origin.lng, dest.lat, dest.lng) * cfg.roadFactor
   }
 
   // Single rounding policy for quote and charge (prevents penny splits).
-  distanceKm = roundDistanceKm(distanceKm)
+  distanceMi = roundDistanceMi(distanceMi)
 
-  if (distanceKm > radiusKm) {
+  if (distanceMi > radiusMi) {
     return {
       deliverable: false,
       fee: 0,
-      distance_km: distanceKm,
+      distance_mi: distanceMi,
       duration_minutes: durationMinutes,
-      max_radius_km: radiusKm,
+      max_radius_mi: radiusMi,
       source,
       error: "outside_radius",
-      message: `Sorry — this address is outside the ${radiusKm} km delivery radius for ${store.name}.`,
+      message: `Sorry — this address is outside the ${radiusMi} mile delivery radius for ${store.name}.`,
     }
   }
 
-  const fee = computeDeliveryFee(distanceKm, cfg)
+  const fee = computeDeliveryFee(distanceMi, cfg, merchandiseSubtotal)
 
-  return {
+  const result: QuoteLocalDeliveryResult = {
     deliverable: true,
     fee,
-    distance_km: distanceKm,
+    distance_mi: distanceMi,
     duration_minutes: durationMinutes,
-    max_radius_km: radiusKm,
+    max_radius_mi: radiusMi,
     source,
   }
+
+  if (fee > 0 && merchandiseSubtotal != null) {
+    result.amount_to_free_delivery = amountToFreeDelivery(
+      merchandiseSubtotal,
+      cfg
+    )
+  }
+
+  return result
 }

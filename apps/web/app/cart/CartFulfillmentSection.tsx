@@ -3,6 +3,7 @@
 import TimeSlotPicker, {
   type SlotSelection,
 } from "@/components/time-slot-picker"
+import { DELIVERY_POLICY_COPY } from "@/lib/data/logistics"
 import { fmt } from "./format"
 
 interface CartFulfillmentSectionProps {
@@ -22,7 +23,9 @@ interface CartFulfillmentSectionProps {
   deliveryFee: number
   deliveryFeeLoading: boolean
   deliveryFeeError: string | null
-  deliveryDistanceKm: number | null
+  deliveryDistanceMi: number | null
+  deliveryDeliverable: boolean
+  amountToFreeDelivery: number
   onQuoteDeliveryFee: () => void
   currencyCode: string
 }
@@ -48,7 +51,9 @@ export function CartFulfillmentSection({
   deliveryFee,
   deliveryFeeLoading,
   deliveryFeeError,
-  deliveryDistanceKm,
+  deliveryDistanceMi,
+  deliveryDeliverable,
+  amountToFreeDelivery,
   onQuoteDeliveryFee,
   currencyCode,
 }: CartFulfillmentSectionProps) {
@@ -160,8 +165,10 @@ export function CartFulfillmentSection({
                   Local Delivery
                 </span>
                 <span className="text-[12px] font-medium text-on-surface-variant uppercase tracking-wider">
-                  {deliveryFee > 0 && !deliveryFeeError
-                    ? `${fmt(deliveryFee, currencyCode)} · by distance`
+                  {deliveryDeliverable && !deliveryFeeError
+                    ? deliveryFee > 0
+                      ? `${fmt(deliveryFee, currencyCode)} · by distance`
+                      : "Free"
                     : "Calculated by distance"}
                 </span>
               </div>
@@ -181,8 +188,9 @@ export function CartFulfillmentSection({
             </div>
           </div>
           <p className="text-sm text-on-surface-variant leading-relaxed">
-            Delivered within ~10 km of your selected bakery. Enter your
-            postcode below to see the exact fee.
+            <span className="font-semibold text-primary">Delivery: </span>
+            {DELIVERY_POLICY_COPY} Enter your postcode below to see the exact
+            fee.
           </p>
         </button>
       </div>
@@ -243,17 +251,26 @@ export function CartFulfillmentSection({
               {deliveryFeeError}
             </p>
           )}
-          {!deliveryFeeError && deliveryFee > 0 && (
+          {!deliveryFeeError && deliveryDeliverable && (
             <p className="text-xs text-on-surface-variant">
               Delivery fee:{" "}
               <strong className="text-primary">
-                {fmt(deliveryFee, currencyCode)}
+                {deliveryFee > 0 ? fmt(deliveryFee, currencyCode) : "Free"}
               </strong>
-              {deliveryDistanceKm != null && (
-                <> · ~{deliveryDistanceKm.toFixed(1)} km</>
+              {deliveryDistanceMi != null && (
+                <> · ~{deliveryDistanceMi.toFixed(1)} mi</>
               )}
             </p>
           )}
+          {!deliveryFeeError &&
+            deliveryDeliverable &&
+            deliveryFee > 0 &&
+            amountToFreeDelivery > 0 && (
+              <p className="text-xs text-secondary font-medium">
+                Add {fmt(amountToFreeDelivery, currencyCode)} more for free
+                delivery
+              </p>
+            )}
         </div>
       )}
     </section>

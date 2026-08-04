@@ -460,7 +460,151 @@ test.describe("D. End-to-End Order Placement Tests", () => {
     await page.waitForTimeout(2000);
     
     // Error is shown
-    await expect(page.locator("text=outside the 10 km delivery radius")).toBeVisible();
+    await expect(page.locator("text=outside the 10 mile delivery radius")).toBeVisible();
+  });
+
+  test("D5 — Delivery policy strip matches locked product copy", async ({ page }) => {
+    await addCakeToCart(page);
+    await page.goto(`${BASE_URL}/cart`);
+    await clearOverlays(page);
+
+    const deliveryBtn = page.locator("button:has-text('Local Delivery')");
+    await deliveryBtn.click();
+
+    await expect(
+      page.getByText(
+        "Within 10 miles. First mile free, then £4.49 per mile. Free delivery on orders of £150 or more within our delivery area."
+      )
+    ).toBeVisible();
+  });
+
+  test("D6 — Free delivery (£0) UI and checkout gate when fee API returns free", async ({
+    page,
+  }) => {
+    // Soft quote free (e.g. first mile or free-over) — deterministic, no £150 cart needed.
+    await page.route("**/store/stores/**/delivery-fee**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          deliverable: true,
+          fee: 0,
+          distance_mi: 0.8,
+          duration_minutes: 5,
+          currency_code: "gbp",
+          max_radius_mi: 10,
+          source: "haversine",
+          store_location_id: "mocked",
+        }),
+      });
+    });
+
+    // After soft free, shipping attach can reprice via calculatePrice. Force the
+    // attached cart to keep shipping_total 0 so free UI/checkout gating is tested.
+    await page.route("**/store/carts/**/shipping-methods", async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.continue();
+        return;
+      }
+      const response = await route.fetch();
+      const json = await response.json().catch(() => ({}));
+      if (json?.cart) {
+        json.cart.shipping_total = 0;
+        json.cart.metadata = {
+          ...(json.cart.metadata ?? {}),
+          delivery_fee: 0,
+          delivery_deliverable: true,
+          delivery_distance_mi: 0.8,
+          fulfillment_method: "delivery",
+        };
+      }
+      await route.fulfill({
+        status: response.status(),
+        contentType: "application/json",
+        body: JSON.stringify(json),
+      });
+    });
+
+    await addCakeToCart(page);
+    await page.goto(`${BASE_URL}/cart`);
+    await clearOverlays(page);
+
+    await page.locator("button:has-text('Local Delivery')").click();
+    const postcodeInput = page.locator("input[placeholder='e.g. SW1A 1AA']");
+    await postcodeInput.fill("B21 0AL");
+    await page.click("button:has-text('Get fee')");
+
+    // Fulfillment strip + order summary must show Free (not blank / Enter postcode).
+    await expect(page.getByText(/Delivery fee:\s*Free/i)).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(page.locator("text=~0.8 mi")).toBeVisible();
+
+    const deliveryRow = page.locator("dt").filter({ hasText: /Delivery|Est\. delivery/i }).first();
+    await expect(deliveryRow).toBeVisible();
+    const deliveryDd = deliveryRow.locator("xpath=following-sibling::dd[1]");
+    await expect(deliveryDd).toHaveText(/Free/i);
+
+    // Free delivery must not block checkout (fee > 0 is not required).
+    const checkoutBtn = page.locator("button#proceed-to-checkout-btn");
+    await expect(checkoutBtn).toBeEnabled({ timeout: 15000 });
+  });
+
+  test("D7 — Paid fee shows progress toward free delivery", async ({ page }) => {
+    await page.route("**/store/stores/**/delivery-fee**", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          deliverable: true,
+          fee: 9.88,
+          distance_mi: 3.2,
+          duration_minutes: 12,
+          currency_code: "gbp",
+          max_radius_mi: 10,
+          source: "haversine",
+          amount_to_free_delivery: 110,
+          store_location_id: "mocked",
+        }),
+      });
+    });
+
+    await page.route("**/store/carts/**/shipping-methods", async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.continue();
+        return;
+      }
+      const response = await route.fetch();
+      const json = await response.json().catch(() => ({}));
+      if (json?.cart) {
+        json.cart.shipping_total = 9.88;
+        json.cart.metadata = {
+          ...(json.cart.metadata ?? {}),
+          delivery_fee: 9.88,
+          delivery_deliverable: true,
+          delivery_distance_mi: 3.2,
+          fulfillment_method: "delivery",
+        };
+      }
+      await route.fulfill({
+        status: response.status(),
+        contentType: "application/json",
+        body: JSON.stringify(json),
+      });
+    });
+
+    await addCakeToCart(page);
+    await page.goto(`${BASE_URL}/cart`);
+    await clearOverlays(page);
+
+    await page.locator("button:has-text('Local Delivery')").click();
+    await page.locator("input[placeholder='e.g. SW1A 1AA']").fill("B21 0AL");
+    await page.click("button:has-text('Get fee')");
+
+    await expect(page.getByText(/Delivery fee:/i)).toBeVisible({ timeout: 15000 });
+    await expect(page.locator("text=~3.2 mi")).toBeVisible();
+    // Progress uses client merchandise SSOT: "Add £X.XX more for free delivery"
+    await expect(page.getByText(/Add £[\d,.]+ more for free delivery/i)).toBeVisible();
   });
 
 });

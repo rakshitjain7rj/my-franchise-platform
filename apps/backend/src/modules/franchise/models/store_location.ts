@@ -129,7 +129,7 @@ const StoreLocation = model.define("store_location", {
   /**
    * Extension metadata bag for non-queryable store-specific data.
    * Recommended keys:
-   *   - `delivery_radius_km`: number — radius used for local delivery filtering.
+   *   - `delivery_radius_mi`: number — max local delivery radius in miles (default 10).
    *   - `manager_name`: string — branch manager contact for ops notifications.
    *   - `instagram_handle`: string — location-specific social profile.
    */

@@ -17,6 +17,7 @@
 
 import { getMedusaHeadersSync } from "@/lib/medusa/headers"
 import { fetchStoreSlots } from "@/lib/data/logistics"
+import { merchandiseSubtotalForDelivery } from "@/lib/cart/cart-totals"
 import {
   FRANCHISE_COOKIE,
   getBrowserCookie,
@@ -178,6 +179,10 @@ export async function getCart(cartId: string): Promise<MedusaCart | null> {
       "+email",
       "+discount_total",
       "+shipping_total",
+      // Free-over merchandise SSOT: item-only totals (exclude shipping/tax).
+      "+item_subtotal",
+      "+item_discount_total",
+      "+shipping_subtotal",
       "*shipping_address",
       "*promotions",
       // Offline-order scrub: need category handles on line products
@@ -478,7 +483,7 @@ export async function syncDeliveryQuoteToCart(
   params: {
     postcode: string
     fee: number
-    distance_km?: number | null
+    distance_mi?: number | null
     deliverable: boolean
     storeLocationId?: string | null
     existingMetadata?: Record<string, unknown> | null
@@ -493,8 +498,10 @@ export async function syncDeliveryQuoteToCart(
     delivery_postcode: postcode,
     delivery_deliverable: params.deliverable,
   }
-  if (params.distance_km != null) {
-    metadata.delivery_distance_km = params.distance_km
+  if (params.distance_mi != null) {
+    metadata.delivery_distance_mi = params.distance_mi
+    // Drop legacy km key so UI does not show stale units.
+    delete metadata.delivery_distance_km
   }
   if (params.storeLocationId) {
     metadata.store_location_id = params.storeLocationId
@@ -727,13 +734,17 @@ export async function prepareCartForCheckout(
         "Choose a bakery on the map before checking out for delivery."
       )
     }
+    // Merchandise after discounts, before tax & delivery (free-over SSOT —
+    // never inflate with attached shipping; never tax-inclusive).
+    const merchandiseSubtotal = merchandiseSubtotalForDelivery(current)
     const params = new URLSearchParams({
       postcode: details.postal_code.trim(),
+      merchandise_subtotal: String(merchandiseSubtotal),
     })
     const feeRes = await cartFetch<{
       deliverable: boolean
       fee: number
-      distance_km?: number
+      distance_mi?: number
       message?: string
     }>(
       `/store/stores/${encodeURIComponent(storeLocationId)}/delivery-fee?${params}`
@@ -747,7 +758,7 @@ export async function prepareCartForCheckout(
     deliveryMeta = {
       delivery_fee: feeRes.fee,
       delivery_postcode: details.postal_code.trim(),
-      delivery_distance_km: feeRes.distance_km,
+      delivery_distance_mi: feeRes.distance_mi,
       delivery_deliverable: true,
     }
   }

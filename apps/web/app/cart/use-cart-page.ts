@@ -11,7 +11,13 @@ import {
   syncDeliveryQuoteToCart,
   updateCartMetadata,
 } from "@/lib/cart/cart-actions"
-import { getCartDeliveryPostcode, resolveCartTotals } from "@/lib/cart/cart-totals"
+import {
+  amountToFreeDelivery,
+  getCartDeliveryPostcode,
+  isDeliveryQuoteDeliverable,
+  merchandiseSubtotalForDelivery,
+  resolveCartTotals,
+} from "@/lib/cart/cart-totals"
 import { getCustomerAddresses } from "@/lib/auth/account-actions"
 import { getMedusaHeadersSync } from "@/lib/medusa/headers"
 import {
@@ -61,9 +67,12 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
   const [deliveryFee, setDeliveryFee] = useState(0)
   const [deliveryFeeLoading, setDeliveryFeeLoading] = useState(false)
   const [deliveryFeeError, setDeliveryFeeError] = useState<string | null>(null)
-  const [deliveryDistanceKm, setDeliveryDistanceKm] = useState<number | null>(
+  const [deliveryDistanceMi, setDeliveryDistanceMi] = useState<number | null>(
     null
   )
+  const [deliveryDeliverable, setDeliveryDeliverable] = useState(false)
+  /** Merchandise subtotal used for the last successful delivery quote. */
+  const lastQuotedSubtotalRef = useRef<number | null>(null)
 
   const [discountCode, setDiscountCode] = useState("")
   const [discountLoading, setDiscountLoading] = useState(false)
@@ -165,7 +174,7 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
       requested_pickup_iso?: string
       delivery_fee?: number
       delivery_postcode?: string
-      delivery_distance_km?: number
+      delivery_distance_mi?: number
       delivery_deliverable?: boolean
     }) => {
       if (!cartId) return
@@ -201,8 +210,8 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
       if (updates.delivery_postcode !== undefined) {
         mergedMetadata.delivery_postcode = updates.delivery_postcode
       }
-      if (updates.delivery_distance_km !== undefined) {
-        mergedMetadata.delivery_distance_km = updates.delivery_distance_km
+      if (updates.delivery_distance_mi !== undefined) {
+        mergedMetadata.delivery_distance_mi = updates.delivery_distance_mi
       }
       if (updates.delivery_deliverable !== undefined) {
         mergedMetadata.delivery_deliverable = updates.delivery_deliverable
@@ -251,10 +260,16 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
       setFulfillment(meta.fulfillment_method as "pickup" | "delivery")
     }
     // Prefer Medusa shipping_total (authoritative) over metadata quote.
+    // Free delivery keeps shipping_total at 0 — still trust deliverable metadata.
     if ((cart.shipping_total ?? 0) > 0) {
       setDeliveryFee(cart.shipping_total)
+      setDeliveryDeliverable(true)
     } else if (typeof meta?.delivery_fee === "number") {
       setDeliveryFee(meta.delivery_fee)
+      setDeliveryDeliverable(meta.delivery_deliverable === true)
+    } else if (meta?.delivery_deliverable === true) {
+      setDeliveryFee(0)
+      setDeliveryDeliverable(true)
     }
     // Postcode SSOT: shipping_address → metadata → address book (gap fill only).
     const cartPostcode = getCartDeliveryPostcode(cart)
@@ -272,8 +287,8 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
         })
         .catch(() => {})
     }
-    if (typeof meta?.delivery_distance_km === "number") {
-      setDeliveryDistanceKm(meta.delivery_distance_km)
+    if (typeof meta?.delivery_distance_mi === "number") {
+      setDeliveryDistanceMi(meta.delivery_distance_mi)
     }
 
     // If lines already have a slot but cart metadata is missing/stale, promote
@@ -354,7 +369,8 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
       if (method === "pickup") {
         setDeliveryFee(0)
         setDeliveryFeeError(null)
-        setDeliveryDistanceKm(null)
+        setDeliveryDistanceMi(null)
+        setDeliveryDeliverable(false)
         try {
           await applyPreferredShippingMethod(cartId, "pickup", locationId)
           await refreshCart()
@@ -466,7 +482,8 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
   const quoteDeliveryFee = useCallback(async () => {
     if (fulfillment !== "delivery" || !locationId || !deliveryPostcode.trim()) {
       setDeliveryFee(0)
-      setDeliveryDistanceKm(null)
+      setDeliveryDistanceMi(null)
+      setDeliveryDeliverable(false)
       setDeliveryFeeError(null)
       return
     }
@@ -474,16 +491,19 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
     setDeliveryFeeLoading(true)
     setDeliveryFeeError(null)
     try {
-      const result = await fetchDeliveryFee(locationId, {
-        postcode: deliveryPostcode.trim(),
-      })
+      const subtotalForQuote = merchandiseSubtotalForDelivery(cart)
+      const result = await fetchDeliveryFee(
+        locationId,
+        { postcode: deliveryPostcode.trim() },
+        { merchandiseSubtotal: subtotalForQuote }
+      )
       // Persist fee + postcode to cart (metadata + shipping_address) and
       // attach local-delivery shipping method so cart.total / shipping_total
       // match what checkout and payment will charge.
       const updated = await syncDeliveryQuoteToCart(cartId, {
         postcode: deliveryPostcode.trim(),
         fee: result.fee,
-        distance_km: result.distance_km ?? null,
+        distance_mi: result.distance_mi ?? null,
         deliverable: result.deliverable,
         storeLocationId: locationId,
         existingMetadata: cart?.metadata ?? null,
@@ -492,7 +512,8 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
 
       if (!result.deliverable) {
         setDeliveryFee(0)
-        setDeliveryDistanceKm(result.distance_km ?? null)
+        setDeliveryDeliverable(false)
+        setDeliveryDistanceMi(result.distance_mi ?? null)
         setDeliveryFeeError(
           result.message ?? "Delivery is not available to this postcode."
         )
@@ -500,14 +521,18 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
       }
 
       // Prefer Medusa shipping_total when the method attached successfully.
+      // Free delivery leaves shipping_total at 0 — use result.fee (0).
       const charged =
         (updated.shipping_total ?? 0) > 0
           ? updated.shipping_total
           : result.fee
       setDeliveryFee(charged)
-      setDeliveryDistanceKm(result.distance_km ?? null)
+      setDeliveryDeliverable(true)
+      setDeliveryDistanceMi(result.distance_mi ?? null)
+      lastQuotedSubtotalRef.current = subtotalForQuote
     } catch (err) {
       setDeliveryFee(0)
+      setDeliveryDeliverable(false)
       setDeliveryFeeError(
         err instanceof Error ? err.message : "Could not calculate delivery fee."
       )
@@ -519,7 +544,7 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
     locationId,
     deliveryPostcode,
     cartId,
-    cart?.metadata,
+    cart,
     refreshCart,
   ])
 
@@ -527,9 +552,44 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
     if (fulfillment === "pickup") {
       setDeliveryFee(0)
       setDeliveryFeeError(null)
-      setDeliveryDistanceKm(null)
+      setDeliveryDistanceMi(null)
+      setDeliveryDeliverable(false)
+      lastQuotedSubtotalRef.current = null
     }
   }, [fulfillment])
+
+  // Re-quote when item merchandise changes so free-over-£150 flips automatically.
+  // Merchandise SSOT excludes shipping/tax (see merchandiseSubtotalForDelivery).
+  const merchandiseSubtotal = merchandiseSubtotalForDelivery(cart)
+  useEffect(() => {
+    if (fulfillment !== "delivery") return
+    if (!deliveryPostcode.trim() || !locationId || !cartId) return
+    if (deliveryFeeLoading) return
+    // Only re-quote when we already have a successful quote (local or cart meta).
+    if (!deliveryDeliverable && !isDeliveryQuoteDeliverable(cart)) return
+
+    // First observation after a deliverable quote: always re-validate free-over
+    // against current item merchandise (stale free/paid metadata after restore).
+    if (lastQuotedSubtotalRef.current == null) {
+      lastQuotedSubtotalRef.current = merchandiseSubtotal
+      void quoteDeliveryFee()
+      return
+    }
+    if (Math.abs(lastQuotedSubtotalRef.current - merchandiseSubtotal) < 0.001) {
+      return
+    }
+    void quoteDeliveryFee()
+  }, [
+    merchandiseSubtotal,
+    fulfillment,
+    deliveryPostcode,
+    locationId,
+    cartId,
+    deliveryDeliverable,
+    deliveryFeeLoading,
+    cart,
+    quoteDeliveryFee,
+  ])
 
   const handleApplyDiscount = async () => {
     if (!cartId || !discountCode.trim()) return
@@ -581,6 +641,7 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
     : true
   const deliveryOk =
     fulfillment === "pickup" ||
+    (deliveryDeliverable && !deliveryFeeError) ||
     ((deliveryFee > 0 || totals.shipping > 0) && !deliveryFeeError)
   // Collection window is set once on the cart (order-level) and stamped on lines.
   // Gate on persisted data (lines or cart metadata), not local draft state.
@@ -635,7 +696,10 @@ export function useCartPage(franchiseId: string, initialLocationId: string | nul
     deliveryFee,
     deliveryFeeLoading,
     deliveryFeeError,
-    deliveryDistanceKm,
+    deliveryDistanceMi,
+    deliveryDeliverable,
+    amountToFreeDelivery: amountToFreeDelivery(merchandiseSubtotal),
+    merchandiseSubtotal,
     quoteDeliveryFee,
     discountCode,
     setDiscountCode,

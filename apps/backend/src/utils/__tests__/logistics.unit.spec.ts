@@ -8,6 +8,7 @@ import {
   COLLECTION_EARLIEST_MONDAY_SUNDAY,
   COLLECTION_EARLIEST_WEEKDAY,
   DEFAULT_OPENING_HOURS,
+  amountToFreeDelivery,
   applySlotUsage,
   buildDaySlots,
   collectionEarliestOpen,
@@ -15,12 +16,13 @@ import {
   expandDailyHours,
   extractSlotStart,
   formatHHMM,
-  haversineKm,
+  haversineMi,
+  merchandiseSubtotalForDelivery,
   parseHHMM,
   quoteLocalDelivery,
   resolveLeadTimeHours,
   resolveOpeningHours,
-  roundDistanceKm,
+  roundDistanceMi,
   type DeliveryFeeConfig,
 } from "../logistics"
 
@@ -278,49 +280,55 @@ describe("extractSlotStart", () => {
   })
 })
 
-describe("computeDeliveryFee / haversineKm", () => {
-  it("returns 0 for free-under-km range", () => {
-    expect(
-      computeDeliveryFee(0.5, {
-        baseFee: 2.5,
-        perKm: 0.75,
-        freeUnderKm: 1,
-        maxFee: 15,
-        roadFactor: 1.3,
-        defaultRadiusKm: 10,
-      })
-    ).toBe(0)
+describe("computeDeliveryFee / haversineMi", () => {
+  const cfg: DeliveryFeeConfig = {
+    freeMiles: 1,
+    perMileGbp: 4.49,
+    roadFactor: 1.3,
+    defaultRadiusMi: 10,
+    freeOverGbp: 150,
+  }
+
+  it("returns 0 within the free first mile", () => {
+    expect(computeDeliveryFee(0.5, cfg)).toBe(0)
+    expect(computeDeliveryFee(1.0, cfg)).toBe(0)
   })
 
-  it("applies base + per-km and caps at max", () => {
-    const cfg = {
-      baseFee: 2.5,
-      perKm: 0.75,
-      freeUnderKm: 0,
-      maxFee: 5,
-      roadFactor: 1.3,
-      defaultRadiusKm: 10,
-    }
-    expect(computeDeliveryFee(2, cfg)).toBe(4) // 2.5 + 1.5
-    expect(computeDeliveryFee(20, cfg)).toBe(5) // capped
+  it("charges (miles − 1) × per-mile after free band", () => {
+    // 3.2 mi → 2.2 × 4.49 = 9.878 → £9.88
+    expect(computeDeliveryFee(3.2, cfg)).toBe(9.88)
+    // 10.0 mi → 9 × 4.49 = 40.41
+    expect(computeDeliveryFee(10, cfg)).toBe(40.41)
+  })
+
+  it("returns 0 when merchandise subtotal is at/above free-over threshold", () => {
+    expect(computeDeliveryFee(8, cfg, 150)).toBe(0)
+    expect(computeDeliveryFee(8, cfg, 200)).toBe(0)
+    expect(computeDeliveryFee(8, cfg, 149.99)).toBe(
+      computeDeliveryFee(8, cfg)
+    )
+  })
+
+  it("computes amount still needed for free delivery", () => {
+    expect(amountToFreeDelivery(40, cfg)).toBe(110)
+    expect(amountToFreeDelivery(150, cfg)).toBe(0)
   })
 
   it("computes positive distance between known points", () => {
     // Birmingham centre-ish → nearby
-    const km = haversineKm(52.48, -1.9, 52.49, -1.91)
-    expect(km).toBeGreaterThan(0)
-    expect(km).toBeLessThan(5)
+    const mi = haversineMi(52.48, -1.9, 52.49, -1.91)
+    expect(mi).toBeGreaterThan(0)
+    expect(mi).toBeLessThan(5)
   })
 })
 
 describe("quoteLocalDelivery — canonical quote/charge policy", () => {
   const cfg: DeliveryFeeConfig = {
-    baseFee: 2.5,
-    perKm: 0.75,
-    freeUnderKm: 0,
-    maxFee: 15,
+    freeMiles: 1,
+    perMileGbp: 4.49,
     roadFactor: 1.3,
-    defaultRadiusKm: 10,
+    defaultRadiusMi: 10,
+    freeOverGbp: 150,
   }
 
   const store = {
@@ -328,7 +336,7 @@ describe("quoteLocalDelivery — canonical quote/charge policy", () => {
     name: "Cake Break Test",
     latitude: 52.48,
     longitude: -1.9,
-    metadata: { delivery_radius_km: 10 },
+    metadata: { delivery_radius_mi: 10 },
   }
 
   it("produces a deterministic fee for fixed destination coordinates", async () => {
@@ -338,25 +346,22 @@ describe("quoteLocalDelivery — canonical quote/charge policy", () => {
     expect(a.deliverable).toBe(true)
     expect(b.deliverable).toBe(true)
     expect(a.fee).toBe(b.fee)
-    expect(a.distance_km).toBe(b.distance_km)
+    expect(a.distance_mi).toBe(b.distance_mi)
     expect(a.source).toBe("haversine")
   })
 
   it("prevents quote-vs-charge penny splits from unrounded distance", async () => {
-    // Raw haversine×roadFactor of 4.6349 km used to diverge after fee rounding
-    // depending on whether distance was rounded first. Both call shapes must match.
-    const drivingDistance = async () => ({ km: 4.6349, minutes: 12 })
+    const drivingDistance = async () => ({ mi: 4.6349, minutes: 12 })
     const viaDriving = await quoteLocalDelivery({
       store,
       dest: { lat: 1, lng: 1 },
       config: cfg,
       drivingDistance,
     })
-    const rounded = roundDistanceKm(4.6349)
+    const rounded = roundDistanceMi(4.6349)
     expect(rounded).toBe(4.63)
-    expect(viaDriving.distance_km).toBe(rounded)
+    expect(viaDriving.distance_mi).toBe(rounded)
     expect(viaDriving.fee).toBe(computeDeliveryFee(rounded, cfg))
-    // Second independent call (simulates endpoint vs provider) is identical.
     const again = await quoteLocalDelivery({
       store,
       dest: { lat: 1, lng: 1 },
@@ -364,11 +369,11 @@ describe("quoteLocalDelivery — canonical quote/charge policy", () => {
       drivingDistance,
     })
     expect(again.fee).toBe(viaDriving.fee)
-    expect(again.distance_km).toBe(viaDriving.distance_km)
+    expect(again.distance_mi).toBe(viaDriving.distance_mi)
   })
 
   it("treats distance equal to radius as deliverable", async () => {
-    const drivingDistance = async () => ({ km: 10, minutes: 20 })
+    const drivingDistance = async () => ({ mi: 10, minutes: 20 })
     const quote = await quoteLocalDelivery({
       store,
       dest: { lat: 1, lng: 1 },
@@ -380,7 +385,7 @@ describe("quoteLocalDelivery — canonical quote/charge policy", () => {
   })
 
   it("rejects destinations outside the radius", async () => {
-    const drivingDistance = async () => ({ km: 10.01, minutes: 25 })
+    const drivingDistance = async () => ({ mi: 10.01, minutes: 25 })
     const quote = await quoteLocalDelivery({
       store,
       dest: { lat: 1, lng: 1 },
@@ -390,27 +395,54 @@ describe("quoteLocalDelivery — canonical quote/charge policy", () => {
     expect(quote.deliverable).toBe(false)
     expect(quote.error).toBe("outside_radius")
     expect(quote.fee).toBe(0)
+    expect(quote.message).toMatch(/10 mile delivery radius/)
   })
 
-  it("honours freeUnderKm and fee cap", async () => {
-    const freeCfg: DeliveryFeeConfig = { ...cfg, freeUnderKm: 5, maxFee: 4 }
-    const free = await quoteLocalDelivery({
+  it("honours free first mile and free-over merchandise threshold", async () => {
+    const freeMile = await quoteLocalDelivery({
       store,
       dest: { lat: 1, lng: 1 },
-      config: freeCfg,
-      drivingDistance: async () => ({ km: 3, minutes: 5 }),
+      config: cfg,
+      drivingDistance: async () => ({ mi: 0.8, minutes: 5 }),
     })
-    expect(free.deliverable).toBe(true)
-    expect(free.fee).toBe(0)
+    expect(freeMile.deliverable).toBe(true)
+    expect(freeMile.fee).toBe(0)
 
-    const capped = await quoteLocalDelivery({
+    const freeOrder = await quoteLocalDelivery({
       store,
       dest: { lat: 1, lng: 1 },
-      config: freeCfg,
-      drivingDistance: async () => ({ km: 9, minutes: 15 }),
+      config: cfg,
+      merchandise_subtotal: 150,
+      drivingDistance: async () => ({ mi: 8, minutes: 15 }),
     })
-    expect(capped.deliverable).toBe(true)
-    expect(capped.fee).toBe(4)
+    expect(freeOrder.deliverable).toBe(true)
+    expect(freeOrder.fee).toBe(0)
+
+    const paid = await quoteLocalDelivery({
+      store,
+      dest: { lat: 1, lng: 1 },
+      config: cfg,
+      merchandise_subtotal: 40,
+      drivingDistance: async () => ({ mi: 3.2, minutes: 10 }),
+    })
+    expect(paid.deliverable).toBe(true)
+    expect(paid.fee).toBe(9.88)
+    expect(paid.amount_to_free_delivery).toBe(110)
+  })
+
+  it("ignores legacy delivery_radius_km and uses default miles radius", async () => {
+    const quote = await quoteLocalDelivery({
+      store: {
+        ...store,
+        metadata: { delivery_radius_km: 10 },
+      },
+      dest: { lat: 1, lng: 1 },
+      config: cfg,
+      // 10 mi is within default 10 mi radius; would be outside if 10 were still km.
+      drivingDistance: async () => ({ mi: 9.5, minutes: 20 }),
+    })
+    expect(quote.deliverable).toBe(true)
+    expect(quote.max_radius_mi).toBe(10)
   })
 
   it("fails clearly when store has no coordinates", async () => {
@@ -438,5 +470,77 @@ describe("quoteLocalDelivery — canonical quote/charge policy", () => {
     const quote = await quoteLocalDelivery({ store, config: cfg })
     expect(quote.deliverable).toBe(false)
     expect(quote.error).toBe("missing_destination")
+  })
+})
+
+describe("merchandiseSubtotalForDelivery — free-over SSOT", () => {
+  it("sums line items and ignores tax-inclusive item_total", () => {
+    expect(
+      merchandiseSubtotalForDelivery({
+        items: [
+          { unit_price: 50, quantity: 2, subtotal: 100 },
+          { unit_price: 45, quantity: 1, subtotal: 45 },
+        ],
+        item_total: 174, // tax-inflated — must not win over lines
+        subtotal: 145 + 9.88, // shipping-inflated — must not win over lines
+        shipping_total: 9.88,
+      })
+    ).toBe(145)
+  })
+
+  it("subtracts line discounts (pre-tax)", () => {
+    expect(
+      merchandiseSubtotalForDelivery({
+        items: [
+          {
+            unit_price: 100,
+            quantity: 1,
+            subtotal: 100,
+            discount_subtotal: 10,
+          },
+        ],
+      })
+    ).toBe(90)
+  })
+
+  it("subtracts adjustment amounts when discount fields missing", () => {
+    expect(
+      merchandiseSubtotalForDelivery({
+        items: [
+          {
+            unit_price: 80,
+            quantity: 2,
+            adjustments: [{ amount: 15 }],
+          },
+        ],
+      })
+    ).toBe(145)
+  })
+
+  it("does not count attached shipping as merchandise (last-resort path)", () => {
+    // No lines / item_subtotal — strip shipping from cart.subtotal.
+    expect(
+      merchandiseSubtotalForDelivery({
+        subtotal: 145 + 9.88,
+        shipping_total: 9.88,
+        discount_total: 0,
+      })
+    ).toBe(145)
+  })
+
+  it("uses item_subtotal − item_discount_total when lines missing", () => {
+    expect(
+      merchandiseSubtotalForDelivery({
+        item_subtotal: 160,
+        item_discount_total: 10,
+        // Tax-inclusive must not be used
+        item_total: 180,
+      })
+    ).toBe(150)
+  })
+
+  it("returns undefined when nothing usable is present", () => {
+    expect(merchandiseSubtotalForDelivery({})).toBeUndefined()
+    expect(merchandiseSubtotalForDelivery(null)).toBeUndefined()
   })
 })

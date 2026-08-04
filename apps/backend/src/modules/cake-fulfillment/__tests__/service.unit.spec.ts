@@ -31,15 +31,15 @@ const STORE = {
   longitude: -1.9,
   is_active: true,
   is_accepting_orders: true,
-  metadata: { delivery_radius_km: 10 },
+  metadata: { delivery_radius_mi: 10 },
 }
 
 const happyQuote = {
   deliverable: true,
   fee: 5.97,
-  distance_km: 4.63,
+  distance_mi: 4.63,
   duration_minutes: 12,
-  max_radius_km: 10,
+  max_radius_mi: 10,
   source: "haversine" as const,
 }
 
@@ -137,6 +137,75 @@ describe("CakeFulfillmentProviderService.calculatePrice", () => {
       expect.objectContaining({
         postcode: "B1 1AA",
         store: expect.objectContaining({ id: "stloc_1" }),
+      })
+    )
+  })
+
+  it("passes merchandise subtotal so free-over threshold can apply", async () => {
+    mockQuoteLocalDelivery.mockResolvedValue({
+      ...happyQuote,
+      fee: 0,
+    })
+    const { provider } = makeProvider(defaultGraph())
+    const price = await provider.calculatePrice(
+      deliveryOption,
+      { store_location_id: "stloc_1" },
+      {
+        ...baseContext,
+        // Prefer lines over cart.subtotal (which may include shipping).
+        items: [{ unit_price: 160, quantity: 1, subtotal: 160 }],
+        subtotal: 160,
+        discount_total: 0,
+      }
+    )
+    expect(price.calculated_amount).toBe(0)
+    expect(mockQuoteLocalDelivery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        merchandise_subtotal: 160,
+      })
+    )
+  })
+
+  it("derives merchandise subtotal from line items when cart totals missing", async () => {
+    const { provider } = makeProvider(defaultGraph())
+    await provider.calculatePrice(
+      deliveryOption,
+      { store_location_id: "stloc_1" },
+      {
+        ...baseContext,
+        items: [
+          { unit_price: 50, quantity: 2, subtotal: 100 },
+          { unit_price: 25, quantity: 1, subtotal: 25 },
+        ],
+      }
+    )
+    expect(mockQuoteLocalDelivery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        merchandise_subtotal: 125,
+      })
+    )
+  })
+
+  it("does not treat shipping-inflated subtotal or tax-inclusive item_total as merchandise", async () => {
+    const { provider } = makeProvider(defaultGraph())
+    await provider.calculatePrice(
+      deliveryOption,
+      { store_location_id: "stloc_1" },
+      {
+        ...baseContext,
+        // Real Medusa shipping-calc context often has item_total + items, not subtotal.
+        item_total: 174, // tax-inclusive — must not unlock free-over alone
+        subtotal: 145 + 9.88,
+        shipping_total: 9.88,
+        items: [
+          { unit_price: 100, quantity: 1, subtotal: 100 },
+          { unit_price: 45, quantity: 1, subtotal: 45 },
+        ],
+      }
+    )
+    expect(mockQuoteLocalDelivery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        merchandise_subtotal: 145,
       })
     )
   })
@@ -269,13 +338,13 @@ describe("CakeFulfillmentProviderService.calculatePrice", () => {
     mockQuoteLocalDelivery.mockResolvedValue({
       deliverable: false,
       fee: 0,
-      distance_km: 12,
+      distance_mi: 12,
       duration_minutes: 20,
-      max_radius_km: 10,
+      max_radius_mi: 10,
       source: "haversine",
       error: "outside_radius",
       message:
-        "Sorry — this address is outside the 10 km delivery radius for Cake Break Test.",
+        "Sorry — this address is outside the 10 mile delivery radius for Cake Break Test.",
     })
     const { provider } = makeProvider(defaultGraph())
     await expect(
@@ -286,7 +355,7 @@ describe("CakeFulfillmentProviderService.calculatePrice", () => {
       )
     ).rejects.toMatchObject({
       type: MedusaError.Types.INVALID_DATA,
-      message: expect.stringMatching(/outside the 10 km/i),
+      message: expect.stringMatching(/outside the 10 mile/i),
     })
   })
 
@@ -294,9 +363,9 @@ describe("CakeFulfillmentProviderService.calculatePrice", () => {
     mockQuoteLocalDelivery.mockResolvedValue({
       deliverable: false,
       fee: 0,
-      distance_km: null,
+      distance_mi: null,
       duration_minutes: null,
-      max_radius_km: 10,
+      max_radius_mi: 10,
       source: null,
       error: "missing_coords",
       message: "This bakery has no map coordinates configured for delivery.",
@@ -318,9 +387,9 @@ describe("CakeFulfillmentProviderService.calculatePrice", () => {
     mockQuoteLocalDelivery.mockResolvedValue({
       deliverable: false,
       fee: 0,
-      distance_km: null,
+      distance_mi: null,
       duration_minutes: null,
-      max_radius_km: 10,
+      max_radius_mi: 10,
       source: null,
       error: "unresolvable_postcode",
       message: "Could not resolve that postcode.",

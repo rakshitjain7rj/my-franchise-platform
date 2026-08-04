@@ -144,7 +144,9 @@ export default function CartPageClient({
               deliveryFee={model.deliveryFee}
               deliveryFeeLoading={model.deliveryFeeLoading}
               deliveryFeeError={model.deliveryFeeError}
-              deliveryDistanceKm={model.deliveryDistanceKm}
+              deliveryDistanceMi={model.deliveryDistanceMi}
+              deliveryDeliverable={model.deliveryDeliverable}
+              amountToFreeDelivery={model.amountToFreeDelivery}
               onQuoteDeliveryFee={() => void model.quoteDeliveryFee()}
               currencyCode={model.currencyCode}
             />
@@ -162,6 +164,7 @@ export default function CartPageClient({
               shippingVal={model.shippingVal}
               deliveryFee={model.deliveryFee}
               deliveryFeeError={model.deliveryFeeError}
+              deliveryDeliverable={model.deliveryDeliverable}
               subtotalVal={model.subtotalVal}
               taxVal={model.taxVal}
               discountVal={model.discountVal}
