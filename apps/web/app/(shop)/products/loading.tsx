@@ -8,11 +8,18 @@ export default function ProductLoading() {
     <main className="pb-20 bg-page-bg" aria-busy="true" aria-label="Loading product">
       <div className="max-w-[1440px] mx-auto px-4 sm:px-margin-mobile md:px-margin-desktop pb-12 pt-20 sm:pt-8 md:pb-20 space-y-16 sm:space-y-20">
         <div className="space-y-12 animate-pulse">
-          {/* Breadcrumb */}
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-12 rounded bg-deep-plum/10" />
-            <div className="h-3 w-3 rounded bg-deep-plum/5" />
-            <div className="h-3 w-32 rounded bg-deep-plum/10" />
+          {/* Back link + breadcrumb */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+            <div className="h-3 w-28 rounded bg-deep-plum/10" />
+            <div className="flex items-center gap-2 sm:justify-end">
+              <div className="h-3 w-10 rounded bg-deep-plum/10" />
+              <div className="h-3 w-3 rounded bg-deep-plum/5" />
+              <div className="h-3 w-12 rounded bg-deep-plum/10" />
+              <div className="h-3 w-3 rounded bg-deep-plum/5" />
+              <div className="h-3 w-16 rounded bg-deep-plum/10" />
+              <div className="h-3 w-3 rounded bg-deep-plum/5" />
+              <div className="h-3 w-28 rounded bg-deep-plum/10" />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-10 lg:gap-16">

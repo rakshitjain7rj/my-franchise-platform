@@ -42,28 +42,60 @@ export default function ProductDetail({
     categories: product.categories,
   });
 
+  // Primary category for back-link + breadcrumb (first linked category).
+  const primaryCategory = product.categories?.[0] ?? null;
+  const catalogueHref = primaryCategory?.handle
+    ? `/cake-catalogue?cats=${encodeURIComponent(primaryCategory.handle)}`
+    : "/cake-catalogue";
+  const backLabel = primaryCategory?.name
+    ? `Back to ${primaryCategory.name}`
+    : "Back to cakes";
+
   return (
     <div className="space-y-12">
-      <nav
-        aria-label="Breadcrumb"
-        className="flex items-center gap-2 text-xs font-label-bold tracking-wider uppercase text-on-surface-variant"
-      >
-        <Link href="/" className="hover:text-deep-plum transition-colors">
-          Home
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+        <Link
+          href={catalogueHref}
+          className="inline-flex items-center gap-1.5 text-xs font-label-bold tracking-wider uppercase text-on-surface-variant hover:text-deep-plum transition-colors shrink-0"
+        >
+          <span aria-hidden="true">←</span>
+          {backLabel}
         </Link>
-        <span className="text-outline-variant">/</span>
-        {product.collection && (
-          <>
-            <span className="text-on-surface-variant">
-              {product.collection.title}
-            </span>
-            <span className="text-outline-variant">/</span>
-          </>
-        )}
-        <span className="text-deep-plum truncate max-w-[200px]">
-          {product.title}
-        </span>
-      </nav>
+
+        <nav
+          aria-label="Breadcrumb"
+          className="flex items-center gap-2 text-xs font-label-bold tracking-wider uppercase text-on-surface-variant min-w-0 sm:justify-end"
+        >
+          <Link href="/" className="hover:text-deep-plum transition-colors shrink-0">
+            Home
+          </Link>
+          <span className="text-outline-variant shrink-0">/</span>
+          <Link
+            href="/cake-catalogue"
+            className="hover:text-deep-plum transition-colors shrink-0"
+          >
+            Cakes
+          </Link>
+          {primaryCategory && (
+            <>
+              <span className="text-outline-variant shrink-0">/</span>
+              <Link
+                href={catalogueHref}
+                className="hover:text-deep-plum transition-colors truncate max-w-[140px]"
+              >
+                {primaryCategory.name}
+              </Link>
+            </>
+          )}
+          <span className="text-outline-variant shrink-0">/</span>
+          <span
+            className="text-deep-plum truncate max-w-[200px]"
+            aria-current="page"
+          >
+            {product.title}
+          </span>
+        </nav>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] gap-10 lg:gap-16">
         <div className="space-y-6">
