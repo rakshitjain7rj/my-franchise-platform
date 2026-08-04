@@ -379,7 +379,7 @@ export function isFalsyMetaFlag(value: unknown): boolean {
 export const JAM_EXCLUDED_CATEGORY_HANDLE = "cupcakes-slices-and-extras"
 
 const JAM_DENY_PATTERN =
-  /cupcake|\bslices?\b|\bcookies?\b|bouquet|\bloaf\b/i
+  /cupcake|\bcake[\s-]*box(?:es)?\b|\bslices?\b|\bcookies?\b|bouquet|\bloaf\b/i
 
 const CAKE_WORD_PATTERN = /\bcakes?\b/i
 
@@ -443,7 +443,7 @@ export function productLooksLikeCupcake(product: {
  * Opt-in for celebration cakes only. Resolution order:
  *  1. Explicit `metadata.supports_jam_filling` truthy → true
  *  2. Explicit falsy → false
- *  3. Deny patterns (cupcake, slice(s), cookie(s), bouquet, loaf) → false
+ *  3. Deny patterns (cupcake, cake box, slice(s), cookie(s), bouquet, loaf) → false
  *  4. Cake word on title/handle OR cake category → true
  *  5. Else → false
  */

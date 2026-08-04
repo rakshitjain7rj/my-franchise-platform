@@ -132,6 +132,18 @@ assert(
   "loaf → no jam"
 )
 assert(
+  !supportsJamFilling({
+    title: "(Ex57) Diwali Cake Box",
+    handle: "diwali-cake-box-ex57",
+    categories: [{ handle: "diwali-cakes" }],
+  }),
+  "cake box title/handle → no jam (deny wins over cake word + category)"
+)
+assert(
+  !supportsJamFilling({ title: "Personalized Diwali Cake Box" }),
+  "cake box (plural-safe) → no jam"
+)
+assert(
   supportsJamFilling({
     title: "Red Velvet Symphony",
     categories: [{ handle: "round-cakes" }],
