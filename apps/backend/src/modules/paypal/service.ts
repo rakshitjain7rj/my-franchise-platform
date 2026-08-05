@@ -25,6 +25,7 @@ import type {
 import alphabitePaypalProvider from "@alphabite/medusa-paypal/providers/paypal"
 
 import FixedPaypalCoreService, {
+  mapPaypalSdkError,
   type FixedPaypalCoreOptions,
 } from "./paypal-core"
 
@@ -50,10 +51,16 @@ class PaypalProviderService extends BasePaypalProviderService {
   ): Promise<InitiatePaymentOutput> {
     // PayPal expects ISO-4217 uppercase; Medusa stores "gbp".
     const currency_code = input.currency_code.toUpperCase()
-    return super.initiatePayment({
-      ...input,
-      currency_code,
-    })
+    try {
+      return await super.initiatePayment({
+        ...input,
+        currency_code,
+      })
+    } catch (err) {
+      // mapPaypalSdkError always returns MedusaError — rethrow mapped auth /
+      // API failures so checkout never shows Medusa's generic "unknown error".
+      throw mapPaypalSdkError(err, "start PayPal checkout")
+    }
   }
 }
 

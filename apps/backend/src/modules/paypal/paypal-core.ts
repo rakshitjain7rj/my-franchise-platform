@@ -131,7 +131,12 @@ class FixedPaypalCoreService extends BasePaypalCoreService {
       assertSmartButtonsPayload(body)
     }
 
-    const createdOrder = await this.ordersController.createOrder({ body })
+    let createdOrder: { result?: { id?: string; status?: string; links?: unknown } }
+    try {
+      createdOrder = await this.ordersController.createOrder({ body })
+    } catch (err) {
+      throw mapPaypalSdkError(err, "create PayPal order")
+    }
     const result = createdOrder?.result
 
     if (!result?.id) {
@@ -146,6 +151,79 @@ class FixedPaypalCoreService extends BasePaypalCoreService {
 
     return result
   }
+}
+
+/**
+ * Turn PayPal / SDK failures into customer- or ops-facing Medusa errors.
+ * Auth failures are the usual production "An unknown error occurred" source
+ * when CLIENT_ID/SECRET are wrong, expired, or sandbox/live mismatched.
+ */
+export function mapPaypalSdkError(err: unknown, action: string): MedusaError {
+  // Preserve already-mapped Medusa errors (e.g. createOrder → initiatePayment).
+  if (err instanceof MedusaError) {
+    return err
+  }
+
+  const text = paypalErrorText(err)
+
+  if (
+    /invalid_client|client authentication failed|authentication.?failed|unauthorized/i.test(
+      text
+    )
+  ) {
+    return new MedusaError(
+      MedusaError.Types.UNEXPECTED_STATE,
+      "PayPal could not authenticate this store. " +
+        "Check PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET in Dokploy, and that " +
+        "PAYPAL_IS_SANDBOX matches the app type (sandbox vs live)."
+    )
+  }
+
+  if (/invalid_request|UNPROCESSABLE|VALIDATION/i.test(text)) {
+    return new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      `PayPal rejected the ${action} request. ${summarizePaypalMessage(text)}`
+    )
+  }
+
+  return new MedusaError(
+    MedusaError.Types.UNEXPECTED_STATE,
+    `Could not ${action} with PayPal. ${summarizePaypalMessage(text)}`
+  )
+}
+
+function paypalErrorText(err: unknown): string {
+  if (err == null) return ""
+  if (typeof err === "string") return err
+  if (err instanceof Error) {
+    const any = err as Error & {
+      body?: unknown
+      result?: unknown
+      errors?: unknown
+    }
+    const parts = [err.message]
+    for (const bag of [any.body, any.result, any.errors]) {
+      if (bag == null) continue
+      try {
+        parts.push(typeof bag === "string" ? bag : JSON.stringify(bag))
+      } catch {
+        /* ignore */
+      }
+    }
+    return parts.filter(Boolean).join(" ")
+  }
+  try {
+    return JSON.stringify(err)
+  } catch {
+    return String(err)
+  }
+}
+
+function summarizePaypalMessage(text: string): string {
+  const trimmed = text.replace(/\s+/g, " ").trim()
+  if (!trimmed) return "Please try again or choose another payment method."
+  // Keep it short for the checkout banner; full detail stays in server logs.
+  return trimmed.length > 220 ? `${trimmed.slice(0, 220)}…` : trimmed
 }
 
 export default FixedPaypalCoreService

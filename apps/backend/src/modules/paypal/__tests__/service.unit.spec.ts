@@ -6,8 +6,9 @@
  * unless it also flips to full redirect mode with return+cancel URLs.
  */
 
+import { MedusaError } from "@medusajs/framework/utils"
 import PaypalProviderService from "../service"
-import FixedPaypalCoreService, { money } from "../paypal-core"
+import FixedPaypalCoreService, { mapPaypalSdkError, money } from "../paypal-core"
 import {
   assertCreateOrderResultForMode,
   assertSmartButtonsPayload,
@@ -211,6 +212,26 @@ describe("money()", () => {
 })
 
 // ─── Core client (SDK boundary) ─────────────────────────────────────────────
+
+describe("mapPaypalSdkError", () => {
+  it("maps invalid_client to an ops-facing credentials message", () => {
+    const err = mapPaypalSdkError(
+      new Error('{"error":"invalid_client","error_description":"Client Authentication failed"}'),
+      "create PayPal order"
+    )
+    expect(err).toBeInstanceOf(MedusaError)
+    expect(err.message).toMatch(/could not authenticate/i)
+    expect(err.message).toMatch(/PAYPAL_CLIENT_ID/i)
+  })
+
+  it("preserves existing MedusaError instances", () => {
+    const original = new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "already mapped"
+    )
+    expect(mapPaypalSdkError(original, "start").message).toBe("already mapped")
+  })
+})
 
 describe("FixedPaypalCoreService.createOrder", () => {
   it("is smart_buttons by default and sends application_context only", async () => {
