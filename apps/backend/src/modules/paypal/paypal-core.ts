@@ -21,6 +21,7 @@ import {
   money,
   resolvePaypalCheckoutMode,
   type PaypalCheckoutMode,
+  type PaypalOrderResultLike,
 } from "./order-contract"
 
 export { money, resolvePaypalCheckoutMode }
@@ -131,13 +132,13 @@ class FixedPaypalCoreService extends BasePaypalCoreService {
       assertSmartButtonsPayload(body)
     }
 
-    let createdOrder: { result?: { id?: string; status?: string; links?: unknown } }
+    let createdOrder: { result?: PaypalOrderResultLike } | undefined
     try {
       createdOrder = await this.ordersController.createOrder({ body })
     } catch (err) {
       throw mapPaypalSdkError(err, "create PayPal order")
     }
-    const result = createdOrder?.result
+    const result = createdOrder?.result as PaypalOrderResultLike | undefined
 
     if (!result?.id) {
       throw new MedusaError(
