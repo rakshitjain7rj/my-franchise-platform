@@ -107,6 +107,34 @@ export interface MedusaCart {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** Pull the best customer-facing message out of a Medusa/JSON error body. */
+function messageFromErrorBody(body: unknown, fallback: string): string {
+  if (!body || typeof body !== "object") return fallback
+  const b = body as Record<string, unknown>
+  if (typeof b.message === "string" && b.message.trim()) {
+    // Medusa sometimes returns a useless generic; dig one level deeper.
+    if (
+      b.message.toLowerCase() !== "an unknown error occurred" ||
+      !b.error
+    ) {
+      return b.message.trim()
+    }
+  }
+  if (typeof b.error === "string" && b.error.trim()) return b.error.trim()
+  if (b.error && typeof b.error === "object") {
+    const nested = (b.error as { message?: unknown }).message
+    if (typeof nested === "string" && nested.trim()) return nested.trim()
+  }
+  if (Array.isArray(b.errors) && b.errors.length) {
+    const first = b.errors[0] as { message?: unknown }
+    if (typeof first?.message === "string" && first.message.trim()) {
+      return first.message.trim()
+    }
+  }
+  if (typeof b.message === "string" && b.message.trim()) return b.message.trim()
+  return fallback
+}
+
 async function cartFetch<T = unknown>(
   path: string,
   options: RequestInit = {}
@@ -123,9 +151,10 @@ async function cartFetch<T = unknown>(
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    const message =
-      (body as { message?: string }).message ??
+    const message = messageFromErrorBody(
+      body,
       `Cart request failed: ${res.status} ${res.statusText}`
+    )
     throw new Error(message)
   }
 
@@ -797,8 +826,18 @@ export async function prepareCartForCheckout(
 }
 
 /**
- * Client-side collection slot gate (no grace — server keeps the 2-minute grace
- * on complete only). Used before payment starts and again before complete.
+ * Client-side collection slot gate before payment / complete.
+ *
+ * Trusts GET /store/stores/:id/slots as the single source of truth for
+ * bookable windows (same generator the cart picker uses). Do **not** re-apply
+ * a browser-local absolute lead cutoff here:
+ *  - Naive `YYYY-MM-DDTHH:mm` is interpreted in the browser TZ, while the
+ *    slots API uses the backend clock — re-checking lead here is stricter
+ *    and rejects slots the picker already marked bookable.
+ *  - Missing `lead_time_hours` must default to 0 (same-day), never 24 —
+ *    see `resolveLeadTimeHours` / time-slot-picker.
+ *
+ * Hard enforcement (with 2-minute grace) still runs on the server at complete.
  */
 export async function assertCartCollectionSlotStillValid(
   cartId: string
@@ -821,7 +860,16 @@ export async function assertCartCollectionSlotStillValid(
     lineSlot?.time ||
     lineSlot?.label ||
     ""
-  const time = extractSlotStartTime(rawTime) || rawTime.slice(0, 5)
+  const rawLabel =
+    (typeof meta.requested_pickup_label === "string" &&
+      meta.requested_pickup_label) ||
+    lineSlot?.label ||
+    ""
+  // Prefer HH:mm start; fall back to parsing a range label ("17:00 – 17:30").
+  const resolvedTime =
+    extractSlotStartTime(rawTime) ||
+    extractSlotStartTime(rawLabel) ||
+    (/^\d{2}:\d{2}$/.test(rawTime.slice(0, 5)) ? rawTime.slice(0, 5) : "")
   const storeId =
     (typeof meta.store_location_id === "string" && meta.store_location_id) ||
     cart.items
@@ -835,7 +883,7 @@ export async function assertCartCollectionSlotStillValid(
       "Select a bakery location before placing your order. Return to the cart or product page."
     )
   }
-  if (!date || !time || !/^\d{2}:\d{2}$/.test(time)) {
+  if (!date || !resolvedTime || !/^\d{2}:\d{2}$/.test(resolvedTime)) {
     throw new Error(
       "A collection date and time slot are required. Please pick a slot on the product or cart page."
     )
@@ -850,12 +898,16 @@ export async function assertCartCollectionSlotStillValid(
     return
   }
 
+  // Align with resolveLeadTimeHours / time-slot-picker: missing → 0, never 24.
   const lead =
-    typeof slotsResponse.lead_time_hours === "number"
-      ? slotsResponse.lead_time_hours
-      : 24
+    typeof slotsResponse.lead_time_hours === "number" &&
+    Number.isFinite(slotsResponse.lead_time_hours)
+      ? Math.max(0, slotsResponse.lead_time_hours)
+      : 0
   const kitchenBusy = Boolean(slotsResponse.kitchen_busy)
-  const match = (slotsResponse.slots ?? []).find((s) => s.time === time)
+  const match = (slotsResponse.slots ?? []).find(
+    (s) => s.time === resolvedTime
+  )
 
   if (!match) {
     throw new Error(
@@ -872,15 +924,18 @@ export async function assertCartCollectionSlotStillValid(
         "This collection slot is full. Please pick another time on the product or cart page."
       )
     }
-    const hoursLabel = lead === 1 ? "1 hour" : `${lead} hours`
+    const hoursLabel =
+      lead === 1 ? "1 hour" : lead > 0 ? `${lead} hours` : "a short preparation window"
     if (kitchenBusy && lead > 0) {
       throw new Error(
         `Kitchen is busy — orders need at least ${hoursLabel} notice. Please pick a later collection slot on the product or cart page.`
       )
     }
-    if (lead > 0) {
+    if (lead > 0 || match.unbookable_reason === "lead_time") {
       throw new Error(
-        `This bakery needs at least ${hoursLabel} notice. Please pick a later collection slot on the product or cart page.`
+        lead > 0
+          ? `This bakery needs at least ${hoursLabel} notice. Please pick a later collection slot on the product or cart page.`
+          : "The selected collection slot is no longer available. Please pick another time on the product or cart page."
       )
     }
     throw new Error(
@@ -888,25 +943,8 @@ export async function assertCartCollectionSlotStillValid(
     )
   }
 
-  // Absolute lead-time check (no grace on the client).
-  const slotStart = new Date(`${date}T${time}:00`).getTime()
-  const cutoff = Date.now() + lead * 60 * 60 * 1000
-  if (!Number.isNaN(slotStart) && slotStart < cutoff) {
-    const hoursLabel = lead === 1 ? "1 hour" : `${lead} hours`
-    if (kitchenBusy && lead > 0) {
-      throw new Error(
-        `Kitchen is busy — orders need at least ${hoursLabel} notice. Please pick a later collection slot on the product or cart page.`
-      )
-    }
-    if (lead > 0) {
-      throw new Error(
-        `This bakery needs at least ${hoursLabel} notice. Please pick a later collection slot on the product or cart page.`
-      )
-    }
-    throw new Error(
-      "The selected collection slot is no longer available. Please pick another time on the product or cart page."
-    )
-  }
+  // is_bookable === true from the slots API is enough. Do not re-apply a
+  // browser-local lead cutoff (timezone skew rejected valid bookable slots).
 }
 
 /**
