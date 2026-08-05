@@ -53,6 +53,21 @@ interface ScrapedProduct {
     values: string[];
     priceAdjustments: Record<string, number>;
   }[];
+  /** Magento COLOUR PIPING values — stored as metadata, not product options. */
+  colourPipingOptions?: string[];
+}
+
+/** Magento decoration colour select — must not become a Medusa option (SKU explosion). */
+function isColourPipingOptionName(name: string): boolean {
+  const n = name.toLowerCase().trim();
+  return (
+    n.includes("colour piping") ||
+    n.includes("color piping") ||
+    n.includes("piping colour") ||
+    n.includes("piping color") ||
+    n === "colour" ||
+    n === "color"
+  );
 }
 
 export default async function importAllMissingProducts({ container }: ExecArgs) {
@@ -253,22 +268,14 @@ export default async function importAllMissingProducts({ container }: ExecArgs) 
         if (mainPlaceholderImg) images.push(mainPlaceholderImg);
       }
 
-      // Parse Options
+      // Parse Options (Size, Sponge). Colour piping → metadata, not variants.
       const options: ScrapedProduct["options"] = [];
+      let colourPipingOptions: string[] | undefined;
       const parsedOptionNames = new Set<string>();
       $(".product-options-wrapper select").each((_, selectEl) => {
         const select = $(selectEl);
         let name = select.closest(".field").find(".label span").text().trim();
         if (!name || name.toLowerCase().includes("date") || name.toLowerCase().includes("time")) return;
-
-        let uniqueName = name;
-        let count = 1;
-        while (parsedOptionNames.has(uniqueName)) {
-          count++;
-          uniqueName = `${name} ${count}`;
-        }
-        parsedOptionNames.add(uniqueName);
-        const optionTitle = uniqueName;
 
         const values: string[] = [];
         const priceAdjustments: Record<string, number> = {};
@@ -283,9 +290,21 @@ export default async function importAllMissingProducts({ container }: ExecArgs) 
           priceAdjustments[val] = priceAttr ? parseFloat(priceAttr) : 0;
         });
 
-        if (values.length > 0) {
-          options.push({ title: optionTitle, values, priceAdjustments });
+        if (values.length === 0) return;
+
+        if (isColourPipingOptionName(name)) {
+          colourPipingOptions = values;
+          return;
         }
+
+        let uniqueName = name;
+        let count = 1;
+        while (parsedOptionNames.has(uniqueName)) {
+          count++;
+          uniqueName = `${name} ${count}`;
+        }
+        parsedOptionNames.add(uniqueName);
+        options.push({ title: uniqueName, values, priceAdjustments });
       });
 
       // Map options
@@ -364,6 +383,12 @@ export default async function importAllMissingProducts({ container }: ExecArgs) 
         metadata: {
           supports_inscription: "true",
           supports_photo_upload: /photo/i.test(titleText) ? "true" : "false",
+          ...(colourPipingOptions?.length
+            ? {
+                supports_colour_piping: "true",
+                colour_piping_options: colourPipingOptions.join(","),
+              }
+            : {}),
         },
       });
 

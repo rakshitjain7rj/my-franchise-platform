@@ -10,6 +10,8 @@ export type CakeCustomization = {
   servings: string | null
   /** "Mixed Jam" | "No Jam" from storefront line-item custom_attributes.jam */
   jam: string | null
+  /** Piping decoration colour from storefront custom_attributes.colour_piping */
+  colour_piping: string | null
   collection_date: string | null
   collection_time: string | null
   special_message: string | null

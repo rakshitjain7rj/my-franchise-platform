@@ -8,8 +8,10 @@
  *
  * Backend order decorator (`/admin/cake-orders`) reads these keys (plus
  * legacy capitalized aliases) via case-insensitive matching, including `jam`
- * ("Mixed Jam" | "No Jam") when the storefront offers jam filling.
+ * ("Mixed Jam" | "No Jam") when the storefront offers jam filling, and
+ * `colour_piping` when the product opts in (see `supportsColourPiping`).
  * Jam is opt-in for celebration cakes only (see `supportsJamFilling`).
+ * Colour piping is explicit metadata opt-in only.
  */
 
 // ---------------------------------------------------------------------------
@@ -30,6 +32,7 @@ export const CAKE_ATTR = {
   flavour: "flavour",
   servings: "servings",
   jam: "jam",
+  colour_piping: "colour_piping",
   date: "date",
   time: "time",
   message: "message",
@@ -44,6 +47,21 @@ export type JamOption = (typeof JAM_OPTIONS)[number]
 export const DEFAULT_JAM_OPTION: JamOption = "Mixed Jam"
 
 /**
+ * Default colour piping palette (Magento cream-cake COLOUR PIPING).
+ * Per-product override via `metadata.colour_piping_options`.
+ */
+export const COLOUR_PIPING_OPTIONS = [
+  "Pink",
+  "Yellow",
+  "Green",
+  "Blue",
+  "Lilac",
+  "Beige",
+] as const
+export type ColourPipingOption = (typeof COLOUR_PIPING_OPTIONS)[number]
+export const DEFAULT_COLOUR_PIPING: ColourPipingOption = "Pink"
+
+/**
  * Shape stored under `line_item.metadata.custom_attributes`.
  * Inscription lives at top-level `metadata.inscription` (historical contract).
  */
@@ -52,6 +70,8 @@ export type LineItemCakeAttributes = {
   servings?: string
   /** "Mixed Jam" | "No Jam" (or free-form from older carts). */
   jam?: string
+  /** Piping / decoration colour (e.g. "Pink", "Blue"). */
+  colour_piping?: string
   date?: string
   time?: string
   message?: string
@@ -89,6 +109,18 @@ export type ProductCakeMetadata = {
    * `supportsJamFilling`). Storefront-only — not enforced on the backend.
    */
   supports_jam_filling?: boolean | string
+  /**
+   * Whether the product-detail page offers colour piping choices.
+   * Explicit truthy only — no broad cake heuristic (most products lack this).
+   * Storefront-only — not enforced on the backend.
+   */
+  supports_colour_piping?: boolean | string
+  /**
+   * Colour piping choices when `supports_colour_piping` is on.
+   * May be a JSON array string or a comma-separated list.
+   * Omit → default `COLOUR_PIPING_OPTIONS` palette.
+   */
+  colour_piping_options?: string | string[]
   /**
    * Flavours offered when the product has no Flavor/Flavour option.
    * May be a JSON array string or a comma-separated list.
@@ -201,6 +233,7 @@ export const CAKE_ATTR_LABELS: Record<string, string> = {
   flavour: "Flavour",
   servings: "Servings",
   jam: "Jam",
+  colour_piping: "Colour piping",
   date: "Collection Date",
   time: "Collection Time",
   message: "Instructions",
@@ -221,6 +254,13 @@ const LEGACY_TO_CANONICAL: Record<string, CakeAttrKey> = {
   jam: "jam",
   "jam filling": "jam",
   "jam option": "jam",
+  colour_piping: "colour_piping",
+  "colour piping": "colour_piping",
+  "color piping": "colour_piping",
+  "piping colour": "colour_piping",
+  "piping color": "colour_piping",
+  colour: "colour_piping",
+  color: "colour_piping",
   date: "date",
   "collection date": "date",
   time: "time",
@@ -276,6 +316,19 @@ export function isFulfillmentOptionTitle(title: string): boolean {
   )
 }
 
+/**
+ * Whether a product option title represents colour piping.
+ * Used to hide Magento-imported frozen options when the storefront
+ * picker (`supports_colour_piping`) is the source of truth.
+ */
+export function isColourPipingOptionTitle(title: string): boolean {
+  const t = title.trim()
+  return (
+    /^(colou?r\s*piping|piping\s*colou?r)$/i.test(t) ||
+    /^(colou?r)$/i.test(t)
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Builders / parsers
 // ---------------------------------------------------------------------------
@@ -288,6 +341,7 @@ export function buildCustomAttributes(input: {
   flavour?: string
   servings?: string
   jam?: string
+  colour_piping?: string
   date?: string
   time?: string
   message?: string
@@ -305,6 +359,7 @@ export function buildCustomAttributes(input: {
   set(CAKE_ATTR.flavour, input.flavour)
   set(CAKE_ATTR.servings, input.servings)
   set(CAKE_ATTR.jam, input.jam)
+  set(CAKE_ATTR.colour_piping, input.colour_piping)
   set(CAKE_ATTR.date, input.date)
   set(CAKE_ATTR.time, input.time)
   set(CAKE_ATTR.message, input.message)
@@ -317,6 +372,9 @@ export function buildCustomAttributes(input: {
       // product-option "Delivery Method: Collection" onto the line (Order #1
       // style bakers saw Collection while the order was delivery).
       if (isFulfillmentOptionTitle(k)) continue
+      // Storefront colour_piping field is canonical when set; skip Magento
+      // product-option duplicates so we do not write both keys.
+      if (isColourPipingOptionTitle(k)) continue
       const trimmed = v?.trim()
       if (trimmed) out[k] = trimmed
     }
@@ -458,6 +516,53 @@ export function supportsJamFilling(product: {
   if (isFalsyMetaFlag(raw)) return false
   if (productMatchesJamDenyPattern(product)) return false
   return productHasCakeWord(product) || productHasCakeCategory(product.categories)
+}
+
+/**
+ * Whether the storefront should offer colour piping and write
+ * `colour_piping` on ATC.
+ *
+ * Explicit opt-in only (`metadata.supports_colour_piping` truthy).
+ * Most products do not offer piping colours — no cake-word heuristic.
+ */
+export function supportsColourPiping(product: {
+  metadata?: Record<string, unknown> | null
+}): boolean {
+  return isTruthyMetaFlag(product.metadata?.supports_colour_piping)
+}
+
+/**
+ * Resolve colour piping choices from product.metadata.colour_piping_options,
+ * falling back to the default cream-cake palette.
+ */
+export function resolveColourPipingOptions(input: {
+  metadata?: Record<string, unknown> | null
+}): string[] {
+  const raw = input.metadata?.colour_piping_options
+  if (Array.isArray(raw)) {
+    const list = raw.map(String).map((s) => s.trim()).filter(Boolean)
+    if (list.length) return list
+  }
+  if (typeof raw === "string" && raw.trim()) {
+    const trimmed = raw.trim()
+    if (trimmed.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(trimmed)
+        if (Array.isArray(parsed)) {
+          const list = parsed.map(String).map((s) => s.trim()).filter(Boolean)
+          if (list.length) return list
+        }
+      } catch {
+        // fall through to comma-split
+      }
+    }
+    const list = trimmed
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+    if (list.length) return list
+  }
+  return [...COLOUR_PIPING_OPTIONS]
 }
 
 /**

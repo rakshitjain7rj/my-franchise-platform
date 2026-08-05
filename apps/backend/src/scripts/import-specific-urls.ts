@@ -7,10 +7,23 @@ import StoreLocationStockLocationLink from "../links/store-location-stock-locati
 // Starting stock quantity seeded at every franchise stock location for imported variants.
 const IMPORT_STOCK_QTY = process.env.IMPORT_STOCK_QTY ? parseInt(process.env.IMPORT_STOCK_QTY, 10) : 50;
 
+/**
+ * Targeted Magento product URLs to import.
+ *
+ * 2026-08 catalogue gap fill (eggfreecakebreak.com vs cakebreak.codeation.io):
+ * 8 cakes present on the client Magento site but missing from our catalogue.
+ * Old Magento (R82) Colorful Floral is intentionally discarded — production R82
+ * is Redbull Cake (already imported).
+ */
 const TARGET_URLS = [
-  "https://eggfreecakebreak.com/um-butter-cream",
-  "https://eggfreecakebreak.com/uhm2-fruit-cake",
-  "https://eggfreecakebreak.com/uhm3-ferrero-rocher"
+  "https://eggfreecakebreak.com/icing-cocomelon-cake-ic63",
+  "https://eggfreecakebreak.com/louis-vuitton-cake-td31",
+  "https://eggfreecakebreak.com/fondant-baby-shower-cake-b12",
+  "https://eggfreecakebreak.com/red-and-gold-cake-td34",
+  "https://eggfreecakebreak.com/td60-avenger-butter-cream-cake",
+  "https://eggfreecakebreak.com/hawaiian-theme-cake-ic7",
+  "https://eggfreecakebreak.com/fresh-cream-fruit-cake-s52",
+  "https://eggfreecakebreak.com/mickey-and-minnie-mouse-cake-s76",
 ];
 
 interface ScrapedProduct {
@@ -25,6 +38,21 @@ interface ScrapedProduct {
     values: string[];
     priceAdjustments: Record<string, number>;
   }[];
+  /** Magento COLOUR PIPING values — stored as metadata, not product options. */
+  colourPipingOptions?: string[];
+}
+
+/** Magento decoration colour select — must not become a Medusa option (SKU explosion). */
+function isColourPipingOptionName(name: string): boolean {
+  const n = name.toLowerCase().trim();
+  return (
+    n.includes("colour piping") ||
+    n.includes("color piping") ||
+    n.includes("piping colour") ||
+    n.includes("piping color") ||
+    n === "colour" ||
+    n === "color"
+  );
 }
 
 export default async function importSpecificUrls({ container }: ExecArgs) {
@@ -161,22 +189,14 @@ export default async function importSpecificUrls({ container }: ExecArgs) {
         if (mainPlaceholderImg) images.push(mainPlaceholderImg);
       }
 
-      // Parse Options (Size, Sponge)
+      // Parse Options (Size, Sponge). Colour piping → metadata, not variants.
       const options: ScrapedProduct["options"] = [];
+      let colourPipingOptions: string[] | undefined;
       const parsedOptionNames = new Set<string>();
       $(".product-options-wrapper select").each((_, selectEl) => {
         const select = $(selectEl);
         let name = select.closest(".field").find(".label span").text().trim();
         if (!name || name.toLowerCase().includes("date") || name.toLowerCase().includes("time")) return;
-
-        let uniqueName = name;
-        let count = 1;
-        while (parsedOptionNames.has(uniqueName)) {
-          count++;
-          uniqueName = `${name} ${count}`;
-        }
-        parsedOptionNames.add(uniqueName);
-        const optionTitle = uniqueName;
 
         const values: string[] = [];
         const priceAdjustments: Record<string, number> = {};
@@ -191,9 +211,21 @@ export default async function importSpecificUrls({ container }: ExecArgs) {
           priceAdjustments[val] = priceAttr ? parseFloat(priceAttr) : 0;
         });
 
-        if (values.length > 0) {
-          options.push({ title: optionTitle, values, priceAdjustments });
+        if (values.length === 0) return;
+
+        if (isColourPipingOptionName(name)) {
+          colourPipingOptions = values;
+          return;
         }
+
+        let uniqueName = name;
+        let count = 1;
+        while (parsedOptionNames.has(uniqueName)) {
+          count++;
+          uniqueName = `${name} ${count}`;
+        }
+        parsedOptionNames.add(uniqueName);
+        options.push({ title: uniqueName, values, priceAdjustments });
       });
 
       scrapedProducts.push({
@@ -204,6 +236,7 @@ export default async function importSpecificUrls({ container }: ExecArgs) {
         basePrice,
         images,
         options,
+        colourPipingOptions,
       });
 
       logger.info(`Successfully scraped product: ${titleText} (Base Price: £${basePrice}, Variants parsed: ${options.length})`);
@@ -226,6 +259,13 @@ export default async function importSpecificUrls({ container }: ExecArgs) {
       const variants: any[] = [];
       const optionsList = item.options;
 
+      /** Compact unique SKU fragment — avoid collisions when Magento size labels
+       *  share a 3-char prefix (e.g. two "6\" x 10\"" rows with different prices). */
+      const skuFrag = (val: string, idx: number) => {
+        const base = val.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 8) || "OPT";
+        return `${base}${idx}`;
+      };
+
       if (optionsList.length === 0) {
         variants.push({
           title: "Standard",
@@ -234,16 +274,16 @@ export default async function importSpecificUrls({ container }: ExecArgs) {
         });
       } else if (optionsList.length === 1) {
         const opt = optionsList[0];
-        for (const val of opt.values) {
+        opt.values.forEach((val, i) => {
           const adj = opt.priceAdjustments[val] || 0;
           const finalPrice = item.basePrice + adj;
           variants.push({
             title: val,
-            sku: `${item.sku}-${val.replace(/[^a-zA-Z0-9]/g, "").toUpperCase()}`,
+            sku: `${item.sku}-${skuFrag(val, i)}`,
             options: { [opt.title]: val },
             prices: [{ amount: finalPrice, currency_code: "gbp" }],
           });
-        }
+        });
       } else {
         const opt1 = optionsList[0];
         const opt2 = optionsList[1];
@@ -253,15 +293,17 @@ export default async function importSpecificUrls({ container }: ExecArgs) {
           extraOptions[optionsList[i].title] = optionsList[i].values[0];
         }
 
+        let pairIdx = 0;
         for (const val1 of opt1.values) {
           const adj1 = opt1.priceAdjustments[val1] || 0;
           for (const val2 of opt2.values) {
             const adj2 = opt2.priceAdjustments[val2] || 0;
             const finalPrice = item.basePrice + adj1 + adj2;
+            const i = pairIdx++;
 
             variants.push({
               title: `${val1} / ${val2}`,
-              sku: `${item.sku}-${val1.replace(/[^a-zA-Z0-9]/g, "").substring(0, 3)}-${val2.replace(/[^a-zA-Z0-9]/g, "").substring(0, 3)}`.toUpperCase(),
+              sku: `${item.sku}-${skuFrag(val1, i)}-${skuFrag(val2, i)}`.toUpperCase(),
               options: {
                 [opt1.title]: val1,
                 [opt2.title]: val2,
@@ -345,6 +387,12 @@ export default async function importSpecificUrls({ container }: ExecArgs) {
         metadata: {
           supports_inscription: "true",
           supports_photo_upload: /photo/i.test(item.title) ? "true" : "false",
+          ...(item.colourPipingOptions?.length
+            ? {
+                supports_colour_piping: "true",
+                colour_piping_options: item.colourPipingOptions.join(","),
+              }
+            : {}),
         },
       });
 

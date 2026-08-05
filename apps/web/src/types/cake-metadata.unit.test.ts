@@ -5,16 +5,20 @@
 import {
   buildCustomAttributes,
   collectionSlotToCartMetadata,
+  COLOUR_PIPING_OPTIONS,
   extractSlotStartTime,
   getCartMetadataCollectionSlot,
   getLineCollectionSlot,
+  isColourPipingOptionTitle,
   isFlavourOptionTitle,
   isFulfillmentOptionTitle,
   productHasCakeCategory,
   productHasCakeWord,
   productLooksLikeCupcake,
   productMatchesJamDenyPattern,
+  resolveColourPipingOptions,
   resolveSupportedFlavours,
+  supportsColourPiping,
   supportsJamFilling,
 } from "./cake-metadata"
 
@@ -216,6 +220,69 @@ const attrsNoJam = buildCustomAttributes({
   jam: undefined,
 })
 assert(!("jam" in attrsNoJam), "omit jam when undefined")
+
+// --- Colour piping (explicit opt-in only) ---
+
+assert(isColourPipingOptionTitle("Colour Piping"), "Colour Piping title")
+assert(isColourPipingOptionTitle("Color Piping"), "Color Piping title")
+assert(isColourPipingOptionTitle("Piping Colour"), "Piping Colour title")
+assert(!isColourPipingOptionTitle("Size"), "Size is not colour piping")
+
+assert(
+  !supportsColourPiping({ metadata: {} }),
+  "no flag → no colour piping"
+)
+assert(
+  !supportsColourPiping({ metadata: { supports_colour_piping: false } }),
+  "explicit false → no colour piping"
+)
+assert(
+  supportsColourPiping({ metadata: { supports_colour_piping: true } }),
+  "explicit true → colour piping"
+)
+assert(
+  supportsColourPiping({ metadata: { supports_colour_piping: "true" } }),
+  "string true → colour piping"
+)
+
+assert(
+  resolveColourPipingOptions({}).join(",") === COLOUR_PIPING_OPTIONS.join(","),
+  "default palette when metadata omitted"
+)
+assert(
+  resolveColourPipingOptions({
+    metadata: { colour_piping_options: "Pink, Blue, Lilac" },
+  }).join(",") === "Pink,Blue,Lilac",
+  "comma-separated override"
+)
+assert(
+  resolveColourPipingOptions({
+    metadata: {
+      colour_piping_options: JSON.stringify(["Yellow", "Green"]),
+    },
+  }).join(",") === "Yellow,Green",
+  "JSON array override"
+)
+
+const attrsPiping = buildCustomAttributes({
+  colour_piping: "Blue",
+  extraOptions: {
+    Size: '8"',
+    "Colour Piping": "Pink",
+  },
+})
+assert(attrsPiping.colour_piping === "Blue", "canonical colour_piping written")
+assert(
+  !("Colour Piping" in attrsPiping),
+  "must not duplicate Magento Colour Piping option when canonical set"
+)
+assert(attrsPiping.Size === '8"', "Size still pass-through")
+
+const attrsNoPiping = buildCustomAttributes({
+  colour_piping: undefined,
+  jam: "No Jam",
+})
+assert(!("colour_piping" in attrsNoPiping), "omit colour_piping when undefined")
 
 const slot = collectionSlotToCartMetadata({
   date: "2026-07-20",

@@ -27,13 +27,16 @@ export const COLLECTION_BAKERY_FIELD_ID = "collection-bakery-field";
 import {
   DEFAULT_JAM_OPTION,
   buildCustomAttributes,
+  isColourPipingOptionTitle,
   isFlavourOptionTitle,
   isTruthyMetaFlag,
   resolveAllergenLabels,
+  resolveColourPipingOptions,
   resolveIngredientsText,
   resolveServingsForVariant,
   resolveStorageServingText,
   resolveSupportedFlavours,
+  supportsColourPiping as resolveSupportsColourPiping,
   supportsJamFilling as resolveSupportsJamFilling,
   type JamOption,
 } from "@/types/cake-metadata";
@@ -115,6 +118,13 @@ export function useProductDetail(product: MedusaProduct) {
   }, [storeLocationId]);
 
   const [jamOption, setJamOption] = useState<JamOption>(DEFAULT_JAM_OPTION);
+  const colourPipingChoices = useMemo(
+    () => resolveColourPipingOptions({ metadata: product.metadata }),
+    [product.metadata]
+  );
+  const [colourPiping, setColourPiping] = useState(
+    () => colourPipingChoices[0] ?? ""
+  );
   const [specialMessage, setSpecialMessage] = useState("");
   const [inscription, setInscription] = useState("");
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
@@ -140,6 +150,8 @@ export function useProductDetail(product: MedusaProduct) {
   );
 
   const supportsJamFilling = resolveSupportsJamFilling(product);
+
+  const supportsColourPiping = resolveSupportsColourPiping(product);
 
   const supportsPhotoUpload =
     isTruthyMetaFlag(product.metadata?.supports_photo_upload) ||
@@ -267,6 +279,15 @@ export function useProductDetail(product: MedusaProduct) {
     }
   }, [hasFlavourOption, metadataFlavours, metadataFlavour]);
 
+  useEffect(() => {
+    if (
+      colourPipingChoices.length &&
+      !colourPipingChoices.includes(colourPiping)
+    ) {
+      setColourPiping(colourPipingChoices[0]);
+    }
+  }, [colourPipingChoices, colourPiping]);
+
   const activeVariant = useMemo(() => {
     if (!product.variants?.length) return null;
     if (!product.options?.length) return product.variants[0];
@@ -339,10 +360,18 @@ export function useProductDetail(product: MedusaProduct) {
 
   const selectableOptions = useMemo(
     () =>
-      (product.options ?? []).filter(
-        (o) => !isFlavourOptionTitle(o.title) || hasFlavourOption
-      ),
-    [product.options, hasFlavourOption]
+      (product.options ?? []).filter((o) => {
+        // Flavour options stay when the product has a real flavour option
+        // (duplicate metadata picker is avoided elsewhere).
+        if (isFlavourOptionTitle(o.title) && !hasFlavourOption) return false;
+        // Prefer storefront colour piping picker over a Magento-imported
+        // product option that only freezes the first colour on variants.
+        if (supportsColourPiping && isColourPipingOptionTitle(o.title)) {
+          return false;
+        }
+        return true;
+      }),
+    [product.options, hasFlavourOption, supportsColourPiping]
   );
 
   const handleOptionChange = (optionTitle: string, value: string) => {
@@ -446,6 +475,9 @@ export function useProductDetail(product: MedusaProduct) {
         flavour: resolvedFlavour || undefined,
         servings: servingsLabel || undefined,
         jam: supportsJamFilling ? jamOption : undefined,
+        colour_piping: supportsColourPiping
+          ? colourPiping.trim() || undefined
+          : undefined,
         message: specialMessage.trim() || undefined,
         photo_url: photoUrl || undefined,
         extraOptions,
@@ -477,12 +509,14 @@ export function useProductDetail(product: MedusaProduct) {
     selectedOptions,
     inscription,
     jamOption,
+    colourPiping,
     specialMessage,
     photoUrl,
     resolvedFlavour,
     servingsLabel,
     supportsInscription,
     supportsJamFilling,
+    supportsColourPiping,
     storeLocationId,
     storeLocations.length,
     addToCart,
@@ -539,6 +573,8 @@ export function useProductDetail(product: MedusaProduct) {
     storageText,
     supportsInscription,
     supportsJamFilling,
+    supportsColourPiping,
+    colourPipingChoices,
     supportsPhotoUpload,
     // store
     storeLocationId,
@@ -557,6 +593,11 @@ export function useProductDetail(product: MedusaProduct) {
     jamOption,
     setJamOption: (opt: JamOption) => {
       setJamOption(opt);
+      touchCartUi();
+    },
+    colourPiping,
+    setColourPiping: (value: string) => {
+      setColourPiping(value);
       touchCartUi();
     },
     specialMessage,

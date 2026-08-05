@@ -2,8 +2,8 @@
  * @file GET /admin/cake-orders
  * @description Bakery-facing order feed. Returns orders enriched with the
  * cake-specific data the storefront captures at add-to-cart time (sponge
- * flavour, servings, jam filling, collection date/time, special message,
- * inscription) plus
+ * flavour, servings, jam filling, colour piping, collection date/time,
+ * special message, inscription) plus
  * the fulfilling StoreLocation, so the bakery owner sees exactly what to bake,
  * for whom, and when — without digging through raw JSON metadata.
  *
@@ -44,6 +44,8 @@ type CakeCustomization = {
   servings: string | null
   /** "Mixed Jam" | "No Jam" (storefront custom_attributes.jam). */
   jam: string | null
+  /** Piping decoration colour (storefront custom_attributes.colour_piping). */
+  colour_piping: string | null
   collection_date: string | null
   collection_time: string | null
   special_message: string | null
@@ -110,6 +112,7 @@ const KNOWN_ATTRIBUTE_KEYS: Record<string, keyof CakeCustomization> = {
   flavor: "flavor",
   servings: "servings",
   jam: "jam",
+  colour_piping: "colour_piping",
   photo_url: "photo_url",
   // Legacy capitalised / long-form labels
   "collection date": "collection_date",
@@ -122,6 +125,12 @@ const KNOWN_ATTRIBUTE_KEYS: Record<string, keyof CakeCustomization> = {
   "number of servings": "servings",
   "jam filling": "jam",
   "jam option": "jam",
+  "colour piping": "colour_piping",
+  "color piping": "colour_piping",
+  "piping colour": "colour_piping",
+  "piping color": "colour_piping",
+  colour: "colour_piping",
+  color: "colour_piping",
   photo: "photo_url",
   "photo url": "photo_url",
 }
@@ -261,6 +270,7 @@ const parseCakeCustomization = (
     flavor: null,
     servings: null,
     jam: null,
+    colour_piping: null,
     collection_date: null,
     collection_time: null,
     special_message: null,

@@ -14,6 +14,7 @@ import {
   EditIcon,
   FlavorIcon,
   JamIcon,
+  PipingIcon,
   ServingsIcon,
 } from "./icons";
 import {
@@ -63,6 +64,10 @@ export function PurchasePanel({
     supportsJamFilling,
     jamOption,
     setJamOption,
+    supportsColourPiping,
+    colourPipingChoices,
+    colourPiping,
+    setColourPiping,
     specialMessage,
     setSpecialMessage,
     inscription,
@@ -305,7 +310,8 @@ export function PurchasePanel({
           )}
         </div>
 
-        {!isOfflineOrder && selectableOptions.length > 0 && (
+        {!isOfflineOrder &&
+          (selectableOptions.length > 0 || supportsColourPiping) && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {selectableOptions.map((option) => (
               <div
@@ -341,6 +347,29 @@ export function PurchasePanel({
                 )}
               </div>
             ))}
+
+            {supportsColourPiping && colourPipingChoices.length > 0 && (
+              <div className="flex flex-col gap-2 bg-white p-3.5 rounded-2xl border border-outline-variant/30 transition-all duration-300">
+                <div className="flex items-center gap-2 text-vibrant-magenta">
+                  <PipingIcon />
+                  <span className="text-xs font-bold text-on-surface-variant/90 uppercase tracking-wider">
+                    Colour Piping
+                  </span>
+                </div>
+                <PremiumSelect
+                  label="Colour piping"
+                  value={colourPiping}
+                  placeholder="Select colour"
+                  options={colourPipingChoices.map((c) => ({
+                    value: c,
+                    label: c,
+                  }))}
+                  onChange={setColourPiping}
+                  active={Boolean(colourPiping)}
+                  fullWidth
+                />
+              </div>
+            )}
           </div>
         )}
 

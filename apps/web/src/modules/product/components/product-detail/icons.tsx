@@ -69,6 +69,14 @@ export const JamIcon = () => (
   </svg>
 );
 
+/** Palette / icing colour for decoration piping. */
+export const PipingIcon = () => (
+  <svg className="w-4 h-4 text-vibrant-magenta shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="3" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32 1.41-1.41" />
+  </svg>
+);
+
 export const EditIcon = () => (
   <svg className="w-4 h-4 text-vibrant-magenta shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
