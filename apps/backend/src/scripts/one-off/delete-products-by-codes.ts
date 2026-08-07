@@ -206,6 +206,25 @@ export default async function deleteProductsByCodes({ container }: ExecArgs) {
         config?: Record<string, unknown>
       ) => Promise<Array<{ id: string; inventory_item_id?: string }>>
       deleteReservationItems: (ids: string | string[]) => Promise<void>
+      listInventoryLevels: (
+        selector: Record<string, unknown>,
+        config?: Record<string, unknown>
+      ) => Promise<
+        Array<{
+          id: string
+          inventory_item_id: string
+          location_id: string
+          reserved_quantity?: number | string
+          stocked_quantity?: number | string
+        }>
+      >
+      updateInventoryLevels: (
+        data: Array<{
+          inventory_item_id: string
+          location_id: string
+          reserved_quantity?: number
+        }>
+      ) => Promise<unknown>
     }
 
     const invItemIds = new Set<string>()
@@ -255,8 +274,40 @@ export default async function deleteProductsByCodes({ container }: ExecArgs) {
         await inventoryService.deleteReservationItems(reservationIds)
       } else {
         logger.info(
-          `No inventory reservations on ${invItemIds.size} inventory item(s).`
+          `No inventory reservation rows on ${invItemIds.size} inventory item(s).`
         )
+      }
+
+      // deleteProductsWorkflow validates reserved_quantity > 0 (denormalised
+      // on inventory levels). Cart cleanup can leave a stale counter even
+      // after reservation rows are gone — force-zero so delete can proceed.
+      const levelUpdates: Array<{
+        inventory_item_id: string
+        location_id: string
+        reserved_quantity: number
+      }> = []
+      for (let i = 0; i < invIds.length; i += ID_CHUNK) {
+        const chunk = invIds.slice(i, i + ID_CHUNK)
+        const levels = await inventoryService.listInventoryLevels(
+          { inventory_item_id: chunk },
+          { take: 10_000 }
+        )
+        for (const lvl of levels) {
+          const reserved = Number(lvl.reserved_quantity ?? 0)
+          if (reserved > 0 && lvl.inventory_item_id && lvl.location_id) {
+            levelUpdates.push({
+              inventory_item_id: lvl.inventory_item_id,
+              location_id: lvl.location_id,
+              reserved_quantity: 0,
+            })
+          }
+        }
+      }
+      if (levelUpdates.length) {
+        logger.info(
+          `Zeroing reserved_quantity on ${levelUpdates.length} inventory level(s)…`
+        )
+        await inventoryService.updateInventoryLevels(levelUpdates)
       }
     }
   }
