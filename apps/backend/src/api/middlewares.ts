@@ -272,7 +272,6 @@ type ResourcePolicy = {
 }
 
 const RESTRICTED_RESOURCES: ResourcePolicy[] = [
-  { path: "/admin/price-lists",         policy: "readonly",  hasSubRoutes: true  },
   { path: "/admin/promotions",          policy: "readonly",  hasSubRoutes: false },
   { path: "/admin/gift-cards",          policy: "blocked",   hasSubRoutes: false },
   { path: "/admin/customer-groups",     policy: "readonly",  hasSubRoutes: false },
