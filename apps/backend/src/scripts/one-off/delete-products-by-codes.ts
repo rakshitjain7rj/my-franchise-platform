@@ -16,6 +16,7 @@
  * Override via env:
  *   DELETE_PRODUCT_CODES=TALL10,TALL11
  *   CLEAR_RESERVATIONS=0   # skip reservation cleanup (default: clear)
+ *   DELETE_MODE=hard|soft  # default hard; soft if hard fails or when set
  *
  * Usage:
  *   npx medusa exec ./src/scripts/one-off/delete-products-by-codes.ts
@@ -303,18 +304,87 @@ export default async function deleteProductsByCodes({ container }: ExecArgs) {
           }
         }
       }
+      // Note: inventory module ignores reserved_quantity on updateInventoryLevels
+      // (it is only adjusted via reservation create/delete). levelUpdates kept for
+      // diagnostics only — we no longer call updateInventoryLevels with reserved.
       if (levelUpdates.length) {
-        logger.info(
-          `Zeroing reserved_quantity on ${levelUpdates.length} inventory level(s)…`
+        logger.warn(
+          `${levelUpdates.length} inventory level(s) still report reserved_quantity > 0 after reservation delete (will hard-delete with soft fallback).`
         )
-        await inventoryService.updateInventoryLevels(levelUpdates)
       }
     }
   }
 
-  await deleteProductsWorkflow(container).run({
-    input: { ids },
-  })
+  const mode = (process.env.DELETE_MODE ?? "hard").toLowerCase()
+  const productService = container.resolve(Modules.PRODUCT) as {
+    softDeleteProducts: (ids: string[]) => Promise<unknown>
+  }
+  const inventoryService = container.resolve(Modules.INVENTORY) as {
+    softDeleteInventoryItems: (ids: string[]) => Promise<unknown>
+  }
 
-  logger.info(`Done. Deleted ${ids.length} product(s).`)
+  async function softDeleteMatched(productIds: string[]) {
+    // Soft-delete hides products from storefront/admin lists (deleted_at set)
+    // without needing inventory reservation counters to be zero.
+    logger.info(`Soft-deleting ${productIds.length} product(s)…`)
+    await productService.softDeleteProducts(productIds)
+
+    // Best-effort: soft-delete linked inventory items (service soft-delete
+    // does not run the reserved_quantity validation that hard-delete does).
+    const invItemIds = new Set<string>()
+    const ID_CHUNK = 50
+    for (let i = 0; i < productIds.length; i += ID_CHUNK) {
+      const chunk = productIds.slice(i, i + ID_CHUNK)
+      const { data: productsWithInv } = await query.graph({
+        entity: "product",
+        fields: ["id", "variants.inventory_items.inventory_item_id"],
+        filters: { id: chunk },
+        // include soft-deleted so we still find links
+      })
+      for (const p of (productsWithInv ?? []) as Array<{
+        variants?: Array<{
+          inventory_items?: Array<{ inventory_item_id?: string | null }> | null
+        }> | null
+      }>) {
+        for (const v of p.variants ?? []) {
+          for (const link of v.inventory_items ?? []) {
+            if (link?.inventory_item_id) invItemIds.add(link.inventory_item_id)
+          }
+        }
+      }
+    }
+    if (invItemIds.size) {
+      try {
+        await inventoryService.softDeleteInventoryItems([...invItemIds])
+        logger.info(`Soft-deleted ${invItemIds.size} inventory item(s).`)
+      } catch (err) {
+        logger.warn(
+          `Inventory soft-delete skipped: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        )
+      }
+    }
+  }
+
+  if (mode === "soft") {
+    await softDeleteMatched(ids)
+    logger.info(`Done. Soft-deleted ${ids.length} product(s).`)
+    return
+  }
+
+  try {
+    await deleteProductsWorkflow(container).run({
+      input: { ids },
+    })
+    logger.info(`Done. Hard-deleted ${ids.length} product(s).`)
+  } catch (err) {
+    logger.warn(
+      `Hard delete failed (${
+        err instanceof Error ? err.message : String(err)
+      }). Falling back to soft-delete so catalogue no longer shows them.`
+    )
+    await softDeleteMatched(ids)
+    logger.info(`Done. Soft-deleted ${ids.length} product(s) (fallback).`)
+  }
 }
