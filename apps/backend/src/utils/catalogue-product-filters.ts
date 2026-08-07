@@ -15,10 +15,11 @@
  *      crashes with 500 / empty storefront results)
  *
  * Search modes for `q` (see classifyCatalogueSearch):
- *   - code:    single product-code token (e.g. R1) → exact leading (CODE) in title
+ *   - code:    single product-code token (e.g. R1, Tall91) → exact leading (CODE) in title
  *   - hybrid:  exactly one code token + free-text → exact code AND free-text tokens
  *   - free_text: name/flavour search (partial LIKE; multi-word AND then OR)
- * Product codes live in titles as "(R1) …" — never substring-match codes so R1 ≠ R1X.
+ * Product codes live in titles as "(R1) …" or "(Tall 91) …". Code equality uses
+ * alphanumeric-normalised form so "Tall91" matches "(Tall 91)" but R1 ≠ R1X.
  */
 
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
@@ -322,6 +323,8 @@ export function classifyCatalogueSearch(
 /**
  * Leading Magento-style product code from title: "(R1) Simple Fresh Cream Cake".
  * Mid-title parentheses (e.g. servings) are ignored.
+ * Returns the raw lowercased code (may contain spaces, e.g. "tall 91").
+ * Use {@link normalizeProductCode} when comparing to a query token.
  */
 export function productCodeFromTitle(
   title: string | null | undefined
@@ -331,6 +334,15 @@ export function productCodeFromTitle(
   if (!m?.[1]) return null
   const code = m[1].trim().toLowerCase()
   return code.length ? code : null
+}
+
+/**
+ * Collapse a product code for equality checks.
+ * "(Tall 91)" and query "Tall91" both become "tall91".
+ * Keeps R1 ≠ R1X (letters/digits only; no fuzzy prefix match).
+ */
+export function normalizeProductCode(code: string): string {
+  return code.toLowerCase().replace(/[^a-z0-9]/g, "")
 }
 
 // ---------------------------------------------------------------------------
@@ -540,7 +552,8 @@ export async function filterProductIdsBySearch(
 
 /**
  * Products whose leading title code equals `code` (case-insensitive).
- * Title pattern: "(R1) …" — mid-title parentheses are not used.
+ * Title pattern: "(R1) …" or "(Tall 91) …" — mid-title parentheses are not used.
+ * Comparison is on {@link normalizeProductCode} so "Tall91" matches "(Tall 91)".
  */
 async function filterProductIdsByExactTitleCode(
   knex: KnexLike,
@@ -549,6 +562,11 @@ async function filterProductIdsByExactTitleCode(
 ): Promise<string[]> {
   if (!productIds.length || !code) return []
 
+  const normalized = normalizeProductCode(code)
+  if (!normalized) return []
+
+  // Strip non-alphanumerics from the leading (CODE) so spaced Magento codes
+  // like "(Tall 91)" match compact queries like "Tall91" / "tall91".
   const sql = `
     WITH candidates AS (
       SELECT UNNEST(?::text[]) AS product_id
@@ -557,10 +575,15 @@ async function filterProductIdsByExactTitleCode(
     FROM product p
     INNER JOIN candidates c ON c.product_id = p.id
     WHERE p.deleted_at IS NULL
-      AND LOWER(SUBSTRING(p.title FROM '^\\(([^)]+)\\)')) = ?
+      AND regexp_replace(
+            LOWER(COALESCE(SUBSTRING(p.title FROM '^\\(([^)]+)\\)'), '')),
+            '[^a-z0-9]',
+            '',
+            'g'
+          ) = ?
   `
 
-  const result = await knex.raw(sql, [productIds, code.toLowerCase()])
+  const result = await knex.raw(sql, [productIds, normalized])
   const rows = extractRows(
     result as { rows?: Array<Record<string, unknown>> }
   )

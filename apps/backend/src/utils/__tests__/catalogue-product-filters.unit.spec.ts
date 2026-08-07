@@ -8,6 +8,7 @@ import {
   isProductCodeToken,
   classifyCatalogueSearch,
   productCodeFromTitle,
+  normalizeProductCode,
   filterProductIdsBySearch,
 } from "../catalogue-product-filters"
 
@@ -122,6 +123,9 @@ describe("productCodeFromTitle", () => {
     expect(productCodeFromTitle("(R1) Simple Fresh Cream Cake")).toBe("r1")
     expect(productCodeFromTitle("(R1X) Something Cake")).toBe("r1x")
     expect(productCodeFromTitle("(X2) Christmas Themed Cake")).toBe("x2")
+    expect(
+      productCodeFromTitle("(Tall 91) Floral base tall elegant cake")
+    ).toBe("tall 91")
   })
 
   it("returns null when code is missing or not at the start", () => {
@@ -130,6 +134,20 @@ describe("productCodeFromTitle", () => {
     expect(productCodeFromTitle(null)).toBeNull()
     expect(productCodeFromTitle(undefined)).toBeNull()
     expect(productCodeFromTitle("  ")).toBeNull()
+  })
+})
+
+describe("normalizeProductCode", () => {
+  it("strips spaces/punctuation so Tall91 matches title (Tall 91)", () => {
+    expect(normalizeProductCode("Tall91")).toBe("tall91")
+    expect(normalizeProductCode("tall 91")).toBe("tall91")
+    expect(normalizeProductCode("TALL-91")).toBe("tall91")
+  })
+
+  it("keeps R1 distinct from R1X", () => {
+    expect(normalizeProductCode("R1")).toBe("r1")
+    expect(normalizeProductCode("R1X")).toBe("r1x")
+    expect(normalizeProductCode("R1")).not.toBe(normalizeProductCode("R1X"))
   })
 })
 
@@ -145,6 +163,7 @@ describe("filterProductIdsBySearch modes", () => {
   it("uses exact title-code SQL for a single code query (not LIKE %r1%)", async () => {
     const knex = mockKnex((sql, bindings) => {
       expect(sql).toMatch(/SUBSTRING\(p\.title FROM/)
+      expect(sql).toMatch(/regexp_replace/)
       expect(sql).not.toMatch(/LIKE/)
       expect(bindings[1]).toBe("r1")
       return ["prod_r1"]
@@ -157,6 +176,28 @@ describe("filterProductIdsBySearch modes", () => {
     )
     expect(ids).toEqual(["prod_r1"])
     expect(knex.raw).toHaveBeenCalledTimes(1)
+  })
+
+  it("normalises spaced title codes so Tall91 matches (Tall 91)", async () => {
+    const knex = mockKnex((sql, bindings) => {
+      expect(sql).toMatch(/regexp_replace/)
+      expect(sql).toMatch(/SUBSTRING\(p\.title FROM/)
+      // Query "Tall91" → normalised binding tall91 (matches title code "tall 91")
+      expect(bindings[1]).toBe("tall91")
+      return ["prod_tall91"]
+    })
+
+    const ids = await filterProductIdsBySearch(
+      knex as any,
+      ["prod_tall91", "prod_other"],
+      "Tall91"
+    )
+    expect(ids).toEqual(["prod_tall91"])
+    expect(isProductCodeToken("tall91")).toBe(true)
+    expect(classifyCatalogueSearch(["tall91"])).toEqual({
+      mode: "code",
+      code: "tall91",
+    })
   })
 
   it("hybrid: exact code first, then free-text AND only (no second OR pass)", async () => {

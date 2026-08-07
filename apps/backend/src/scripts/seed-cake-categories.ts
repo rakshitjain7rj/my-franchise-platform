@@ -8,28 +8,54 @@
  * ────────
  * 1. Ensure the full category tree exists (shape + occasion groups).
  * 2. Deactivate leftover Medusa demo categories (Shirts, Merch, …).
- * 3. Assign membership from SKU/title heuristics only (default).
+ * 3. Assign membership:
+ *    - Default: SKU/title heuristics only.
+ *    - Magento mode: paginated grid scrape (source of truth for multi-list
+ *      categories) UNION heuristics (fallback for new cakes not on Magento).
  *
- * Why heuristics-only (default)
- * ────────────────────────────
- * An earlier Magento full-page scrape treated every product-like `<a>` on each
- * category page as a member of that category. Magento often repeats the same
- * featured/related/footer cakes on every category template, so ~the same Round
- * cakes were multi-linked into *every* category and showed up at the end of
- * every catalogue filter. Heuristics (prefix + keywords) keep intentional
- * multi-category (e.g. heart + valentine) without that pollution.
+ * Why not scrape by default
+ * ─────────────────────────
+ * Live Magento scrape is intentional ops, not every boot. An earlier full-page
+ * scrape polluted every category with featured Round cakes; grid-only +
+ * pagination + pollution detector fix that. Still keep scrape opt-in.
  *
- * Optional scrape (opt-in, still aggressive — prefer not to use on prod):
- *   ENABLE_MAGENTO_CATEGORY_SCRAPE=true npx medusa exec ./src/scripts/seed-cake-categories.ts
+ * Env
+ * ───
+ *   ENABLE_MAGENTO_CATEGORY_SCRAPE=true   # paginated Magento membership
+ *   CATEGORY_ASSIGN_MODE=dry-run|apply    # default apply (writes DB)
+ *   CATEGORY_MEMBERSHIP_CACHE=/path.json  # optional cache path for scrape
  *
- * Run (rewrites every product's category_ids):
- *   cd apps/backend && npx medusa exec ./src/scripts/seed-cake-categories.ts
+ * Examples
+ * ────────
+ *   # Heuristics only (safe default)
+ *   npx medusa exec ./src/scripts/seed-cake-categories.ts
+ *
+ *   # Magento-accurate dry-run (no DB writes)
+ *   ENABLE_MAGENTO_CATEGORY_SCRAPE=true CATEGORY_ASSIGN_MODE=dry-run \
+ *     npx medusa exec ./src/scripts/seed-cake-categories.ts
+ *
+ *   # Magento-accurate apply
+ *   ENABLE_MAGENTO_CATEGORY_SCRAPE=true CATEGORY_ASSIGN_MODE=apply \
+ *     npx medusa exec ./src/scripts/seed-cake-categories.ts
  */
 
 import { ExecArgs } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
-import axios from "axios"
-import * as cheerio from "cheerio"
+import * as fs from "fs"
+import * as path from "path"
+import {
+  buildCategoryCountReport,
+  detectMembershipPollution,
+  diffCategorySets,
+  invertCategoryMembership,
+  magentoCoverageRatio,
+  resolveProductCategoryHandles,
+  scrapeCategoryHandlesPaginated,
+  stripGlobalFeaturedHandles,
+} from "../utils/cake-category-membership"
+
+// Re-export resolver for import scripts that already import from this module
+export { resolveProductCategoryHandles } from "../utils/cake-category-membership"
 
 // ─── Category definitions (mirror eggfreecakebreak.com) ──────────────────────
 
@@ -248,258 +274,33 @@ const DEMO_CATEGORY_HANDLES = new Set([
   "merch",
 ])
 
-const BASE_URL = "https://eggfreecakebreak.com"
-const USER_AGENT =
-  "Mozilla/5.0 (compatible; CakeBreakCatalogueBot/1.0; +https://eggfreecakebreak.com)"
-
-// ─── Prefix heuristics (SKU codes on live products) ──────────────────────────
-
-/**
- * Maps product code prefix (from titles like "(R1) …" or handles like "…-r1")
- * to one or more category handles. Products may land in multiple categories
- * (e.g. a heart wedding cake).
- */
-const PREFIX_TO_HANDLES: Record<string, string[]> = {
-  r: ["round-cakes"],
-  s: ["square-cakes"],
-  tall: ["tall-cakes"],
-  h: ["heart-cake", "valentines"],
-  ic: ["icing-cakes"],
-  nk: ["novelty-kids-cakes"],
-  n: ["number-cakes"],
-  b: ["baby-shower-cakes"],
-  w: ["wedding-cakes"],
-  wfc: ["wedding-cakes"],
-  td: ["tiered-cakes"],
-  t: ["tray-cakes"],
-  d: ["doll-cakes"],
-  x: ["christmas"],
-  di: ["diwali-cakes"],
-  lo: ["lohri-cakes"],
-  rb: ["raksha-bandhan"],
-  e: ["eid-cakes"],
-  // Cupcakes / extras
-  c: ["cupcakes-slices-and-extras"],
-  ex: ["cupcakes-slices-and-extras"],
-  v: ["vegan-cakes-dairy-free"], // vegan
-  gc: ["giant-cookies"],
-  cb: ["chocolate-bouquets"],
-  um: ["umrah-and-hajj-mubarak-cake"],
-  uhm: ["umrah-and-hajj-mubarak-cake"],
-  // Designer / themed SKU lines used on live catalogue (DH / DT)
-  dh: ["novelty-kids-cakes"],
-  dt: ["novelty-kids-cakes"],
-}
-
-/** Title/handle keyword overrides that always add categories. */
-const KEYWORD_RULES: Array<{ pattern: RegExp; handles: string[] }> = [
-  { pattern: /vegan|dairy[\s-]*free/i, handles: ["vegan-cakes-dairy-free"] },
-  // "Cup Cakes", "cupcakes", "(C13) Cup Cakes"
-  { pattern: /cup\s*cakes?/i, handles: ["cupcakes-slices-and-extras"] },
-  { pattern: /cookie/i, handles: ["giant-cookies"] },
-  { pattern: /bouquet/i, handles: ["chocolate-bouquets"] },
-  { pattern: /photo/i, handles: ["photo-cake"] },
-  { pattern: /double[\s-]*tall/i, handles: ["double-tall-cakes"] },
-  { pattern: /double[\s-]*high/i, handles: ["double-tall-cakes"] },
-  // Standalone tall wording (prefix "tall" also maps via extractPrefix)
-  { pattern: /\btall\b/i, handles: ["tall-cakes"] },
-  { pattern: /\bicing\b|fondant/i, handles: ["icing-cakes"] },
-  { pattern: /wedding/i, handles: ["wedding-cakes"] },
-  { pattern: /graduation|grad\b/i, handles: ["graduation-cakes"] },
-  { pattern: /christening|baptism|communion|baby\s*shower|gender\s*reveal/i, handles: ["baby-shower-cakes"] },
-  { pattern: /christmas|xmas|santa|reindeer|holly/i, handles: ["christmas"] },
-  { pattern: /diwali/i, handles: ["diwali-cakes"] },
-  { pattern: /\beid\b|mubarak/i, handles: ["eid-cakes"] },
-  { pattern: /umrah|hajj|\buhm\b|\bum\b/i, handles: ["umrah-and-hajj-mubarak-cake"] },
-  { pattern: /lohri/i, handles: ["lohri-cakes"] },
-  { pattern: /raksha|rakhri|rakhi/i, handles: ["raksha-bandhan"] },
-  { pattern: /valentine|heart/i, handles: ["valentines", "heart-cake"] },
-  { pattern: /easter/i, handles: ["easter"] },
-  { pattern: /mother'?s?\s*day/i, handles: ["mothers-day-cakes"] },
-  { pattern: /father'?s?\s*day|super\s*dad/i, handles: ["fathers-day-cakes"] },
-  { pattern: /vaisakhi|baisakhi/i, handles: ["vaisakhi-cakes"] },
-  { pattern: /doll|barbie|elsa|princess\s*doll/i, handles: ["doll-cakes"] },
-  { pattern: /number[\s-]?\d|digit/i, handles: ["number-cakes"] },
-  { pattern: /\btier(ed)?\b|\b2\s*tier\b/i, handles: ["tiered-cakes"] },
-  {
-    pattern:
-      /spiderman|batman|avengers|unicorn|dinosaur|teddy|bluey|encanto|minnie|harry\s*potter|frozen|paw\s*patrol|lilo|stitch|masha|lego|deadpool|wolverine|astronaut|rolex|train\s*cake|k-?pop|boss\s*baby|jungle|lion|omar\s*&\s*hana|friends\s*cake|rainbow\s*birthday|versace|character\s*themed/i,
-    handles: ["novelty-kids-cakes"],
-  },
-]
-
-// Letters we recognise as product-code prefixes (longest first for handle matching).
-const PREFIX_TOKEN =
-  "tall|uhm|wfc|nk|td|ic|ex|gc|cb|di|lo|rb|um|dh|dt|r|s|h|n|b|w|x|t|d|v|c|e"
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-/**
- * Extract catalogue SKU prefix from title/handle.
- * Tolerates messy live titles: "( R161 )", "(Tall 81)", "(UM-2)", "(DH12)", "( nk126)".
- */
-function extractPrefix(title: string, handle: string): string | null {
-  // ( PREFIX 123 ) or (PREFIX-123) with optional inner spaces
-  const fromTitle = title?.match(
-    new RegExp(`\\(\\s*(${PREFIX_TOKEN})[\\s\\-]*(\\d+)\\s*\\)`, "i")
-  )
-  if (fromTitle) return fromTitle[1].toLowerCase()
-
-  // Handle leading code: r150-…, dh12-…, tall-81-…, c13-…
-  const fromHandleLead = handle?.match(
-    new RegExp(`^(${PREFIX_TOKEN})[\\-]?(\\d+)`, "i")
-  )
-  if (fromHandleLead) return fromHandleLead[1].toLowerCase()
-
-  // Handle trailing code: …-r1, …-nk126
-  const fromHandleTail = handle?.match(
-    new RegExp(`(?:^|-)(${PREFIX_TOKEN})(\\d+)$`, "i")
-  )
-  if (fromHandleTail) return fromHandleTail[1].toLowerCase()
-
-  return null
-}
-
-/**
- * Per-product extras (client overrides) keyed by product handle.
- * Applied on top of prefix + keyword heuristics.
- */
-const HANDLE_EXTRA_CATEGORIES: Record<string, string[]> = {
-  // Client: DH35 should also appear under Round
-  "dh35-pink-white-buttercream-cake": ["round-cakes"],
-}
-
-function heuristicHandles(title: string, handle: string): string[] {
-  const handles = new Set<string>()
-
-  const prefix = extractPrefix(title, handle)
-  if (prefix && PREFIX_TO_HANDLES[prefix]) {
-    for (const h of PREFIX_TO_HANDLES[prefix]) handles.add(h)
-  }
-
-  const blob = `${title} ${handle}`
-  for (const rule of KEYWORD_RULES) {
-    if (rule.pattern.test(blob)) {
-      for (const h of rule.handles) handles.add(h)
-    }
-  }
-
-  // "double tall" should not also force the plain tall-cakes bucket from the tall keyword
-  if (/double[\s-]*(tall|high)/i.test(blob)) {
-    handles.delete("tall-cakes")
-  }
-
-  const extras = HANDLE_EXTRA_CATEGORIES[(handle || "").toLowerCase()]
-  if (extras) {
-    for (const h of extras) handles.add(h)
-  }
-
-  return Array.from(handles)
-}
-
-/**
- * Opt-in Magento scrape. Intentionally narrow: only links inside common product
- * list containers. Still imperfect — default assignment does not use this.
- *
- * Full-page `$("a")` scraping polluted every category with the same featured
- * Round cakes; do not restore that behaviour.
- */
-async function scrapeCategoryHandles(
-  livePath: string,
-  logger: { info: (m: string) => void; warn: (m: string) => void }
-): Promise<string[]> {
-  const url = `${BASE_URL}/cakes/${livePath}`
-  try {
-    const { data: html } = await axios.get(url, {
-      headers: { "User-Agent": USER_AGENT },
-      timeout: 25_000,
-    })
-    const $ = cheerio.load(html)
-    const handles = new Set<string>()
-
-    // Prefer product-grid anchors only (Magento product-item-link / list item).
-    const selectors = [
-      ".products-grid a.product-item-link",
-      ".products.wrapper a.product-item-link",
-      "ol.products.list a.product-item-link",
-      "li.product-item a.product-item-link",
-      ".product-item-info a.product-item-link",
-    ]
-    const $links = $(selectors.join(", "))
-    const nodes = $links.length ? $links : $("a.product-item-link")
-
-    nodes.each((_, el) => {
-      const href = $(el).attr("href")
-      if (!href) return
-      try {
-        const u = new URL(href, BASE_URL)
-        if (u.hostname !== "eggfreecakebreak.com") return
-        const path = u.pathname.replace(/\/+$/, "")
-        if (!path || path === "/") return
-        if (
-          path.startsWith("/cakes") ||
-          path.startsWith("/customer") ||
-          path.startsWith("/checkout") ||
-          path.startsWith("/catalogsearch") ||
-          path.startsWith("/media") ||
-          path.startsWith("/pub") ||
-          path.includes(".")
-        ) {
-          return
-        }
-        const parts = path.split("/").filter(Boolean)
-        if (parts.length !== 1) return
-        const handle = parts[0].toLowerCase()
-        if (handle.length < 3) return
-        handles.add(handle)
-      } catch {
-        // ignore bad URLs
-      }
-    })
-
-    logger.info(
-      `  scraped /cakes/${livePath} → ${handles.size} product handles (grid-only)`
-    )
-    return Array.from(handles)
-  } catch (err: any) {
-    logger.warn(`  failed to scrape /cakes/${livePath}: ${err.message}`)
-    return []
-  }
-}
-
-/**
- * Resolve category handles for one product.
- * Default: heuristics only. Scrape handles are optional and unioned when provided.
- */
-export function resolveProductCategoryHandles(
-  title: string,
-  handle: string,
-  scrapedHandles?: Iterable<string> | null
-): string[] {
-  const handleSet = new Set<string>()
-
-  for (const h of heuristicHandles(title, handle)) {
-    handleSet.add(h)
-  }
-
-  if (scrapedHandles) {
-    for (const h of scrapedHandles) {
-      if (h) handleSet.add(h)
-    }
-  }
-
-  return Array.from(handleSet)
-}
-
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 export default async function seedCakeCategories({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const productService = container.resolve(Modules.PRODUCT) as any
 
+  const enableScrape =
+    process.env.ENABLE_MAGENTO_CATEGORY_SCRAPE === "1" ||
+    process.env.ENABLE_MAGENTO_CATEGORY_SCRAPE === "true"
+
+  const modeRaw = (process.env.CATEGORY_ASSIGN_MODE || "apply").toLowerCase()
+  const dryRun = modeRaw === "dry-run" || modeRaw === "dryrun" || modeRaw === "report"
+  const apply = !dryRun
+
+  const cachePath =
+    process.env.CATEGORY_MEMBERSHIP_CACHE ||
+    path.join(process.cwd(), "tmp", "magento-category-membership.json")
+
   logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
   logger.info("  Cake Break Categories Seeder")
   logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+  logger.info(
+    `  Mode:   ${dryRun ? "DRY-RUN (no DB category writes for products)" : "APPLY"}`
+  )
+  logger.info(
+    `  Source: ${enableScrape ? "Magento scrape (paginated) ∪ heuristics" : "heuristics only"}`
+  )
 
   // 1. List existing categories
   const existing = await productService.listProductCategories(
@@ -512,41 +313,51 @@ export default async function seedCakeCategories({ container }: ExecArgs) {
   }
   logger.info(`Found ${existing.length} existing product categories.`)
 
-  // 2. Create / update Cake Break categories
+  // 2. Create / update Cake Break categories (always — tree must exist)
   const categoryIdByHandle = new Map<string, string>()
 
   for (const def of ALL_CATEGORIES) {
     const found = byHandle.get(def.handle)
     if (found) {
-      await productService.updateProductCategories(found.id, {
-        name: def.name,
-        description: def.description,
-        is_active: true,
-        is_internal: false,
-        rank: def.rank,
-      })
+      if (apply) {
+        await productService.updateProductCategories(found.id, {
+          name: def.name,
+          description: def.description,
+          is_active: true,
+          is_internal: false,
+          rank: def.rank,
+        })
+      }
       categoryIdByHandle.set(def.handle, found.id)
-      logger.info(`✓ Updated category: ${def.name} (${def.handle})`)
+      logger.info(
+        `${apply ? "✓ Updated" : "· Would update"} category: ${def.name} (${def.handle})`
+      )
     } else {
-      const created = await productService.createProductCategories({
-        name: def.name,
-        handle: def.handle,
-        description: def.description,
-        is_active: true,
-        is_internal: false,
-        rank: def.rank,
-      })
-      // create may return object or array depending on version
-      const cat = Array.isArray(created) ? created[0] : created
-      categoryIdByHandle.set(def.handle, cat.id)
-      logger.info(`+ Created category: ${def.name} (${def.handle})`)
+      if (apply) {
+        const created = await productService.createProductCategories({
+          name: def.name,
+          handle: def.handle,
+          description: def.description,
+          is_active: true,
+          is_internal: false,
+          rank: def.rank,
+        })
+        const cat = Array.isArray(created) ? created[0] : created
+        categoryIdByHandle.set(def.handle, cat.id)
+        logger.info(`+ Created category: ${def.name} (${def.handle})`)
+      } else {
+        logger.info(
+          `· Would create category: ${def.name} (${def.handle}) — run apply to create`
+        )
+        // dry-run without ID still allows report structure
+        categoryIdByHandle.set(def.handle, `dry-run-${def.handle}`)
+      }
     }
   }
 
-  // 3. Hide Medusa demo categories from the storefront
-  for (const cat of existing) {
-    if (DEMO_CATEGORY_HANDLES.has(cat.handle) || !categoryIdByHandle.has(cat.handle)) {
-      // Only hide known demos; leave unknown custom cats alone unless they're demos
+  // 3. Hide Medusa demo categories
+  if (apply) {
+    for (const cat of existing) {
       if (!DEMO_CATEGORY_HANDLES.has(cat.handle)) continue
       await productService.updateProductCategories(cat.id, {
         is_active: false,
@@ -556,98 +367,342 @@ export default async function seedCakeCategories({ container }: ExecArgs) {
     }
   }
 
-  // 4. Optional live scrape (OFF by default — caused multi-category pollution)
-  const enableScrape =
-    process.env.ENABLE_MAGENTO_CATEGORY_SCRAPE === "1" ||
-    process.env.ENABLE_MAGENTO_CATEGORY_SCRAPE === "true"
-
-  /** productHandle → set of category handles from Magento (only if scrape on) */
+  // 4. Optional live Magento scrape (paginated)
+  /** productHandle → set of category handles from Magento */
   const scrapedMap = new Map<string, Set<string>>()
+  /** categoryHandle → product handles */
+  const magentoByCategory: Record<string, string[]> = {}
 
   if (enableScrape) {
     logger.info(
-      "\n📡 ENABLE_MAGENTO_CATEGORY_SCRAPE set — scraping grid-only membership…"
+      "\n📡 ENABLE_MAGENTO_CATEGORY_SCRAPE — paginated grid-only membership…"
     )
-    for (const def of ALL_CATEGORIES) {
-      const livePath = def.livePath ?? def.handle
-      const handles = await scrapeCategoryHandles(livePath, logger)
-      for (const productHandle of handles) {
-        if (!scrapedMap.has(productHandle)) {
-          scrapedMap.set(productHandle, new Set())
+
+    // Prefer cache if present and CATEGORY_MEMBERSHIP_USE_CACHE=true
+    const useCache =
+      process.env.CATEGORY_MEMBERSHIP_USE_CACHE === "1" ||
+      process.env.CATEGORY_MEMBERSHIP_USE_CACHE === "true"
+
+    let loadedFromCache = false
+    if (useCache && fs.existsSync(cachePath)) {
+      try {
+        const raw = JSON.parse(fs.readFileSync(cachePath, "utf8"))
+        if (raw?.by_category) {
+          for (const [ch, handles] of Object.entries(raw.by_category)) {
+            magentoByCategory[ch] = handles as string[]
+          }
+          // Re-strip in case cache was written before featured filtering
+          const { cleaned, stripped } =
+            stripGlobalFeaturedHandles(magentoByCategory)
+          Object.assign(magentoByCategory, cleaned)
+          if (stripped.length) {
+            logger.info(
+              `  Cache: stripped ${stripped.length} global featured handle(s)`
+            )
+          }
+          scrapedMap.clear()
+          for (const [ph, set] of invertCategoryMembership(magentoByCategory)) {
+            scrapedMap.set(ph, set)
+          }
+          loadedFromCache = true
+          logger.info(
+            `  Loaded membership cache from ${cachePath} (${scrapedMap.size} products)`
+          )
         }
-        scrapedMap.get(productHandle)!.add(def.handle)
+      } catch (e: any) {
+        logger.warn(`  Failed to load cache: ${e.message}`)
       }
-      await new Promise((r) => setTimeout(r, 250))
     }
+
+    if (!loadedFromCache) {
+      for (const def of ALL_CATEGORIES) {
+        const livePath = def.livePath ?? def.handle
+        const result = await scrapeCategoryHandlesPaginated(
+          def.handle,
+          livePath,
+          logger
+        )
+        magentoByCategory[def.handle] = result.handles
+      }
+
+      // Magento injects the same "featured/new" product-item links into every
+      // category grid. Strip those globals; they still get shape/style via heuristics.
+      const { cleaned, stripped } = stripGlobalFeaturedHandles(magentoByCategory)
+      Object.assign(magentoByCategory, cleaned)
+      if (stripped.length) {
+        logger.info(
+          `  Stripped ${stripped.length} globally-featured handle(s) from Magento membership ` +
+            `(heuristic-only for those SKUs): ${stripped.slice(0, 10).join(", ")}` +
+            (stripped.length > 10 ? "…" : "")
+        )
+      }
+
+      // Build product → categories map after strip
+      scrapedMap.clear()
+      const inverted = invertCategoryMembership(magentoByCategory)
+      for (const [ph, set] of inverted) {
+        scrapedMap.set(ph, set)
+      }
+
+      // Write cache (post-strip)
+      try {
+        const dir = path.dirname(cachePath)
+        fs.mkdirSync(dir, { recursive: true })
+        const byProduct: Record<string, string[]> = {}
+        for (const [ph, set] of scrapedMap) {
+          byProduct[ph] = Array.from(set).sort()
+        }
+        fs.writeFileSync(
+          cachePath,
+          JSON.stringify(
+            {
+              scraped_at: new Date().toISOString(),
+              stripped_global_featured: stripped,
+              by_category: magentoByCategory,
+              by_product: byProduct,
+            },
+            null,
+            2
+          )
+        )
+        logger.info(`  Wrote membership cache → ${cachePath}`)
+      } catch (e: any) {
+        logger.warn(`  Could not write cache: ${e.message}`)
+      }
+    } else {
+      // Cache already filled scrapedMap + magentoByCategory
+    }
+
     logger.info(`Scraped membership for ${scrapedMap.size} product handles.`)
+
+    const pollution = detectMembershipPollution(magentoByCategory)
+    if (pollution) {
+      logger.error(`\n❌ ${pollution}`)
+      if (apply) {
+        logger.error("Aborting APPLY due to pollution. Fix scrape or use dry-run.")
+        return
+      }
+      logger.warn("Continuing dry-run for diagnosis only.")
+    } else {
+      logger.info("  Pollution check: OK")
+    }
   } else {
     logger.info(
       "\n⏭  Skipping Magento scrape (heuristics-only assignment). " +
-        "Set ENABLE_MAGENTO_CATEGORY_SCRAPE=true to opt in."
+        "Set ENABLE_MAGENTO_CATEGORY_SCRAPE=true for Magento-accurate multi-list."
     )
   }
 
-  // 5. Load all products and assign categories (paginated — catalogues can exceed 1000)
-  logger.info("\n🧁 Assigning products to categories (heuristics" +
-    (enableScrape ? " + scrape" : " only") +
-    ")…")
+  // 5. Load all products (with current categories for diff)
+  logger.info(
+    "\n🧁 Planning product → category assignment (" +
+      (enableScrape ? "heuristics + scrape" : "heuristics only") +
+      ")…"
+  )
 
-  const products: Array<{ id: string; title?: string; handle?: string }> = []
+  type ProductRow = {
+    id: string
+    title: string
+    handle: string
+    current: string[]
+    proposed: string[]
+  }
+
+  const productRows: ProductRow[] = []
   {
-    const pageSize = 500
+    const pageSize = 200
     let skip = 0
     for (;;) {
       const batch = await productService.listProducts(
         {},
-        { take: pageSize, skip, select: ["id", "title", "handle"] }
+        {
+          take: pageSize,
+          skip,
+          relations: ["categories"],
+        }
       )
       if (!batch?.length) break
-      products.push(...batch)
+      for (const p of batch) {
+        const handle = (p.handle || "").toLowerCase()
+        const title = p.title || ""
+        if (handle === "cakes" || title.toLowerCase() === "our cakes") continue
+
+        const current = ((p.categories || []) as Array<{ handle?: string }>)
+          .map((c) => c.handle)
+          .filter((h): h is string => Boolean(h))
+          .sort()
+
+        const scraped = enableScrape ? scrapedMap.get(handle) : null
+        const proposed = resolveProductCategoryHandles(
+          title,
+          handle,
+          scraped
+        ).sort()
+
+        productRows.push({
+          id: p.id,
+          title,
+          handle,
+          current,
+          proposed,
+        })
+      }
       if (batch.length < pageSize) break
       skip += pageSize
     }
   }
-  logger.info(`Loaded ${products.length} products.`)
+  logger.info(`Loaded ${productRows.length} products.`)
 
+  // 6. Diff report
+  const allCatHandles = ALL_CATEGORIES.map((c) => c.handle)
+  const countReport = buildCategoryCountReport(
+    allCatHandles,
+    magentoByCategory,
+    productRows.map((p) => ({
+      handle: p.handle,
+      current: p.current,
+      proposed: p.proposed,
+    }))
+  )
+
+  logger.info("\n📊 Per-category counts (current → proposed" +
+    (enableScrape ? ", Magento unique" : "") +
+    "):")
+  logger.info(
+    "  " +
+      "category".padEnd(32) +
+      "current".padStart(8) +
+      "proposed".padStart(10) +
+      "delta".padStart(8) +
+      (enableScrape ? "magento".padStart(9) : "")
+  )
+  for (const row of countReport) {
+    const mag =
+      enableScrape && row.magentoCount != null
+        ? String(row.magentoCount).padStart(9)
+        : enableScrape
+          ? "        -"
+          : ""
+    logger.info(
+      "  " +
+        row.categoryHandle.padEnd(32) +
+        String(row.currentCount).padStart(8) +
+        String(row.proposedCount).padStart(10) +
+        (row.delta >= 0 ? `+${row.delta}` : String(row.delta)).padStart(8) +
+        mag
+    )
+  }
+
+  // Magento coverage for weak categories
+  if (enableScrape) {
+    const medusaHandles = new Set(productRows.map((p) => p.handle))
+    const proposedByProduct = new Map(
+      productRows.map((p) => [p.handle, p.proposed] as const)
+    )
+    const weak = [
+      "click-and-collect",
+      "photo-cake",
+      "double-tall-cakes",
+      "fathers-day-cakes",
+      "mothers-day-cakes",
+      "vaisakhi-cakes",
+      "giant-cookies",
+      "vegan-cakes-dairy-free",
+      "chocolate-bouquets",
+    ]
+    logger.info("\n📈 Magento coverage (handles that exist in Medusa):")
+    for (const ch of weak) {
+      const magHandles = magentoByCategory[ch] || []
+      const { matched, eligible, ratio } = magentoCoverageRatio(
+        magHandles,
+        medusaHandles,
+        proposedByProduct,
+        ch
+      )
+      logger.info(
+        `  ${ch.padEnd(32)} ${matched}/${eligible} (${(ratio * 100).toFixed(1)}%)`
+      )
+    }
+  }
+
+  // Sample adds for key categories
+  const sampleAdds: string[] = []
+  for (const p of productRows) {
+    const { added, removed } = diffCategorySets(p.current, p.proposed)
+    if (added.length || removed.length) {
+      if (sampleAdds.length < 25) {
+        sampleAdds.push(
+          `${p.handle}: +[${added.join(",")}] -[${removed.join(",")}]`
+        )
+      }
+    }
+  }
+  if (sampleAdds.length) {
+    logger.info("\n🔄 Sample membership changes:")
+    for (const s of sampleAdds) logger.info(`  • ${s}`)
+  }
+
+  // Write report file
+  const reportPath =
+    process.env.CATEGORY_ASSIGN_REPORT ||
+    path.join(process.cwd(), "tmp", "category-assign-report.json")
+  try {
+    fs.mkdirSync(path.dirname(reportPath), { recursive: true })
+    fs.writeFileSync(
+      reportPath,
+      JSON.stringify(
+        {
+          generated_at: new Date().toISOString(),
+          mode: dryRun ? "dry-run" : "apply",
+          enable_scrape: enableScrape,
+          product_count: productRows.length,
+          category_counts: countReport,
+          samples: sampleAdds,
+          uncategorised_proposed: productRows
+            .filter((p) => p.proposed.length === 0)
+            .map((p) => p.handle),
+        },
+        null,
+        2
+      )
+    )
+    logger.info(`\n  Report written → ${reportPath}`)
+  } catch (e: any) {
+    logger.warn(`  Could not write report: ${e.message}`)
+  }
+
+  if (dryRun) {
+    logger.info("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    logger.info("  DRY-RUN complete — no product category_ids written.")
+    logger.info("  Re-run with CATEGORY_ASSIGN_MODE=apply to commit.")
+    logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    return
+  }
+
+  // 7. Apply
   let updated = 0
-  let skipped = 0
   let uncategorised = 0
   let multiCat = 0
   const multiCatSamples: string[] = []
 
-  for (const product of products) {
-    const handle = (product.handle || "").toLowerCase()
-    const title = product.title || ""
-
-    // Skip non-cake catalogue junk (e.g. Magento "Our Cakes" landing)
-    if (handle === "cakes" || title.toLowerCase() === "our cakes") {
-      skipped++
-      continue
-    }
-
-    const scraped = enableScrape ? scrapedMap.get(handle) : null
-    const categoryHandles = resolveProductCategoryHandles(
-      title,
-      handle,
-      scraped
-    )
-
-    if (categoryHandles.length > 1) {
+  for (const row of productRows) {
+    if (row.proposed.length > 1) {
       multiCat++
       if (multiCatSamples.length < 15) {
-        multiCatSamples.push(`${handle} → ${categoryHandles.join(",")}`)
+        multiCatSamples.push(`${row.handle} → ${row.proposed.join(",")}`)
       }
     }
 
-    const categoryIds = categoryHandles
+    const categoryIds = row.proposed
       .map((h) => categoryIdByHandle.get(h))
-      .filter((id): id is string => Boolean(id))
+      .filter(
+        (id): id is string => Boolean(id) && !String(id).startsWith("dry-run-")
+      )
 
     if (!categoryIds.length) {
       uncategorised++
-      // Still clear any stale / polluted category links
       try {
-        await productService.updateProducts(product.id, { category_ids: [] })
+        await productService.updateProducts(row.id, { category_ids: [] })
       } catch {
         // ignore
       }
@@ -655,13 +710,13 @@ export default async function seedCakeCategories({ container }: ExecArgs) {
     }
 
     try {
-      await productService.updateProducts(product.id, {
+      await productService.updateProducts(row.id, {
         category_ids: categoryIds,
       })
       updated++
     } catch (err: any) {
       logger.warn(
-        `  failed to update ${handle}: ${err?.message ?? String(err)}`
+        `  failed to update ${row.handle}: ${err?.message ?? String(err)}`
       )
     }
   }
@@ -669,19 +724,14 @@ export default async function seedCakeCategories({ container }: ExecArgs) {
   logger.info("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
   logger.info(`  Categories ready:     ${categoryIdByHandle.size}`)
   logger.info(`  Products updated:     ${updated}`)
-  logger.info(`  Skipped (non-cake):   ${skipped}`)
   logger.info(`  Uncategorised:        ${uncategorised}`)
   logger.info(`  Multi-category (ok):  ${multiCat}`)
   logger.info(
-    `  Mode:                 ${enableScrape ? "heuristics+scrape" : "heuristics-only"}`
+    `  Mode:                 ${enableScrape ? "heuristics+scrape" : "heuristics-only"} / apply`
   )
   if (multiCatSamples.length) {
     logger.info("  Multi-category samples:")
     for (const s of multiCatSamples) logger.info(`    • ${s}`)
   }
-  logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-  logger.info(
-    "  Re-run this script on production after deploy to clear polluted links."
-  )
   logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 }
