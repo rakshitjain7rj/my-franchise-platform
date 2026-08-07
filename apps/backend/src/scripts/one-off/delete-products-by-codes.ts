@@ -5,7 +5,8 @@
  * (e.g. S10 → S10-8AP-CHO, S10-10A-VIC, …). Also matches titles like "(S10) …".
  *
  * Uses deleteProductsWorkflow so franchise / sales-channel / inventory links
- * are cleaned up correctly.
+ * are cleaned up correctly. Clears inventory reservations first — production
+ * often blocks product delete when carts/orders still hold stock reservations.
  *
  * Codes (default — tall cakes requested for removal):
  *   TALL10,TALL11,TALL12,TALL13,TALL14,TALL17,TALL18,TALL20,TALL22,TALL25,
@@ -14,16 +15,22 @@
  *
  * Override via env:
  *   DELETE_PRODUCT_CODES=TALL10,TALL11
+ *   CLEAR_RESERVATIONS=0   # skip reservation cleanup (default: clear)
  *
  * Usage:
  *   npx medusa exec ./src/scripts/one-off/delete-products-by-codes.ts
+ *   # production image has compiled .js — use that path in containers:
+ *   npx medusa exec ./src/scripts/one-off/delete-products-by-codes.js
  *   # docker:
  *   docker compose --env-file .env.docker exec backend \
- *     npx medusa exec ./src/scripts/one-off/delete-products-by-codes.ts
+ *     npx medusa exec ./src/scripts/one-off/delete-products-by-codes.js
  */
 
 import { ExecArgs } from "@medusajs/framework/types"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import {
+  ContainerRegistrationKeys,
+  Modules,
+} from "@medusajs/framework/utils"
 import { deleteProductsWorkflow } from "@medusajs/medusa/core-flows"
 
 const DEFAULT_CODES = [
@@ -186,6 +193,74 @@ export default async function deleteProductsByCodes({ container }: ExecArgs) {
   }
 
   const ids = list.map((m) => m.id)
+
+  // Clear stock reservations on linked inventory items so deleteProductsWorkflow
+  // is not blocked (common when open carts/checkouts reserved those variants).
+  const clearReservations = !["0", "false", "no", "off"].includes(
+    (process.env.CLEAR_RESERVATIONS ?? "1").toLowerCase()
+  )
+  if (clearReservations) {
+    const inventoryService = container.resolve(Modules.INVENTORY) as {
+      listReservationItems: (
+        selector: Record<string, unknown>,
+        config?: Record<string, unknown>
+      ) => Promise<Array<{ id: string; inventory_item_id?: string }>>
+      deleteReservationItems: (ids: string | string[]) => Promise<void>
+    }
+
+    const invItemIds = new Set<string>()
+    // Graph in chunks — filters by id array can be large.
+    const ID_CHUNK = 50
+    for (let i = 0; i < ids.length; i += ID_CHUNK) {
+      const chunk = ids.slice(i, i + ID_CHUNK)
+      const { data: productsWithInv } = await query.graph({
+        entity: "product",
+        fields: [
+          "id",
+          "variants.inventory_items.inventory_item_id",
+        ],
+        filters: { id: chunk },
+      })
+      for (const p of (productsWithInv ?? []) as Array<{
+        variants?: Array<{
+          inventory_items?: Array<{ inventory_item_id?: string | null }> | null
+        }> | null
+      }>) {
+        for (const v of p.variants ?? []) {
+          for (const link of v.inventory_items ?? []) {
+            if (link?.inventory_item_id) invItemIds.add(link.inventory_item_id)
+          }
+        }
+      }
+    }
+
+    if (invItemIds.size) {
+      const invIds = [...invItemIds]
+      const reservationIds: string[] = []
+      // listReservationItems may not accept huge IN lists; chunk.
+      for (let i = 0; i < invIds.length; i += ID_CHUNK) {
+        const chunk = invIds.slice(i, i + ID_CHUNK)
+        const rows = await inventoryService.listReservationItems(
+          { inventory_item_id: chunk },
+          { take: 10_000 }
+        )
+        for (const r of rows) {
+          if (r.id) reservationIds.push(r.id)
+        }
+      }
+      if (reservationIds.length) {
+        logger.info(
+          `Clearing ${reservationIds.length} inventory reservation(s) on ${invItemIds.size} inventory item(s)…`
+        )
+        await inventoryService.deleteReservationItems(reservationIds)
+      } else {
+        logger.info(
+          `No inventory reservations on ${invItemIds.size} inventory item(s).`
+        )
+      }
+    }
+  }
+
   await deleteProductsWorkflow(container).run({
     input: { ids },
   })
